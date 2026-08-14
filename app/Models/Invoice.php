@@ -1,0 +1,148 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+
+class Invoice extends Model
+{
+    use HasFactory;
+
+    public const STATUS_PENDING    = 'pending';
+    public const STATUS_IN_TRANSIT = 'in_transit';
+    public const STATUS_DELIVERED  = 'delivered';
+    public const STATUS_RETURNED   = 'returned';
+    public const STATUS_CANCELLED  = 'cancelled';
+
+    public const STATUSES = [
+        self::STATUS_PENDING    => 'Pendiente',
+        self::STATUS_IN_TRANSIT => 'En camino',
+        self::STATUS_DELIVERED  => 'Entregada',
+        self::STATUS_RETURNED   => 'Devuelta',
+        self::STATUS_CANCELLED  => 'Anulada',
+    ];
+
+    public const STATUS_COLORS = [
+        self::STATUS_PENDING    => 'yellow',
+        self::STATUS_IN_TRANSIT => 'blue',
+        self::STATUS_DELIVERED  => 'green',
+        self::STATUS_RETURNED   => 'red',
+        self::STATUS_CANCELLED  => 'gray',
+    ];
+
+    /** Clases Tailwind completas (evita purgar clases generadas dinámicamente). */
+    public const STATUS_BADGE_CLASSES = [
+        self::STATUS_PENDING    => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200',
+        self::STATUS_IN_TRANSIT => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
+        self::STATUS_DELIVERED  => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
+        self::STATUS_RETURNED   => 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
+        self::STATUS_CANCELLED  => 'bg-gray-100 text-gray-800 dark:bg-gray-700/60 dark:text-gray-300',
+    ];
+
+    protected $fillable = [
+        'code',
+        'status',
+        'pickup_branch_id',
+        'delivery_branch_id',
+        'sender_name',
+        'sender_phone',
+        'sender_identification',
+        'recipient_name',
+        'recipient_phone',
+        'recipient_identification_type',
+        'recipient_identification',
+        'recipient_email',
+        'subtotal',
+        'discount_amount',
+        'tax_total',
+        'total',
+        'notes',
+        'created_by',
+        'assigned_to',
+        'delivered_at',
+        'returned_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'subtotal' => 'decimal:5',
+            'discount_amount' => 'decimal:5',
+            'tax_total' => 'decimal:5',
+            'total' => 'decimal:5',
+            'delivered_at' => 'datetime',
+            'returned_at' => 'datetime',
+        ];
+    }
+
+    public function pickupBranch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class, 'pickup_branch_id');
+    }
+
+    public function deliveryBranch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class, 'delivery_branch_id');
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function assignedTo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function activityLogs(): HasMany
+    {
+        return $this->hasMany(ActivityLog::class)->latest();
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(InvoiceItem::class);
+    }
+
+    public function taxes(): HasMany
+    {
+        return $this->hasMany(InvoiceTax::class);
+    }
+
+    /** Comprobante electrónico vigente (el de mayor id). */
+    public function electronicInvoice(): HasOne
+    {
+        return $this->hasOne(ElectronicInvoice::class)->latestOfMany();
+    }
+
+    public function electronicInvoices(): HasMany
+    {
+        return $this->hasMany(ElectronicInvoice::class);
+    }
+
+    public function statusLabel(): string
+    {
+        return self::STATUSES[$this->status] ?? $this->status;
+    }
+
+    public function statusColor(): string
+    {
+        return self::STATUS_COLORS[$this->status] ?? 'gray';
+    }
+
+    public function statusBadgeClasses(): string
+    {
+        return self::STATUS_BADGE_CLASSES[$this->status] ?? self::STATUS_BADGE_CLASSES[self::STATUS_CANCELLED];
+    }
+
+    /** ¿Tiene datos suficientes del receptor para ser Factura (con cédula) en vez de Tiquete? */
+    public function receptorIdentificado(): bool
+    {
+        return filled($this->recipient_identification);
+    }
+}

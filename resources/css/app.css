@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+[x-cloak] { display: none !important; }
+
+@layer components {
+    .nav-link {
+        @apply flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition;
+    }
+    .nav-link-active {
+        @apply bg-brand-50 dark:bg-brand-900/40 text-brand-700 dark:text-brand-200 font-semibold;
+    }
+    .btn {
+        @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-base transition disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+    .btn-primary {
+        @apply btn bg-brand-600 hover:bg-brand-700 text-white;
+    }
+    .btn-secondary {
+        @apply btn bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100;
+    }
+    .btn-danger {
+        @apply btn bg-red-600 hover:bg-red-700 text-white;
+    }
+    .btn-success {
+        @apply btn bg-green-600 hover:bg-green-700 text-white;
+    }
+    .card {
+        @apply bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6;
+    }
+    .input {
+        @apply w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-base py-2.5 px-3 focus:ring-2 focus:ring-brand-500 focus:border-brand-500;
+    }
+    .label {
+        @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1;
+    }
+    .badge {
+        @apply inline-flex items-center px-2.5 py-1 rounded-full text-sm font-semibold;
+    }
+    /* Tabla en escritorio, tarjetas apiladas en móvil (evita texto apelotado) */
+    .mobile-cards > div + div {
+        @apply mt-3;
+    }
+    .data-table-wrap {
+        @apply hidden md:block overflow-x-auto -mx-4 sm:mx-0;
+    }
+    .scroll-hint {
+        @apply md:hidden text-xs text-gray-400 dark:text-gray-500 mb-2 flex items-center gap-1;
+    }
+}
+
+.loading-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    z-index: 60;
+    background: linear-gradient(90deg, theme('colors.brand.400'), theme('colors.brand.700'), theme('colors.brand.400'));
+    background-size: 200% 100%;
+    animation: loading-bar-slide 1s linear infinite;
+}
+
+@keyframes loading-bar-slide {
+    0% { background-position: 0% 0; }
+    100% { background-position: -200% 0; }
+}

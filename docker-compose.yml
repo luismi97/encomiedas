@@ -1,0 +1,66 @@
+services:
+  app:
+    build: .
+    container_name: encomienda_app
+    ports:
+      - "8090:80"
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+
+  # Procesa trabajos en segundo plano (envio a Hacienda, correos). Debe
+  # permanecer arriba: si se cae, las facturas seleccionadas no se transmiten.
+  queue:
+    build: .
+    container_name: encomienda_queue
+    command: php artisan queue:work --sleep=3 --tries=3 --backoff=10 --max-time=3600 --timeout=120
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+    restart: unless-stopped
+
+  scheduler:
+    build: .
+    container_name: encomienda_scheduler
+    # Corre el scheduler de Laravel (hacienda:poll cada minuto) sin cron del SO.
+    command: >
+      sh -c "while true; do php artisan schedule:run --no-interaction; sleep 60; done"
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    container_name: encomienda_db
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: encomienda_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3309:3306"
+    volumes:
+      - encomienda_db_data:/var/lib/mysql
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: encomienda_phpmyadmin
+    ports:
+      - "8092:80"
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: root
+
+volumes:
+  encomienda_db_data:
