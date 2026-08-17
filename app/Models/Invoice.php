@@ -21,18 +21,62 @@ class Invoice extends Model
         self::BILL_INVOICE => 'Factura electrónica',
     ];
 
-    public const STATUS_PENDING    = 'pending';
-    public const STATUS_IN_TRANSIT = 'in_transit';
-    public const STATUS_DELIVERED  = 'delivered';
-    public const STATUS_RETURNED   = 'returned';
-    public const STATUS_CANCELLED  = 'cancelled';
+    /*
+     | Ciclo de vida de la guía.
+     |
+     | Los cinco valores originales se conservan tal cual (pending, in_transit,
+     | delivered, returned, cancelled) aunque su etiqueta haya cambiado: sobre
+     | 'delivered' cuelga el disparador de la facturación electrónica, y
+     | renombrar el valor habría roto ese flujo sin que nada avisara.
+     */
+    public const STATUS_PENDING        = 'pending';         // Recibido en sede origen
+    public const STATUS_READY          = 'ready';           // Listo para envío
+    public const STATUS_DISPATCHED     = 'dispatched';      // Salió en un cierre de envío
+    public const STATUS_IN_TRANSIT     = 'in_transit';      // En camino
+    public const STATUS_AT_DESTINATION = 'at_destination';  // Llegó a la sede destino
+    public const STATUS_DELIVERED      = 'delivered';       // Entregado al destinatario
+    public const STATUS_NEAR_DISPOSAL  = 'near_disposal';   // Próximo a desecho
+    public const STATUS_DISPOSED       = 'disposed';        // Desechado
+    public const STATUS_RETURNED       = 'returned';        // Devuelto al remitente
+    public const STATUS_CANCELLED      = 'cancelled';       // Anulado
 
     public const STATUSES = [
-        self::STATUS_PENDING    => 'Pendiente',
-        self::STATUS_IN_TRANSIT => 'En camino',
-        self::STATUS_DELIVERED  => 'Entregada',
-        self::STATUS_RETURNED   => 'Devuelta',
-        self::STATUS_CANCELLED  => 'Anulada',
+        self::STATUS_PENDING        => 'Recibido',
+        self::STATUS_READY          => 'Listo para envío',
+        self::STATUS_DISPATCHED     => 'Enviado',
+        self::STATUS_IN_TRANSIT     => 'En camino',
+        self::STATUS_AT_DESTINATION => 'Llegó al destino',
+        self::STATUS_DELIVERED      => 'Entregado',
+        self::STATUS_NEAR_DISPOSAL  => 'Próximo a desecho',
+        self::STATUS_DISPOSED       => 'Desechado',
+        self::STATUS_RETURNED       => 'Devuelto',
+        self::STATUS_CANCELLED      => 'Anulado',
+    ];
+
+    /** Estados finales: de aquí no se sale por el flujo normal. */
+    public const FINAL_STATUSES = [
+        self::STATUS_DELIVERED,
+        self::STATUS_DISPOSED,
+        self::STATUS_RETURNED,
+        self::STATUS_CANCELLED,
+    ];
+
+    /**
+     * Transiciones permitidas. Fuera de esta tabla no hay cambio de estado:
+     * evita que un escaneo mal hecho mande una guía entregada de vuelta a
+     * "recibido" y desordene la bitácora.
+     */
+    public const TRANSITIONS = [
+        self::STATUS_PENDING        => [self::STATUS_READY, self::STATUS_CANCELLED],
+        self::STATUS_READY          => [self::STATUS_DISPATCHED, self::STATUS_PENDING, self::STATUS_CANCELLED],
+        self::STATUS_DISPATCHED     => [self::STATUS_IN_TRANSIT, self::STATUS_AT_DESTINATION, self::STATUS_RETURNED],
+        self::STATUS_IN_TRANSIT     => [self::STATUS_AT_DESTINATION, self::STATUS_RETURNED],
+        self::STATUS_AT_DESTINATION => [self::STATUS_DELIVERED, self::STATUS_NEAR_DISPOSAL, self::STATUS_RETURNED],
+        self::STATUS_NEAR_DISPOSAL  => [self::STATUS_DELIVERED, self::STATUS_DISPOSED, self::STATUS_RETURNED],
+        self::STATUS_DELIVERED      => [],
+        self::STATUS_DISPOSED       => [],
+        self::STATUS_RETURNED       => [],
+        self::STATUS_CANCELLED      => [],
     ];
 
     /** Medios de pago; las llaves se traducen al catálogo de Hacienda en Catalogs::paymentMethod(). */
@@ -45,25 +89,44 @@ class Invoice extends Model
     ];
 
     public const STATUS_COLORS = [
-        self::STATUS_PENDING    => 'yellow',
-        self::STATUS_IN_TRANSIT => 'blue',
-        self::STATUS_DELIVERED  => 'green',
-        self::STATUS_RETURNED   => 'red',
-        self::STATUS_CANCELLED  => 'gray',
+        self::STATUS_PENDING        => 'yellow',
+        self::STATUS_READY          => 'yellow',
+        self::STATUS_DISPATCHED     => 'blue',
+        self::STATUS_IN_TRANSIT     => 'blue',
+        self::STATUS_AT_DESTINATION => 'blue',
+        self::STATUS_DELIVERED      => 'green',
+        self::STATUS_NEAR_DISPOSAL  => 'amber',
+        self::STATUS_DISPOSED       => 'gray',
+        self::STATUS_RETURNED       => 'red',
+        self::STATUS_CANCELLED      => 'gray',
     ];
 
     /** Clases Tailwind completas (evita purgar clases generadas dinámicamente). */
     public const STATUS_BADGE_CLASSES = [
-        self::STATUS_PENDING    => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200',
-        self::STATUS_IN_TRANSIT => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
-        self::STATUS_DELIVERED  => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
-        self::STATUS_RETURNED   => 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
-        self::STATUS_CANCELLED  => 'bg-gray-100 text-gray-800 dark:bg-gray-700/60 dark:text-gray-300',
+        self::STATUS_PENDING        => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200',
+        self::STATUS_READY          => 'bg-yellow-100 text-yellow-900 dark:bg-yellow-900/50 dark:text-yellow-100',
+        self::STATUS_DISPATCHED     => 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200',
+        self::STATUS_IN_TRANSIT     => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
+        self::STATUS_AT_DESTINATION => 'bg-cyan-100 text-cyan-900 dark:bg-cyan-900/40 dark:text-cyan-200',
+        self::STATUS_DELIVERED      => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
+        self::STATUS_NEAR_DISPOSAL  => 'bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100',
+        self::STATUS_DISPOSED       => 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+        self::STATUS_RETURNED       => 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
+        self::STATUS_CANCELLED      => 'bg-gray-100 text-gray-800 dark:bg-gray-700/60 dark:text-gray-300',
     ];
 
     protected $fillable = [
         'code',
         'bill_type',
+        'sender_customer_id',
+        'recipient_customer_id',
+        'shipment_type',
+        'declared_value',
+        'arrived_at',
+        'disposal_warned_at',
+        'disposed_at',
+        'received_by_name',
+        'received_by_identification',
         'status',
         'pickup_branch_id',
         'delivery_branch_id',
@@ -96,7 +159,63 @@ class Invoice extends Model
             'total' => 'decimal:5',
             'delivered_at' => 'datetime',
             'returned_at' => 'datetime',
+            'arrived_at' => 'datetime',
+            'disposal_warned_at' => 'datetime',
+            'disposed_at' => 'datetime',
+            'declared_value' => 'decimal:2',
         ];
+    }
+
+    public function senderCustomer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class, 'sender_customer_id');
+    }
+
+    public function recipientCustomer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class, 'recipient_customer_id');
+    }
+
+    /** Líneas de manifiesto donde aparece esta guía. */
+    public function dispatchLines(): HasMany
+    {
+        return $this->hasMany(DispatchGuide::class);
+    }
+
+    /** Bitácora de estados, de la más vieja a la más nueva. */
+    public function statusHistories(): HasMany
+    {
+        return $this->hasMany(GuideStatusHistory::class)->orderBy('happened_at');
+    }
+
+    /** ¿Se puede pasar a este estado desde el actual? */
+    public function puedePasarA(string $estado): bool
+    {
+        return in_array($estado, self::TRANSITIONS[$this->status] ?? [], true);
+    }
+
+    /** Estados a los que se puede mover ahora, con su etiqueta. */
+    public function siguientesEstados(): array
+    {
+        return collect(self::TRANSITIONS[$this->status] ?? [])
+            ->mapWithKeys(fn (string $e) => [$e => self::STATUSES[$e]])
+            ->all();
+    }
+
+    public function estaCerrada(): bool
+    {
+        return in_array($this->status, self::FINAL_STATUSES, true);
+    }
+
+    /** URL que lleva el QR: abre el seguimiento público de esta guía. */
+    public function trackingUrl(): string
+    {
+        return url('/rastreo/' . $this->code);
+    }
+
+    public function shipmentTypeLabel(): string
+    {
+        return Rate::SHIPMENT_TYPES[$this->shipment_type] ?? '—';
     }
 
     public function pickupBranch(): BelongsTo

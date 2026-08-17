@@ -31,7 +31,7 @@ class HaciendaClient
 
         return Http::withToken($this->auth->token($settings))
             ->acceptJson()
-            ->timeout(45)
+            ->timeout(config('hacienda.poll.timeout', 15))
             ->get(rtrim($env['reception_url'], '/') . '/' . $clave);
     }
 }

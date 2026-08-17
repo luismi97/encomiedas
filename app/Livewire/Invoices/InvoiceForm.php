@@ -4,7 +4,12 @@ namespace App\Livewire\Invoices;
 
 use App\Models\Branch;
 use App\Models\Invoice;
+use App\Models\Customer;
+use App\Models\Rate;
 use App\Models\Tax;
+use App\Services\CajaService;
+use App\Services\Tarifario;
+use Illuminate\Validation\Rule;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -15,6 +20,19 @@ class InvoiceForm extends Component
 
     public ?int $pickup_branch_id = null;
     public ?int $delivery_branch_id = null;
+
+    /** Cliente registrado. Al elegirlo se precargan sus datos de contacto. */
+    public ?int $sender_customer_id = null;
+    public ?int $recipient_customer_id = null;
+
+    public string $shipment_type = 'package';
+    public float $declared_value = 0;
+
+    /** Cotización del tarifario para la ruta y el peso actuales. */
+    public array $quote = [];
+
+    /** Aviso cuando se va a cobrar de contado sin caja abierta. */
+    public ?string $cajaAviso = null;
 
     public string $sender_name = '';
     public string $sender_phone = '';
@@ -46,7 +64,7 @@ class InvoiceForm extends Component
     public function mount(?Invoice $invoice = null): void
     {
         $this->items = [
-            ['package_code' => '', 'size' => 'M', 'weight' => '', 'description' => '', 'price' => ''],
+            ['package_code' => '', 'size' => 'M', 'weight' => '', 'length_cm' => '', 'width_cm' => '', 'height_cm' => '', 'description' => '', 'price' => ''],
         ];
 
         if ($invoice && $invoice->exists) {
@@ -65,11 +83,18 @@ class InvoiceForm extends Component
             $this->discount_amount = (float) $invoice->discount_amount;
             $this->payment_method = $invoice->payment_method ?: 'cash';
             $this->wantsInvoice = $invoice->wantsInvoice();
+            $this->sender_customer_id = $invoice->sender_customer_id;
+            $this->recipient_customer_id = $invoice->recipient_customer_id;
+            $this->shipment_type = (string) ($invoice->shipment_type ?: 'package');
+            $this->declared_value = (float) $invoice->declared_value;
             $this->assigned_to = $invoice->assigned_to;
             $this->items = $invoice->items->map(fn ($i) => [
                 'package_code' => $i->package_code,
                 'size' => $i->size,
                 'weight' => $i->weight,
+                'length_cm' => $i->length_cm,
+                'width_cm' => $i->width_cm,
+                'height_cm' => $i->height_cm,
                 'description' => $i->description,
                 'price' => (float) $i->price,
             ])->toArray();
@@ -99,9 +124,98 @@ class InvoiceForm extends Component
         }
     }
 
+    /**
+     * Elegir un cliente registrado copia sus datos a la guía. Se copian y no se
+     * referencian porque la guía es un documento: si el cliente cambia de
+     * teléfono el año que viene, la guía vieja debe seguir diciendo lo que
+     * decía cuando se emitió.
+     */
+    public function updatedSenderCustomerId($value): void
+    {
+        if (! $cliente = Customer::find($value)) {
+            return;
+        }
+
+        $this->sender_name = $cliente->name;
+        $this->sender_phone = (string) $cliente->phone;
+        $this->sender_identification = (string) $cliente->identification;
+
+        if ($cliente->branch_id && ! $this->pickup_branch_id) {
+            $this->pickup_branch_id = $cliente->branch_id;
+        }
+    }
+
+    public function updatedRecipientCustomerId($value): void
+    {
+        if (! $cliente = Customer::find($value)) {
+            return;
+        }
+
+        $this->recipient_name = $cliente->name;
+        $this->recipient_phone = (string) $cliente->phone;
+        $this->recipient_email = (string) $cliente->email;
+
+        // Con cédula del receptor la guía puede salir como Factura Electrónica.
+        if ($cliente->puedeFacturaElectronica()) {
+            $this->recipient_identification = (string) $cliente->identification;
+            $this->recipient_identification_type = (string) $cliente->identification_type;
+            $this->wantsInvoice = true;
+        }
+    }
+
+    /**
+     * Cotiza con el tarifario y propone el precio.
+     *
+     * Propone y no impone: el cajero puede pisarlo, porque hay casos que ninguna
+     * tabla cubre (cliente frecuente, paquete frágil, acuerdo puntual).
+     */
+    public function cotizar(Tarifario $tarifario): void
+    {
+        $origen  = $this->pickup_branch_id ? Branch::find($this->pickup_branch_id) : null;
+        $destino = $this->delivery_branch_id ? Branch::find($this->delivery_branch_id) : null;
+
+        $pesoTotal = 0.0;
+        $precioTotal = 0.0;
+        $sinTarifa = false;
+
+        // Cada paquete cotiza por su cuenta: dos cajas de 3 kg no pagan lo
+        // mismo que una de 6, porque cada una entra en su propio rango.
+        foreach ($this->items as $i => $item) {
+            // Los campos del formulario llegan como texto: sin castear, el
+            // servicio recibe string donde espera ?float.
+            $dimension = fn (string $clave) => blank($item[$clave] ?? null) ? null : (float) $item[$clave];
+
+            $cotizacion = $tarifario->cotizar(
+                $origen,
+                $destino,
+                (float) ($item['weight'] ?? 0),
+                $dimension('length_cm'),
+                $dimension('width_cm'),
+                $dimension('height_cm'),
+                $this->shipment_type ?: null
+            );
+
+            $pesoTotal += $cotizacion['peso_facturable'];
+
+            if ($cotizacion['precio'] === null) {
+                $sinTarifa = true;
+                continue;
+            }
+
+            $precioTotal += $cotizacion['precio'];
+            $this->items[$i]['price'] = $cotizacion['precio'];
+        }
+
+        $this->quote = [
+            'peso_total'   => round($pesoTotal, 2),
+            'precio_total' => round($precioTotal, 2),
+            'sin_tarifa'   => $sinTarifa,
+        ];
+    }
+
     public function addItem(): void
     {
-        $this->items[] = ['package_code' => '', 'size' => 'M', 'weight' => '', 'description' => '', 'price' => ''];
+        $this->items[] = ['package_code' => '', 'size' => 'M', 'weight' => '', 'length_cm' => '', 'width_cm' => '', 'height_cm' => '', 'description' => '', 'price' => ''];
     }
 
     public function removeItem(int $index): void
@@ -135,6 +249,10 @@ class InvoiceForm extends Component
             'sender_name' => 'required|string|max:150',
             'sender_phone' => 'nullable|string|max:30',
             'sender_identification' => 'nullable|string|max:20',
+            'sender_customer_id' => 'nullable|exists:customers,id',
+            'recipient_customer_id' => 'nullable|exists:customers,id',
+            'shipment_type' => ['nullable', Rule::in(array_keys(Rate::SHIPMENT_TYPES))],
+            'declared_value' => 'nullable|numeric|min:0',
             'recipient_name' => 'required|string|max:150',
             'recipient_phone' => 'nullable|string|max:30',
             'recipient_identification' => $this->wantsInvoice
@@ -149,6 +267,9 @@ class InvoiceForm extends Component
             'items.*.package_code' => 'required|string|max:100',
             'items.*.size' => 'nullable|string|max:20',
             'items.*.weight' => 'nullable|numeric|min:0|max:999999.99',
+            'items.*.length_cm' => 'nullable|numeric|min:0|max:999999.99',
+            'items.*.width_cm' => 'nullable|numeric|min:0|max:999999.99',
+            'items.*.height_cm' => 'nullable|numeric|min:0|max:999999.99',
             'items.*.description' => 'nullable|string|max:255',
             'items.*.price' => 'required|numeric|min:0',
         ];
@@ -177,7 +298,7 @@ class InvoiceForm extends Component
     private function normalizeItems(): void
     {
         foreach ($this->items as $i => $item) {
-            foreach (['size', 'weight', 'description'] as $key) {
+            foreach (['size', 'weight', 'length_cm', 'width_cm', 'height_cm', 'description'] as $key) {
                 if (!array_key_exists($key, $item) || $item[$key] === '') {
                     $this->items[$i][$key] = null;
                 }
@@ -202,6 +323,10 @@ class InvoiceForm extends Component
                 'recipient_name' => $data['recipient_name'],
                 'recipient_phone' => $data['recipient_phone'],
                 'bill_type' => $this->wantsInvoice ? Invoice::BILL_INVOICE : Invoice::BILL_TICKET,
+                'sender_customer_id' => $data['sender_customer_id'],
+                'recipient_customer_id' => $data['recipient_customer_id'],
+                'shipment_type' => $data['shipment_type'] ?: null,
+                'declared_value' => $data['declared_value'] ?: 0,
                 'recipient_identification_type' => $this->wantsInvoice ? $this->recipient_identification_type : null,
                 'recipient_identification' => $this->wantsInvoice ? $data['recipient_identification'] : null,
                 'recipient_email' => $data['recipient_email'],
@@ -225,6 +350,9 @@ class InvoiceForm extends Component
                     'package_code' => $item['package_code'],
                     'size' => $item['size'],
                     'weight' => $item['weight'],
+                    'length_cm' => $item['length_cm'],
+                    'width_cm' => $item['width_cm'],
+                    'height_cm' => $item['height_cm'],
                     'description' => $item['description'],
                     'price' => $item['price'],
                 ]);
@@ -242,6 +370,16 @@ class InvoiceForm extends Component
                 ]);
             }
 
+            // El cobro entra al turno abierto. Si no hay caja abierta la guía
+            // igual se guarda —ya se recibió el paquete— pero queda sin
+            // registrar en caja y el formulario lo avisa.
+            $movimiento = app(CajaService::class)->registrarCobro($invoice, auth()->user());
+
+            $this->cajaAviso = $movimiento === null
+                ? 'La guía se guardó, pero NO quedó registrada en caja porque no hay un turno abierto en esta sede. '
+                    . 'Abrí la caja y volvé a guardar para que el cobro entre al arqueo.'
+                : null;
+
             $this->invoice = $invoice;
         });
 
@@ -255,6 +393,7 @@ class InvoiceForm extends Component
             'branches' => Branch::where('is_active', true)->orderBy('name')->get(),
             'taxes' => Tax::where('is_active', true)->orderBy('name')->get(),
             'repartidores' => User::where('role', User::ROLE_REPARTIDOR)->where('is_active', true)->orderBy('name')->get(),
-        ])->layout('layouts.app', ['title' => $this->invoice ? 'Editar factura' : 'Nueva factura']);
+            'clientes' => Customer::active()->orderBy('name')->get(['id', 'name', 'identification']),
+        ])->layout('layouts.app', ['title' => $this->invoice ? 'Editar guía' : 'Nueva guía']);
     }
 }

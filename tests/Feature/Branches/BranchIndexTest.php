@@ -29,7 +29,8 @@ class BranchIndexTest extends TestCase
     private function branch(string $suc = '001', string $term = '00001', string $name = 'Central'): Branch
     {
         return Branch::create([
-            'name' => $name, 'sucursal_code' => $suc, 'terminal_code' => $term, 'is_active' => true,
+            'name' => $name, 'prefix' => strtoupper(substr($name, 0, 2) . $suc[2]),
+            'sucursal_code' => $suc, 'terminal_code' => $term, 'is_active' => true,
         ]);
     }
 
@@ -142,6 +143,7 @@ class BranchIndexTest extends TestCase
             ->test(BranchIndex::class)
             ->call('create')
             ->set('name', 'Heredia')
+            ->set('prefix', 'HER')
             ->set('sucursal_code', '004')
             ->set('terminal_code', '00001')
             ->set('province', '4')

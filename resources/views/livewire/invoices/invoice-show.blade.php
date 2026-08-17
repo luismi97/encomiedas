@@ -17,15 +17,35 @@
         </div>
 
         <div class="mt-4 flex flex-wrap gap-3">
-            @if (!in_array($invoice->status, [\App\Models\Invoice::STATUS_DELIVERED, \App\Models\Invoice::STATUS_CANCELLED]))
-                @if ($invoice->status === \App\Models\Invoice::STATUS_PENDING)
-                    <x-action-button action="updateStatus('in_transit')" variant="primary" loadingText="Actualizando..."><x-icon name="truck" class="w-4 h-4" /> Marcar en camino</x-action-button>
-                @endif
-                @if ($invoice->status === \App\Models\Invoice::STATUS_IN_TRANSIT)
-                    <x-action-button action="updateStatus('delivered')" variant="success" loadingText="Actualizando..."><x-icon name="check" class="w-4 h-4" /> Marcar entregada</x-action-button>
-                    <x-action-button action="updateStatus('returned')" variant="danger" confirm="¿Confirmar devolución de esta encomienda?" loadingText="Actualizando..."><x-icon name="undo" class="w-4 h-4" /> Marcar devuelta</x-action-button>
-                @endif
-            @endif
+            {{-- Los botones salen del propio ciclo de estados: la pantalla ya no
+                 decide qué se puede hacer, lo decide el modelo. --}}
+            @foreach ($invoice->siguientesEstados() as $estado => $etiqueta)
+                @php
+                    $variante = match ($estado) {
+                        \App\Models\Invoice::STATUS_DELIVERED => 'success',
+                        \App\Models\Invoice::STATUS_RETURNED, \App\Models\Invoice::STATUS_CANCELLED, \App\Models\Invoice::STATUS_DISPOSED => 'danger',
+                        default => 'primary',
+                    };
+                    $icono = match ($estado) {
+                        \App\Models\Invoice::STATUS_DELIVERED => 'check',
+                        \App\Models\Invoice::STATUS_RETURNED => 'undo',
+                        \App\Models\Invoice::STATUS_IN_TRANSIT, \App\Models\Invoice::STATUS_DISPATCHED => 'truck',
+                        \App\Models\Invoice::STATUS_AT_DESTINATION => 'inbox',
+                        \App\Models\Invoice::STATUS_CANCELLED, \App\Models\Invoice::STATUS_DISPOSED => 'x',
+                        default => 'check-circle',
+                    };
+                    $confirmar = in_array($estado, [
+                        \App\Models\Invoice::STATUS_RETURNED,
+                        \App\Models\Invoice::STATUS_CANCELLED,
+                        \App\Models\Invoice::STATUS_DISPOSED,
+                    ], true) ? '¿Confirmar el cambio a «' . $etiqueta . '»? Queda en la bitácora.' : null;
+                @endphp
+                <x-action-button action="updateStatus('{{ $estado }}')" :variant="$variante"
+                    :confirm="$confirmar" loadingText="Actualizando...">
+                    <x-icon :name="$icono" class="w-4 h-4" /> {{ $etiqueta }}
+                </x-action-button>
+            @endforeach
+
             <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="download" class="w-4 h-4" /> Descargar factura</a>
         </div>
     </div>
@@ -204,6 +224,30 @@
             @endif
         </div>
     @endif
+
+    <div class="card">
+        <h3 class="font-semibold mb-3 flex items-center gap-2"><x-icon name="truck" class="w-5 h-5 text-gray-400" /> Recorrido de la guía</h3>
+        <ol class="relative border-l border-gray-200 dark:border-gray-700 ml-2 space-y-4">
+            @foreach ($invoice->statusHistories as $paso)
+                <li class="ml-5">
+                    <span class="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full
+                        {{ $loop->last ? 'bg-brand-600' : 'bg-gray-300 dark:bg-gray-600' }}"></span>
+                    <div class="flex flex-wrap items-baseline gap-x-2">
+                        <span class="badge {{ \App\Models\Invoice::STATUS_BADGE_CLASSES[$paso->to_status] ?? '' }}">{{ $paso->toLabel() }}</span>
+                        <span class="text-sm text-gray-500">{{ $paso->happened_at?->format('d/m/Y H:i') }}</span>
+                    </div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        @if ($paso->fromLabel()) Desde «{{ $paso->fromLabel() }}» · @endif
+                        {{ $paso->branch?->name ?? 'Sede no registrada' }} ·
+                        {{ $paso->user?->name ?? $paso->sourceLabel() }}
+                    </div>
+                    @if ($paso->note)
+                        <div class="text-sm text-gray-600 dark:text-gray-300 mt-0.5">{{ $paso->note }}</div>
+                    @endif
+                </li>
+            @endforeach
+        </ol>
+    </div>
 
     @if ($invoice->activityLogs->isNotEmpty())
         <div class="card">

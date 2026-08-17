@@ -55,6 +55,29 @@ class InvoiceExportController extends Controller
     }
 
     /** Descarga la factura de la encomienda con toda la información requerida. */
+    /** Reporte de cierre de caja, con el arqueo y espacio para firmas. */
+    public function cashSessionPdf(\App\Models\CashSession $session, \App\Services\CajaService $caja)
+    {
+        $session->load(['movements.invoice', 'movements.creator', 'counts.denomination', 'opener', 'closer', 'register.branch', 'branch']);
+
+        return Pdf::loadView('pdf.cash-session', [
+            'sesion'   => $session,
+            'porMedio' => $caja->totalesPorMedio($session),
+            'company'  => CompanySetting::instance(),
+        ])->setPaper('letter')->stream("cierre-caja-{$session->id}.pdf");
+    }
+
+    /** Manifiesto imprimible del cierre de envío, con espacio para firmas. */
+    public function dispatchPdf(\App\Models\Dispatch $dispatch)
+    {
+        $dispatch->load(['lines.invoice.items', 'lines.invoice.deliveryBranch', 'originBranch', 'destinationBranch', 'creator', 'guides.items']);
+
+        return Pdf::loadView('pdf.dispatch', [
+            'dispatch' => $dispatch,
+            'company'  => CompanySetting::instance(),
+        ])->setPaper('letter')->stream("{$dispatch->code}.pdf");
+    }
+
     public function downloadInvoice(Request $request, Invoice $invoice)
     {
         $user = $request->user();

@@ -31,7 +31,11 @@ class UiSmokeTest extends TestCase
             'facturas'      => ['invoices.index'],
             'nueva factura' => ['invoices.create'],
             'hacienda'      => ['hacienda.pending'],
+            'clientes'      => ['customers.index'],
             'sucursales'    => ['branches.index'],
+            'tarifario'     => ['rates.index'],
+            'cierres'       => ['dispatches.index'],
+            'caja'          => ['caja.index'],
             'impuestos'     => ['taxes.index'],
             'usuarios'      => ['users.index'],
             'actividad'     => ['activity-logs.index'],
@@ -103,6 +107,29 @@ class UiSmokeTest extends TestCase
             $this->assertDoesNotMatchRegularExpression('/(?<!-)\bborder-gray-\d+/', $classes,
                 "El login declara un color de borde suelto, sin ancho: {$classes}");
         }
+    }
+
+    /**
+     * El menú creció a más de una docena de opciones. Sin scroll propio, las
+     * últimas quedan fuera de la pantalla y no se pueden hacer clic.
+     */
+    public function test_el_menu_lateral_puede_desplazarse(): void
+    {
+        $html = $this->actingAs($this->admin())->get(route('dashboard'))->getContent();
+
+        preg_match('/<nav[^>]*\sclass="([^"]*)"/', $html, $nav);
+        $clases = $nav[1] ?? '';
+
+        $this->assertStringContainsString('overflow-y-auto', $clases,
+            'El menú lateral no tiene scroll: con muchas opciones las últimas quedan inalcanzables.');
+        $this->assertStringContainsString('flex-1', $clases,
+            'El menú debe llevarse el alto restante del sidebar.');
+
+        // \sclass y no class a secas: [^>]* es codicioso y llegaría hasta el
+        // :class de Alpine, que también contiene la subcadena «class="».
+        preg_match('/<aside[^>]*\sclass="([^"]*)"/', $html, $aside);
+        $this->assertStringContainsString('flex-col', $aside[1] ?? '',
+            'El sidebar debe ser columna flex para que el menú pueda crecer y desplazarse.');
     }
 
     public function test_no_quedan_emojis_en_la_interfaz(): void

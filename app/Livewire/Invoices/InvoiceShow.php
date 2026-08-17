@@ -4,6 +4,8 @@ namespace App\Livewire\Invoices;
 
 use App\Models\ActivityLog;
 use App\Models\Invoice;
+use App\Services\GuideStatusService;
+use RuntimeException;
 use App\Services\Hacienda\ElectronicBillingService;
 use Livewire\Component;
 
@@ -24,31 +26,44 @@ class InvoiceShow extends Component
             abort(403, 'Esta encomienda no está asignada a usted.');
         }
 
-        $this->invoice = $invoice->load(['items', 'taxes', 'pickupBranch', 'deliveryBranch', 'creator', 'assignedTo', 'electronicInvoice', 'electronicNotes', 'activityLogs.user']);
+        $this->invoice = $invoice->load([
+            'items', 'taxes', 'pickupBranch', 'deliveryBranch', 'creator', 'assignedTo',
+            'electronicInvoice', 'electronicNotes', 'activityLogs.user',
+            'senderCustomer', 'recipientCustomer',
+            'statusHistories.user', 'statusHistories.branch',
+        ]);
     }
 
-    public function updateStatus(string $status): void
+    /**
+     * Todo cambio pasa por GuideStatusService: es quien valida la transición,
+     * sella las fechas y deja la bitácora. Antes se asignaba el estado a mano y
+     * cada pantalla tenía que acordarse de las tres cosas.
+     */
+    public function updateStatus(string $status, GuideStatusService $estados): void
     {
         $user = auth()->user();
-        $oldStatus = $this->invoice->status;
+        $anterior = $this->invoice->status;
 
-        $this->invoice->status = $status;
-        if ($status === Invoice::STATUS_DELIVERED) {
-            $this->invoice->delivered_at = now();
-        } elseif ($status === Invoice::STATUS_RETURNED) {
-            $this->invoice->returned_at = now();
+        try {
+            $this->invoice = $estados->cambiar($this->invoice, $status, $user);
+        } catch (RuntimeException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
         }
-        $this->invoice->save();
 
         ActivityLog::record(
             'status_changed',
-            "{$user->name} cambió el estado de {$this->invoice->code} de \"" . Invoice::STATUSES[$oldStatus] . '" a "' . $this->invoice->statusLabel() . '".',
+            "{$user->name} cambió el estado de {$this->invoice->code} de \"" . Invoice::STATUSES[$anterior] . '" a "' . $this->invoice->statusLabel() . '".',
             $this->invoice,
-            $oldStatus,
+            $anterior,
             $status,
         );
 
-        $this->invoice->refresh()->load(['electronicInvoice', 'electronicNotes', 'activityLogs.user']);
+        $this->invoice->load([
+            'electronicInvoice', 'electronicNotes', 'activityLogs.user',
+            'statusHistories.user', 'statusHistories.branch',
+        ]);
 
         session()->flash('success', 'Estado actualizado a "' . $this->invoice->statusLabel() . '".');
     }

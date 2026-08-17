@@ -17,6 +17,7 @@ class BranchIndex extends Component
     public ?int $editingId = null;
 
     public string $name = '';
+    public string $prefix = '';
     public string $sucursal_code = '001';
     public string $terminal_code = '00001';
     public string $address = '';
@@ -41,6 +42,12 @@ class BranchIndex extends Component
     {
         return [
             'name' => 'required|string|max:150',
+            // Va en el código guía que ve el cliente (SJ-LIM-00005), así que
+            // tiene que ser corto, en letras y único entre sedes.
+            'prefix' => [
+                'required', 'string', 'regex:/^[A-Za-z]{2,4}$/',
+                Rule::unique('branches', 'prefix')->ignore($this->editingId),
+            ],
             'sucursal_code' => [
                 'required', 'string', 'regex:/^\d{3}$/',
                 Rule::unique('branches', 'sucursal_code')
@@ -60,6 +67,9 @@ class BranchIndex extends Component
     {
         return [
             'name.required' => 'El nombre de la sucursal es obligatorio.',
+            'prefix.required' => 'El prefijo es obligatorio: es lo que identifica la sede en el código guía.',
+            'prefix.regex' => 'El prefijo son de 2 a 4 letras, sin números ni espacios (ej. SJ, LIM, HER).',
+            'prefix.unique' => 'Otra sucursal ya usa ese prefijo: los códigos guía se confundirían.',
             'sucursal_code.required' => 'El código de sucursal es obligatorio.',
             'sucursal_code.regex' => 'El código de sucursal debe tener exactamente 3 dígitos (ej. 001).',
             'sucursal_code.unique' => 'Ya existe otra sucursal con esa combinación de código de sucursal y terminal.',
@@ -103,6 +113,7 @@ class BranchIndex extends Component
         $this->resetErrorBag();
         $this->editingId = $branch->id;
         $this->name = $branch->name;
+        $this->prefix = (string) $branch->prefix;
         $this->sucursal_code = $branch->sucursal_code;
         $this->terminal_code = $branch->terminal_code;
         $this->address = (string) $branch->address;
@@ -159,6 +170,7 @@ class BranchIndex extends Component
         }
 
         $data = $this->validate();
+        $data['prefix'] = strtoupper($data['prefix']);
 
         try {
             Branch::updateOrCreate(
@@ -271,7 +283,7 @@ class BranchIndex extends Component
 
     private function resetForm(): void
     {
-        $this->reset(['editingId', 'name', 'address', 'province', 'canton', 'district', 'phone']);
+        $this->reset(['editingId', 'name', 'prefix', 'address', 'province', 'canton', 'district', 'phone']);
         $this->sucursal_code = '001';
         $this->terminal_code = '00001';
         $this->is_active = true;

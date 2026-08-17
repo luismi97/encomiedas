@@ -10,3 +10,7 @@ Artisan::command('inspire', function () {
 
 // Revisa cada minuto el estado de los comprobantes ya enviados a Hacienda.
 Schedule::command('hacienda:poll')->everyMinute()->withoutOverlapping();
+
+// Guías sin retirar: avisa y, si está habilitado, desecha. Una vez al día basta
+// —el plazo se mide en días— y de madrugada no compite con la operación.
+Schedule::command('guias:desecho')->dailyAt('02:30')->withoutOverlapping();

@@ -36,10 +36,17 @@
             @enderror
 
             <form wire:submit="save" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="sm:col-span-2">
+                <div>
                     <label class="label">Nombre</label>
                     <input type="text" wire:model="name" class="input @error('name') input-error @enderror">
                     @error('name') <p class="error-text">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="label">Prefijo del código guía</label>
+                    <input type="text" wire:model="prefix" maxlength="4" placeholder="SJ"
+                           class="input uppercase @error('prefix') input-error @enderror">
+                    @error('prefix') <p class="error-text">{{ $message }}</p> @enderror
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Aparece en el código: <span class="font-mono">SJ-LIM-00005</span></p>
                 </div>
                 <div>
                     <label class="label">Código de sucursal (Hacienda)</label>
@@ -96,7 +103,8 @@
                 <thead>
                     <tr class="text-sm text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                         <th class="py-2">Nombre</th>
-                        <th class="py-2">Código</th>
+                        <th class="py-2">Prefijo</th>
+                        <th class="py-2">Código Hacienda</th>
                         <th class="py-2">Dirección</th>
                         <th class="py-2">Estado</th>
                         <th class="py-2 text-right">Acciones</th>
@@ -106,6 +114,7 @@
                     @forelse ($branches as $branch)
                         <tr class="border-b border-gray-100 dark:border-gray-700/50">
                             <td class="py-3 font-medium">{{ $branch->name }}</td>
+                            <td class="py-3"><span class="badge bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200 font-mono">{{ $branch->prefixLabel() }}</span></td>
                             <td class="py-3 text-sm">{{ $branch->sucursal_code }}/{{ $branch->terminal_code }}</td>
                             <td class="py-3 text-sm">{{ $branch->address }}</td>
                             <td class="py-3">
@@ -120,7 +129,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="py-6 text-center text-gray-500">No hay sucursales registradas.</td></tr>
+                        <tr><td colspan="6" class="py-6 text-center text-gray-500">No hay sucursales registradas.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -138,7 +147,8 @@
                         </x-action-button>
                     </div>
                     <div class="mt-2 space-y-1 text-sm">
-                        <div class="flex justify-between gap-3"><span class="text-gray-500">Código</span><span>{{ $branch->sucursal_code }}/{{ $branch->terminal_code }}</span></div>
+                        <div class="flex justify-between gap-3"><span class="text-gray-500">Prefijo</span><span class="font-mono">{{ $branch->prefixLabel() }}</span></div>
+                        <div class="flex justify-between gap-3"><span class="text-gray-500">Código Hacienda</span><span>{{ $branch->sucursal_code }}/{{ $branch->terminal_code }}</span></div>
                         <div class="flex justify-between gap-3"><span class="text-gray-500">Dirección</span><span class="text-right">{{ $branch->address ?: '—' }}</span></div>
                     </div>
                     <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex gap-4">

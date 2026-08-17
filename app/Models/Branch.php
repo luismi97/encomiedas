@@ -13,6 +13,7 @@ class Branch extends Model
 
     protected $fillable = [
         'name',
+        'prefix',
         'sucursal_code',
         'terminal_code',
         'address',
@@ -72,6 +73,17 @@ class Branch extends Model
     public function hasHaciendaHistory(): bool
     {
         return $this->sequences()->where('last_number', '>', 0)->exists();
+    }
+
+    public function customers(): HasMany
+    {
+        return $this->hasMany(Customer::class);
+    }
+
+    /** Prefijo del código guía (SJ-LIM-00005), en mayúsculas. */
+    public function prefixLabel(): string
+    {
+        return strtoupper((string) $this->prefix);
     }
 
     public function codeLabel(): string

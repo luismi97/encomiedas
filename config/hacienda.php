@@ -102,6 +102,17 @@ return [
         'user_agent' => 'EncomiendasCR/1.0 (facturacion electronica)',
     ],
 
+    /*
+     | Consulta de estado (hacienda:poll). Corre cada minuto, asi que necesita
+     | techo: sin el, una acumulacion de comprobantes atascados deja un proceso
+     | PHP ocupado de forma permanente.
+     */
+    'poll' => [
+        'batch_size'  => 25, // comprobantes por corrida
+        'max_seconds' => 45, // presupuesto de tiempo por corrida
+        'timeout'     => 15, // segundos por consulta HTTP
+    ],
+
     'disk' => 'hacienda',
 
     'token_ttl' => 240,

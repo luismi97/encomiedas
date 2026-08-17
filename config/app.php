@@ -43,6 +43,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Token de mantenimiento
+    |--------------------------------------------------------------------------
+    |
+    | Habilita /__deploy/* para correr migraciones y limpiar cachés por HTTP en
+    | hostings sin SSH cómodo. Vacío = el endpoint responde 404 y no existe.
+    | Debe ser una cadena larga y aleatoria: `php artisan deploy:token`.
+    |
+    */
+    'deploy_token' => env('DEPLOY_TOKEN'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |

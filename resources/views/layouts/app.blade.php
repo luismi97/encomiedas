@@ -19,17 +19,22 @@
          class="fixed inset-0 bg-black/40 z-30 lg:hidden"></div>
 
     <!-- Sidebar -->
+    {{-- Columna flex: la marca queda fija arriba y el menú se lleva el alto
+         restante. Sin esto, al pasar de una docena de opciones las últimas
+         caen fuera de la pantalla y no hay forma de alcanzarlas. --}}
     <aside
-        class="fixed inset-y-0 left-0 z-40 w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform lg:translate-x-0"
+        class="fixed inset-y-0 left-0 z-40 w-72 flex flex-col bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform lg:translate-x-0"
         :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
-        <div class="h-16 flex items-center gap-2 px-5 border-b border-gray-200 dark:border-gray-700">
+        <div class="h-16 shrink-0 flex items-center gap-2 px-5 border-b border-gray-200 dark:border-gray-700">
             <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">
                 <x-icon name="box" class="w-5 h-5" />
             </span>
             <span class="font-bold text-lg">{{ config('app.name') }}</span>
         </div>
 
-        <nav class="p-3 space-y-1">
+        {{-- overscroll-contain evita que al llegar al final del menú el gesto
+             siga desplazando la página de atrás. --}}
+        <nav class="flex-1 overflow-y-auto overscroll-contain p-3 space-y-1">
             <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'nav-link-active' : '' }}">
                 <x-icon name="home" /> <span>Inicio</span>
             </a>
@@ -38,14 +43,26 @@
             </a>
 
             @if (auth()->user()->isAdmin())
+                <a href="{{ route('caja.index') }}" class="nav-link {{ request()->routeIs('caja.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="banknotes" /> <span>Caja</span>
+                </a>
+                <a href="{{ route('dispatches.index') }}" class="nav-link {{ request()->routeIs('dispatches.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="truck" /> <span>Cierres de envío</span>
+                </a>
                 <a href="{{ route('hacienda.pending') }}" class="nav-link {{ request()->routeIs('hacienda.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="receipt" /> <span>Pendientes de envío a Hacienda</span>
+                </a>
+                <a href="{{ route('customers.index') }}" class="nav-link {{ request()->routeIs('customers.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="users" /> <span>Clientes</span>
                 </a>
                 <a href="{{ route('branches.index') }}" class="nav-link {{ request()->routeIs('branches.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="building" /> <span>Sucursales</span>
                 </a>
+                <a href="{{ route('rates.index') }}" class="nav-link {{ request()->routeIs('rates.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="banknotes" /> <span>Tarifario</span>
+                </a>
                 <a href="{{ route('taxes.index') }}" class="nav-link {{ request()->routeIs('taxes.*') ? 'nav-link-active' : '' }}">
-                    <x-icon name="banknotes" /> <span>Impuestos</span>
+                    <x-icon name="receipt" /> <span>Impuestos</span>
                 </a>
                 <a href="{{ route('users.index') }}" class="nav-link {{ request()->routeIs('users.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="users" /> <span>Usuarios</span>

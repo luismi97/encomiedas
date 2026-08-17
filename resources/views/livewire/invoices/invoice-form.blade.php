@@ -1,4 +1,11 @@
 <div class="max-w-4xl space-y-6">
+    @if ($cajaAviso)
+        <div class="flex items-start gap-3 p-4 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">
+            <x-icon name="warning" class="w-5 h-5 mt-0.5" />
+            <span>{{ $cajaAviso }}</span>
+        </div>
+    @endif
+
     <x-flash />
 
     <form wire:submit="save" class="space-y-6">
@@ -38,7 +45,18 @@
         </div>
 
         <div class="card space-y-4">
-            <h2 class="text-lg font-semibold">Remitente</h2>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-lg font-semibold">Remitente</h2>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm text-gray-500 dark:text-gray-400">Cliente registrado</label>
+                    <select wire:model.live="sender_customer_id" class="input !py-1.5 text-sm min-w-[220px]">
+                        <option value="">— De mostrador —</option>
+                        @foreach ($clientes as $cliente)
+                            <option value="{{ $cliente->id }}">{{ $cliente->displayName() }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div><label class="label">Nombre</label><input type="text" wire:model="sender_name" class="input"></div>
                 <div><label class="label">Teléfono</label><input type="text" wire:model="sender_phone" class="input"></div>
@@ -48,7 +66,18 @@
         </div>
 
         <div class="card space-y-4">
-            <h2 class="text-lg font-semibold">Receptor</h2>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-lg font-semibold">Receptor</h2>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm text-gray-500 dark:text-gray-400">Cliente registrado</label>
+                    <select wire:model.live="recipient_customer_id" class="input !py-1.5 text-sm min-w-[220px]">
+                        <option value="">— De mostrador —</option>
+                        @foreach ($clientes as $cliente)
+                            <option value="{{ $cliente->id }}">{{ $cliente->displayName() }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div><label class="label">Nombre</label><input type="text" wire:model="recipient_name" class="input @error('recipient_name') input-error @enderror"></div>
                 <div><label class="label">Teléfono</label><input type="text" wire:model="recipient_phone" class="input"></div>
@@ -94,14 +123,35 @@
         </div>
 
         <div class="card space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <div>
+                    <label class="label">Tipo de envío</label>
+                    <select wire:model="shipment_type" class="input">
+                        @foreach (\App\Models\Rate::SHIPMENT_TYPES as $valor => $etiqueta)
+                            <option value="{{ $valor }}">{{ $etiqueta }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="label">Valor declarado (₡)</label>
+                    <input type="number" step="0.01" wire:model="declared_value" class="input">
+                    <p class="text-xs text-gray-500 mt-1">Para efectos de seguro; no entra en el cobro.</p>
+                </div>
+            </div>
+
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Paquetes</h2>
-                <button type="button" wire:click="addItem" class="btn-secondary !py-2 !px-3 text-sm"><x-icon name="plus" class="w-4 h-4" /> Agregar paquete</button>
+                <div class="flex flex-wrap gap-2">
+                    <x-action-button action="cotizar" variant="secondary" loadingText="Cotizando..." class="!py-2 !px-3 text-sm">
+                        <x-icon name="banknotes" class="w-4 h-4" /> Calcular con el tarifario
+                    </x-action-button>
+                    <button type="button" wire:click="addItem" class="btn-secondary !py-2 !px-3 text-sm"><x-icon name="plus" class="w-4 h-4" /> Agregar paquete</button>
+                </div>
             </div>
 
             <div class="space-y-3">
                 @foreach ($items as $index => $item)
-                    <div class="grid grid-cols-2 sm:grid-cols-6 gap-3 items-end border-b border-gray-100 dark:border-gray-700 pb-3">
+                    <div class="grid grid-cols-2 sm:grid-cols-7 gap-3 items-end border-b border-gray-100 dark:border-gray-700 pb-3">
                         <div class="col-span-2 sm:col-span-1">
                             <label class="label">Código de paquete</label>
                             <input type="text" wire:model="items.{{ $index }}.package_code" class="input @error('items.'.$index.'.package_code') input-error @enderror">
@@ -123,6 +173,14 @@
                             @error('items.'.$index.'.weight') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
                         <div class="col-span-2 sm:col-span-1">
+                            <label class="label">L × A × H (cm)</label>
+                            <div class="flex gap-1">
+                                <input type="number" step="0.1" wire:model="items.{{ $index }}.length_cm" placeholder="L" class="input !px-2">
+                                <input type="number" step="0.1" wire:model="items.{{ $index }}.width_cm" placeholder="A" class="input !px-2">
+                                <input type="number" step="0.1" wire:model="items.{{ $index }}.height_cm" placeholder="H" class="input !px-2">
+                            </div>
+                        </div>
+                        <div class="col-span-2 sm:col-span-1">
                             <label class="label">Descripción</label>
                             <input type="text" wire:model="items.{{ $index }}.description" class="input @error('items.'.$index.'.description') input-error @enderror">
                             @error('items.'.$index.'.description') <p class="error-text">{{ $message }}</p> @enderror
@@ -141,6 +199,24 @@
                 @endforeach
             </div>
             @error('items') <p class="error-text">{{ $message }}</p> @enderror
+
+            @if ($quote)
+                <div class="rounded-lg border {{ $quote['sin_tarifa']
+                    ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30'
+                    : 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/30' }} p-3 text-sm">
+                    Peso facturable total: <strong>{{ $quote['peso_total'] }} kg</strong> ·
+                    Precio sugerido: <strong>₡{{ number_format($quote['precio_total'], 2) }}</strong>
+                    @if ($quote['sin_tarifa'])
+                        <div class="mt-1 text-amber-800 dark:text-amber-200">
+                            Algún paquete no tiene tarifa para esta ruta y peso: revisá su precio a mano.
+                        </div>
+                    @else
+                        <div class="mt-1 text-gray-600 dark:text-gray-300">
+                            Es una sugerencia: podés ajustar cualquier precio antes de guardar.
+                        </div>
+                    @endif
+                </div>
+            @endif
         </div>
 
         <div class="card space-y-4">
