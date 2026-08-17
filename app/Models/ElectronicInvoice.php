@@ -50,6 +50,8 @@ class ElectronicInvoice extends Model
         'response_xml_path',
         'pdf_path',
         'error_message',
+        'rejection_details',
+        'rejected_at',
         'send_attempts',
         'last_attempt_at',
         'accepted_at',
@@ -62,9 +64,59 @@ class ElectronicInvoice extends Model
             'emisor_data' => 'array',
             'note_lines' => 'array',
             'receptor_data' => 'array',
+            'rejection_details' => 'array',
+            'rejected_at' => 'datetime',
             'last_attempt_at' => 'datetime',
             'accepted_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Errores del rechazo, ya normalizados a
+     * ['code' => ?string, 'description' => ?string, 'message' => string].
+     *
+     * @return array<int,array{code:?string,description:?string,message:string}>
+     */
+    public function rejectionErrors(): array
+    {
+        $details = $this->rejection_details;
+
+        if (!is_array($details) || empty($details['errors'])) {
+            return [];
+        }
+
+        return collect($details['errors'])
+            ->map(fn ($e) => [
+                'code'        => $e['code'] ?? null,
+                'description' => $e['description'] ?? null,
+                'message'     => trim((string) ($e['message'] ?? '')),
+            ])
+            ->filter(fn ($e) => $e['message'] !== '' || $e['description'] !== null)
+            ->values()
+            ->all();
+    }
+
+    public function wasRejected(): bool
+    {
+        return $this->status === self::STATUS_REJECTED;
+    }
+
+    /** Resumen de una linea para listados, sin perder el codigo de Hacienda. */
+    public function rejectionSummary(): ?string
+    {
+        $errors = $this->rejectionErrors();
+
+        if ($errors === []) {
+            return $this->error_message ?: null;
+        }
+
+        $first = $errors[0];
+        $label = $first['description'] ?: $first['message'];
+        $extra = count($errors) - 1;
+
+        return $extra > 0
+            ? $label . ' (+' . $extra . ' ' . ($extra === 1 ? 'error más' : 'errores más') . ')'
+            : $label;
     }
 
     public function branch(): BelongsTo

@@ -13,6 +13,34 @@ class Catalogs
         return config('hacienda.payment_methods.' . $method, '01');
     }
 
+    /** Catalogo de condicion de venta de Hacienda (v4.4). */
+    public const SALE_CONDITIONS = [
+        '01' => 'Contado',
+        '02' => 'Crédito',
+        '03' => 'Consignación',
+        '04' => 'Apartado',
+        '05' => 'Arrendamiento con opción de compra',
+        '06' => 'Arrendamiento en función financiera',
+        '07' => 'Cobro a favor de un tercero',
+        '08' => 'Servicios prestados al Estado',
+        '09' => 'Pago del servicio prestado al Estado',
+        '99' => 'Otros',
+    ];
+
+    /**
+     * Etiqueta legible de la condicion de venta configurada.
+     *
+     * Las pantallas y el PDF la sacan de aqui en vez de escribir "Contado" a
+     * mano: si cambia la configuracion, el XML y lo que ve el cliente dejarian
+     * de coincidir.
+     */
+    public static function saleConditionLabel(?string $code = null): string
+    {
+        $code = $code ?: (string) config('hacienda.sale_condition');
+
+        return self::SALE_CONDITIONS[$code] ?? 'Otros';
+    }
+
     public static function documentCode(string $type): string
     {
         return config('hacienda.document_codes.' . $type, '04');

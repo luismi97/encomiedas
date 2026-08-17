@@ -29,6 +29,12 @@ class InvoiceForm extends Component
     public string $notes = '';
     public float $discount_amount = 0;
     public string $payment_method = 'cash';
+
+    /**
+     * Factura electrónica (con receptor identificado) o tiquete. Es una
+     * elección explícita: deducirla de si venía la cédula emitía FE sin querer.
+     */
+    public bool $wantsInvoice = false;
     public ?int $assigned_to = null;
 
     /** @var array<int,array<string,mixed>> */
@@ -58,6 +64,7 @@ class InvoiceForm extends Component
             $this->notes = (string) $invoice->notes;
             $this->discount_amount = (float) $invoice->discount_amount;
             $this->payment_method = $invoice->payment_method ?: 'cash';
+            $this->wantsInvoice = $invoice->wantsInvoice();
             $this->assigned_to = $invoice->assigned_to;
             $this->items = $invoice->items->map(fn ($i) => [
                 'package_code' => $i->package_code,
@@ -69,6 +76,26 @@ class InvoiceForm extends Component
             $this->selectedTaxes = $invoice->taxes->pluck('tax_id')->filter()->toArray();
         } else {
             $this->selectedTaxes = Tax::where('is_default', true)->pluck('id')->toArray();
+        }
+    }
+
+    /**
+     * La cédula se digita con guiones ("1-1234-0567") con toda naturalidad:
+     * se limpia ANTES de validar para no rechazar algo que sí es válido.
+     */
+    private function normalizeIdentification(): void
+    {
+        if ($this->wantsInvoice) {
+            $this->recipient_identification = preg_replace('/\D/', '', (string) $this->recipient_identification);
+        }
+    }
+
+    /** Apagar el toggle limpia lo que solo aplica a la factura. */
+    public function updatedWantsInvoice(bool $value): void
+    {
+        if (!$value) {
+            $this->recipient_identification = '';
+            $this->resetErrorBag(['recipient_identification', 'recipient_identification_type']);
         }
     }
 
@@ -110,19 +137,58 @@ class InvoiceForm extends Component
             'sender_identification' => 'nullable|string|max:20',
             'recipient_name' => 'required|string|max:150',
             'recipient_phone' => 'nullable|string|max:30',
-            'recipient_identification' => 'nullable|string|max:20',
+            'recipient_identification' => $this->wantsInvoice
+                ? ['required', 'regex:/^\d{9,12}$/']
+                : ['nullable', 'string', 'max:20'],
+            'recipient_identification_type' => $this->wantsInvoice ? 'required|in:01,02,03,04' : 'nullable',
             'recipient_email' => 'nullable|email',
             'assigned_to' => 'nullable|exists:users,id',
             'discount_amount' => 'nullable|numeric|min:0',
             'payment_method' => 'required|in:' . implode(',', array_keys(Invoice::PAYMENT_METHODS)),
             'items' => 'required|array|min:1',
             'items.*.package_code' => 'required|string|max:100',
+            'items.*.size' => 'nullable|string|max:20',
+            'items.*.weight' => 'nullable|numeric|min:0|max:999999.99',
+            'items.*.description' => 'nullable|string|max:255',
             'items.*.price' => 'required|numeric|min:0',
         ];
     }
 
+    protected function messages(): array
+    {
+        return [
+            'recipient_identification.required' => 'Para emitir Factura Electrónica hace falta la identificación del receptor. '
+                . 'Sin ella el comprobante debe ser Tiquete Electrónico.',
+            'recipient_identification.regex' => 'La identificación son de 9 a 12 dígitos, sin guiones ni espacios.',
+            'items.*.package_code.required' => 'El código del paquete es obligatorio.',
+            'items.*.weight.numeric' => 'El peso debe ser un número en kilogramos (ej. 12.5).',
+            'items.*.weight.min' => 'El peso no puede ser negativo.',
+            'items.*.description.max' => 'La descripción del paquete no puede pasar de 255 caracteres.',
+            'items.*.price.required' => 'El precio del paquete es obligatorio.',
+            'items.*.price.numeric' => 'El precio debe ser un número.',
+            'items.*.price.min' => 'El precio no puede ser negativo.',
+        ];
+    }
+
+    /**
+     * Los campos vacios del formulario llegan como '' y no como null: con
+     * 'nullable|numeric' un peso en blanco fallaria por "no es un numero".
+     */
+    private function normalizeItems(): void
+    {
+        foreach ($this->items as $i => $item) {
+            foreach (['size', 'weight', 'description'] as $key) {
+                if (!array_key_exists($key, $item) || $item[$key] === '') {
+                    $this->items[$i][$key] = null;
+                }
+            }
+        }
+    }
+
     public function save(): void
     {
+        $this->normalizeItems();
+        $this->normalizeIdentification();
         $data = $this->validate();
 
         DB::transaction(function () use ($data) {
@@ -135,8 +201,9 @@ class InvoiceForm extends Component
                 'sender_identification' => $data['sender_identification'],
                 'recipient_name' => $data['recipient_name'],
                 'recipient_phone' => $data['recipient_phone'],
-                'recipient_identification_type' => $this->recipient_identification_type,
-                'recipient_identification' => $data['recipient_identification'],
+                'bill_type' => $this->wantsInvoice ? Invoice::BILL_INVOICE : Invoice::BILL_TICKET,
+                'recipient_identification_type' => $this->wantsInvoice ? $this->recipient_identification_type : null,
+                'recipient_identification' => $this->wantsInvoice ? $data['recipient_identification'] : null,
                 'recipient_email' => $data['recipient_email'],
                 'notes' => $this->notes,
                 'discount_amount' => $data['discount_amount'] ?: 0,
@@ -156,9 +223,9 @@ class InvoiceForm extends Component
             foreach ($data['items'] as $item) {
                 $invoice->items()->create([
                     'package_code' => $item['package_code'],
-                    'size' => $item['size'] ?? null,
-                    'weight' => $item['weight'] !== '' ? $item['weight'] : null,
-                    'description' => $item['description'] ?? null,
+                    'size' => $item['size'],
+                    'weight' => $item['weight'],
+                    'description' => $item['description'],
                     'price' => $item['price'],
                 ]);
             }

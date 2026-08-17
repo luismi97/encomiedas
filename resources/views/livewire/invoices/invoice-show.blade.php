@@ -55,7 +55,8 @@
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
             <div><span class="text-gray-500 block">Creada por</span>{{ $invoice->creator?->name ?? '—' }}</div>
             <div><span class="text-gray-500 block">Repartidor asignado</span>{{ $invoice->assignedTo?->name ?? '— Sin asignar —' }}</div>
-            <div><span class="text-gray-500 block">Condición</span>Contado</div>
+            <div><span class="text-gray-500 block">Condición</span>{{ \App\Services\Hacienda\Catalogs::saleConditionLabel() }}</div>
+            <div><span class="text-gray-500 block">Comprobante</span>{{ $invoice->billTypeLabel() }}</div>
         </div>
         @if ($invoice->notes)
             <p class="text-sm mt-3"><span class="text-gray-500">Notas:</span> {{ $invoice->notes }}</p>
@@ -124,10 +125,16 @@
                     <div><strong>Consecutivo:</strong> {{ $ei->consecutivo }}</div>
                     <div><strong>Clave:</strong> <span class="break-all">{{ $ei->clave }}</span></div>
                     <div><strong>Estado:</strong> {{ $ei->statusLabel() }}</div>
-                    @if ($ei->error_message)
-                        <div class="text-red-600">{{ $ei->error_message }}</div>
+                    @if ($ei->error_message && !$ei->wasRejected())
+                        <div class="text-red-600 dark:text-red-400">{{ $ei->error_message }}</div>
                     @endif
                 </div>
+
+                @if ($ei->wasRejected())
+                    <div class="mt-3">
+                        <x-rejection-detail :electronic-invoice="$ei" />
+                    </div>
+                @endif
 
                 <div class="mt-4 flex flex-wrap gap-3">
                     @if (in_array($ei->status, ['pending', 'error']))

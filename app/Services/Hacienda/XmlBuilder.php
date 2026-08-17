@@ -155,8 +155,32 @@ abstract class XmlBuilder
 
         $this->desglosePorTarifa = $this->buildDesgloseFromLines();
 
-        $gravado = $rate > 0 ? round(array_sum(array_column($this->lines, 'montoTotal')), 5) : 0.0;
-        $exento  = $rate > 0 ? 0.0 : round(array_sum(array_column($this->lines, 'montoTotal')), 5);
+        // Hacienda clasifica cada linea como mercancia o servicio por el CABYS,
+        // no por la unidad de medida. Meter todo en TotalServGravados cuando el
+        // CABYS es de un bien produce el par de rechazos -111 ("el total de
+        // servicios gravados no coincide con la suma de servicios gravados (0)")
+        // y -110 ("el resumen carece del total de mercancias gravadas, pero
+        // cuenta con mercancias gravadas").
+        $servGravado = $servExento = $mercGravada = $mercExenta = 0.0;
+
+        foreach ($this->lines as $l) {
+            $monto = (float) $l['montoTotal'];
+            $esServicio = $this->isService($l['cabys'] ?? null);
+            $esGravado = ($l['iva'] ?? 0) > 0;
+
+            if ($esGravado && $esServicio) {
+                $servGravado += $monto;
+            } elseif ($esGravado) {
+                $mercGravada += $monto;
+            } elseif ($esServicio) {
+                $servExento += $monto;
+            } else {
+                $mercExenta += $monto;
+            }
+        }
+
+        $gravado = round($servGravado + $mercGravada, 5);
+        $exento  = round($servExento + $mercExenta, 5);
 
         $totalVenta     = round(array_sum(array_column($this->lines, 'montoTotal')), 5);
         $totalDescuento = round(array_sum(array_column($this->lines, 'descuento')), 5);
@@ -164,10 +188,10 @@ abstract class XmlBuilder
         $totalImpuesto  = round(array_sum(array_column($this->lines, 'iva')), 5);
 
         $this->resumen = [
-            'serv_gravado' => $gravado,
-            'serv_exento'  => $exento,
-            'merc_gravada' => 0.0,
-            'merc_exenta'  => 0.0,
+            'serv_gravado' => round($servGravado, 5),
+            'serv_exento'  => round($servExento, 5),
+            'merc_gravada' => round($mercGravada, 5),
+            'merc_exenta'  => round($mercExenta, 5),
             'gravado'      => $gravado,
             'exento'       => $exento,
             'total_venta'  => $totalVenta,
@@ -285,7 +309,9 @@ abstract class XmlBuilder
             $linea->appendChild($this->el('NumeroLinea', $l['numero']));
             $linea->appendChild($this->el('CodigoCABYS', $l['cabys']));
             $linea->appendChild($this->el('Cantidad', $this->num($l['cantidad'], 3)));
-            $linea->appendChild($this->el('UnidadMedida', config('hacienda.measurement_unit')));
+            $linea->appendChild($this->el('UnidadMedida', $this->isService($l['cabys'] ?? null)
+                ? config('hacienda.measurement_unit')
+                : config('hacienda.measurement_unit_goods')));
             $linea->appendChild($this->el('Detalle', $l['detalle']));
             $linea->appendChild($this->el('PrecioUnitario', $this->num($l['precio'])));
             $linea->appendChild($this->el('MontoTotal', $this->num($l['montoTotal'])));

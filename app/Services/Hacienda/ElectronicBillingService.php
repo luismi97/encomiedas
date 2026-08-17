@@ -8,6 +8,7 @@ use App\Models\ElectronicInvoice;
 use App\Models\Invoice;
 use App\Notifications\SendElectronicInvoice;
 use Carbon\Carbon;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -129,6 +130,23 @@ class ElectronicBillingService
             return 'La facturación electrónica no está configurada (certificado o credenciales).';
         }
 
+        // Sin emisor_data el payload sale con numeroIdentificacion vacio y
+        // Hacienda responde 400 tras haber quemado el consecutivo.
+        $emisorCedula = $electronicInvoice->emisor_data['identification_number'] ?? null;
+
+        if (blank($emisorCedula)) {
+            return 'Este comprobante no tiene datos del emisor. No se generó desde una encomienda real '
+                . '(por ejemplo, viene de los datos de demostración) y Hacienda lo rechazaría.';
+        }
+
+        // La cedula del emisor va DENTRO de la clave: si no coincide con la
+        // configurada, la clave es de otro emisor y Hacienda nunca la aceptaria.
+        if ($emisorCedula !== $settings->identification_number) {
+            return 'La cédula del emisor de este comprobante (' . $emisorCedula . ') no coincide con la '
+                . 'configurada (' . $settings->identification_number . '). La clave se generó con otro emisor: '
+                . 'hay que emitirlo de nuevo.';
+        }
+
         return null;
     }
 
@@ -222,13 +240,38 @@ class ElectronicBillingService
             $this->regenerateClave($electronicInvoice, $settings);
         }
 
+        // El snapshot del emisor se toma al crear el comprobante y se congela,
+        // que es lo correcto para uno aceptado: debe conservar lo que realmente
+        // se envió. Pero en un reintento es al revés: si el rechazo fue por los
+        // datos del emisor (actividad económica, ubicación), corregirlos en la
+        // configuración no servía de nada porque el comprobante seguía llevando
+        // los viejos. Aquí nunca se llega con uno aceptado.
+        $this->refreshEmisorSnapshot($electronicInvoice, $settings);
+
         $electronicInvoice->status = ElectronicInvoice::STATUS_PENDING;
         $electronicInvoice->error_message = null;
+        $electronicInvoice->rejection_details = null;
+        $electronicInvoice->rejected_at = null;
         $electronicInvoice->save();
 
         $this->queueSend($electronicInvoice);
 
         return $electronicInvoice->fresh();
+    }
+
+    /** Vuelve a fotografiar al emisor y al receptor con lo configurado hoy. */
+    private function refreshEmisorSnapshot(ElectronicInvoice $electronicInvoice, CompanySetting $settings): void
+    {
+        $electronicInvoice->emisor_data = $this->emisorSnapshot($settings);
+
+        $electronicInvoice->loadMissing('invoice');
+
+        if ($invoice = $electronicInvoice->invoice) {
+            $letter = $this->letterForDocumentType($electronicInvoice->document_type);
+            $electronicInvoice->receptor_data = $this->receptorSnapshot($invoice, $letter);
+        }
+
+        $electronicInvoice->save();
     }
 
     private function regenerateClave(ElectronicInvoice $electronicInvoice, CompanySetting $settings): void
@@ -273,40 +316,129 @@ class ElectronicBillingService
             return $electronicInvoice;
         }
 
-        if (!$response->successful()) {
+        // Hacienda no conoce la clave: el envio se dio por bueno pero el
+        // documento no esta. Se devuelve a error para poder reintentarlo con la
+        // misma clave, que sigue sin consumirse. Se le da holgura porque la
+        // consulta puede ir por delante de la recepcion recien hecha.
+        if ($response->status() === 404) {
+            if ($electronicInvoice->last_attempt_at
+                && $electronicInvoice->last_attempt_at->lt(now()->subMinutes(15))) {
+                $electronicInvoice->status = ElectronicInvoice::STATUS_ERROR;
+                $electronicInvoice->hacienda_status = null;
+                $electronicInvoice->error_message = 'Hacienda no tiene registrada la clave: el comprobante no llegó. Reintente el envío.';
+                $electronicInvoice->save();
+            }
+
             return $electronicInvoice;
         }
 
-        $estado = $response->json('ind-estado');
+        if (!$response->successful()) {
+            return $electronicInvoice; // sigue en proceso o fallo transitorio
+        }
+
+        $this->applyStatusResponse($electronicInvoice, $response);
+
+        return $electronicInvoice;
+    }
+
+    /**
+     * Le pregunta a Hacienda por la clave y sincroniza el estado local.
+     *
+     * @return bool|null true  = Hacienda la tiene (el estado quedo actualizado)
+     *                   false = no la conoce (404), la clave sigue libre
+     *                   null  = no se pudo averiguar; NO asumir ninguna de las
+     *                           dos, hay que reintentar mas tarde
+     */
+    public function reconcile(ElectronicInvoice $electronicInvoice): ?bool
+    {
+        $settings = CompanySetting::instance();
+
+        if (!$settings->isReady()) {
+            return null;
+        }
+
+        try {
+            $response = $this->client->status($settings, $electronicInvoice->clave);
+        } catch (\Throwable $e) {
+            Log::warning('Hacienda: no se pudo consultar la clave ' . $electronicInvoice->clave . ': ' . $e->getMessage());
+
+            return null;
+        }
+
+        if ($response->status() === 404) {
+            return false; // Hacienda nunca la recibio
+        }
+
+        if (!$response->successful()) {
+            return null;
+        }
+
+        $this->applyStatusResponse($electronicInvoice, $response);
+
+        return true;
+    }
+
+    /** Vuelca en el comprobante la respuesta de consulta de estado. */
+    private function applyStatusResponse(ElectronicInvoice $electronicInvoice, Response $response): void
+    {
+        $estado = strtolower((string) $response->json('ind-estado'));
         $electronicInvoice->hacienda_status = $estado;
+
+        $xml = ($b64 = $response->json('respuesta-xml')) ? base64_decode($b64) : null;
+
+        if ($xml !== null) {
+            $electronicInvoice->response_xml_path = $this->storeResponseXml($electronicInvoice, $xml);
+        }
 
         if ($estado === 'aceptado') {
             $electronicInvoice->status = ElectronicInvoice::STATUS_ACCEPTED;
             $electronicInvoice->accepted_at = now();
-            if ($xmlB64 = $response->json('respuesta-xml')) {
-                $path = $this->storeResponseXml($electronicInvoice, base64_decode($xmlB64));
-                $electronicInvoice->response_xml_path = $path;
-            }
+            $electronicInvoice->error_message = null;
+            $electronicInvoice->rejection_details = null;
+            $electronicInvoice->rejected_at = null;
             $electronicInvoice->save();
+
             app(PdfGenerator::class)->generate($electronicInvoice);
             $this->sendInvoiceEmail($electronicInvoice->fresh());
         } elseif ($estado === 'rechazado') {
-            $electronicInvoice->status = ElectronicInvoice::STATUS_REJECTED;
-            if ($xmlB64 = $response->json('respuesta-xml')) {
-                $xml = base64_decode($xmlB64);
-                $electronicInvoice->response_xml_path = $this->storeResponseXml($electronicInvoice, $xml);
-                $parsed = app(RejectionParser::class)->parse($xml);
-                $electronicInvoice->error_message = collect($parsed['errors'] ?? [])
-                    ->map(fn ($e) => $e['message'] ?? $e['description'] ?? '')
-                    ->filter()
-                    ->implode(' | ');
-            }
-            $electronicInvoice->save();
+            $this->applyRejection($electronicInvoice, $xml);
         } else {
+            // procesando / recibido: el documento esta en Hacienda, se sigue
+            // desde hacienda:poll en vez de darlo por fallido.
+            $electronicInvoice->status = ElectronicInvoice::STATUS_SENT;
+            $electronicInvoice->error_message = null;
             $electronicInvoice->save();
         }
+    }
 
-        return $electronicInvoice;
+    /**
+     * Vuelca un rechazo en el comprobante conservando la estructura.
+     *
+     * El detalle se guarda entero (codigo + descripcion + mensaje por error)
+     * porque es lo unico que dice QUE corregir; error_message queda como
+     * resumen de una linea para los listados.
+     */
+    private function applyRejection(ElectronicInvoice $electronicInvoice, ?string $xml): void
+    {
+        $electronicInvoice->status = ElectronicInvoice::STATUS_REJECTED;
+        $electronicInvoice->rejected_at = now();
+
+        $parsed = $xml !== null ? app(RejectionParser::class)->parse($xml) : null;
+
+        if ($parsed && !empty($parsed['errors'])) {
+            $electronicInvoice->rejection_details = $parsed;
+            $electronicInvoice->error_message = collect($parsed['errors'])
+                ->map(fn ($e) => trim((string) ($e['description'] ?? '')) ?: trim((string) ($e['message'] ?? '')))
+                ->filter()
+                ->implode(' | ');
+        } else {
+            $electronicInvoice->rejection_details = null;
+            $electronicInvoice->error_message = 'Comprobante rechazado por Hacienda. Consulte el XML de respuesta para el detalle.';
+        }
+
+        $electronicInvoice->save();
+
+        Log::warning('Hacienda: comprobante rechazado ' . $electronicInvoice->clave . ': ' . $electronicInvoice->error_message);
     }
 
     private function letterForDocumentType(string $code): string
@@ -376,9 +508,11 @@ class ElectronicBillingService
         try {
             $response = $this->client->send($settings, $payload);
         } catch (\Throwable $e) {
-            $electronicInvoice->status = ElectronicInvoice::STATUS_ERROR;
-            $electronicInvoice->error_message = $e->getMessage();
-            $electronicInvoice->save();
+            // Un timeout NO significa que el documento no llego: Hacienda pudo
+            // recibirlo y estar procesandolo. Marcarlo como error sin preguntar
+            // invita a reenviarlo y a tener dos comprobantes por una encomienda.
+            $this->settleUnknownDelivery($electronicInvoice, 'No se pudo confirmar el envío: ' . $e->getMessage());
+
             return;
         }
 
@@ -395,6 +529,22 @@ class ElectronicBillingService
             $electronicInvoice->error_message = 'Hacienda respondió ' . $response->status() . ': ' . $response->body();
         }
 
+        $electronicInvoice->save();
+    }
+
+    /**
+     * Cierra una transmision que quedo en duda: primero le pregunta a Hacienda
+     * y solo la da por fallida si confirma que nunca la recibio (o si no se
+     * pudo averiguar).
+     */
+    private function settleUnknownDelivery(ElectronicInvoice $electronicInvoice, string $message): void
+    {
+        if ($this->reconcile($electronicInvoice) === true) {
+            return; // llego: reconcile() ya guardo el estado real
+        }
+
+        $electronicInvoice->status = ElectronicInvoice::STATUS_ERROR;
+        $electronicInvoice->error_message = $message;
         $electronicInvoice->save();
     }
 

@@ -13,7 +13,7 @@
                             <option value="{{ $branch->id }}">{{ $branch->name }}</option>
                         @endforeach
                     </select>
-                    @error('pickup_branch_id') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
+                    @error('pickup_branch_id') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label class="label">Sucursal de entrega</label>
@@ -23,7 +23,7 @@
                             <option value="{{ $branch->id }}">{{ $branch->name }}</option>
                         @endforeach
                     </select>
-                    @error('delivery_branch_id') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
+                    @error('delivery_branch_id') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label class="label">Repartidor asignado</label>
@@ -44,28 +44,53 @@
                 <div><label class="label">Teléfono</label><input type="text" wire:model="sender_phone" class="input"></div>
                 <div><label class="label">Identificación</label><input type="text" wire:model="sender_identification" class="input"></div>
             </div>
-            @error('sender_name') <p class="text-red-600 text-sm">{{ $message }}</p> @enderror
+            @error('sender_name') <p class="error-text">{{ $message }}</p> @enderror
         </div>
 
         <div class="card space-y-4">
             <h2 class="text-lg font-semibold">Receptor</h2>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div><label class="label">Nombre</label><input type="text" wire:model="recipient_name" class="input"></div>
+                <div><label class="label">Nombre</label><input type="text" wire:model="recipient_name" class="input @error('recipient_name') input-error @enderror"></div>
                 <div><label class="label">Teléfono</label><input type="text" wire:model="recipient_phone" class="input"></div>
-                <div>
-                    <label class="label">Tipo ID</label>
-                    <select wire:model="recipient_identification_type" class="input">
-                        <option value="01">01 - Física</option>
-                        <option value="02">02 - Jurídica</option>
-                        <option value="03">03 - DIMEX</option>
-                        <option value="04">04 - NITE</option>
-                    </select>
-                </div>
-                <div><label class="label">Identificación (para Factura electrónica)</label><input type="text" wire:model="recipient_identification" class="input"></div>
-                <div><label class="label">Correo electrónico</label><input type="email" wire:model="recipient_email" class="input"></div>
+                <div><label class="label">Correo electrónico</label><input type="email" wire:model="recipient_email" class="input @error('recipient_email') input-error @enderror"></div>
             </div>
-            @error('recipient_name') <p class="text-red-600 text-sm">{{ $message }}</p> @enderror
-            <p class="text-sm text-gray-500 dark:text-gray-400">Si no indica identificación, el comprobante se emite como Tiquete Electrónico.</p>
+            @error('recipient_name') <p class="error-text">{{ $message }}</p> @enderror
+            @error('recipient_email') <p class="error-text">{{ $message }}</p> @enderror
+
+            <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" wire:model.live="wantsInvoice" class="checkbox mt-0.5">
+                    <span>
+                        <span class="font-medium">Emitir Factura Electrónica</span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400">
+                            Requiere la identificación del receptor. Si lo dejás sin marcar se emite un
+                            <strong>Tiquete Electrónico</strong>, que no la necesita.
+                        </span>
+                    </span>
+                </label>
+
+                @if ($wantsInvoice)
+                    <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="label">Tipo de identificación</label>
+                            <select wire:model="recipient_identification_type" class="input @error('recipient_identification_type') input-error @enderror">
+                                <option value="01">01 - Física</option>
+                                <option value="02">02 - Jurídica</option>
+                                <option value="03">03 - DIMEX</option>
+                                <option value="04">04 - NITE</option>
+                            </select>
+                            @error('recipient_identification_type') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="label">Identificación</label>
+                            <input type="text" wire:model="recipient_identification" inputmode="numeric" maxlength="12"
+                                   placeholder="Sin guiones ni espacios"
+                                   class="input @error('recipient_identification') input-error @enderror">
+                            @error('recipient_identification') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                @endif
+            </div>
         </div>
 
         <div class="card space-y-4">
@@ -79,28 +104,33 @@
                     <div class="grid grid-cols-2 sm:grid-cols-6 gap-3 items-end border-b border-gray-100 dark:border-gray-700 pb-3">
                         <div class="col-span-2 sm:col-span-1">
                             <label class="label">Código de paquete</label>
-                            <input type="text" wire:model="items.{{ $index }}.package_code" class="input">
+                            <input type="text" wire:model="items.{{ $index }}.package_code" class="input @error('items.'.$index.'.package_code') input-error @enderror">
+                            @error('items.'.$index.'.package_code') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
                         <div>
                             <label class="label">Tamaño</label>
-                            <select wire:model="items.{{ $index }}.size" class="input">
+                            <select wire:model="items.{{ $index }}.size" class="input @error('items.'.$index.'.size') input-error @enderror">
                                 <option value="S">Pequeño</option>
                                 <option value="M">Mediano</option>
                                 <option value="L">Grande</option>
                                 <option value="XL">Extra grande</option>
                             </select>
+                            @error('items.'.$index.'.size') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
                         <div>
                             <label class="label">Peso (kg)</label>
-                            <input type="number" step="0.01" wire:model="items.{{ $index }}.weight" class="input">
+                            <input type="number" step="0.01" wire:model="items.{{ $index }}.weight" class="input @error('items.'.$index.'.weight') input-error @enderror">
+                            @error('items.'.$index.'.weight') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
                         <div class="col-span-2 sm:col-span-1">
                             <label class="label">Descripción</label>
-                            <input type="text" wire:model="items.{{ $index }}.description" class="input">
+                            <input type="text" wire:model="items.{{ $index }}.description" class="input @error('items.'.$index.'.description') input-error @enderror">
+                            @error('items.'.$index.'.description') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
                         <div>
                             <label class="label">Precio (₡)</label>
-                            <input type="number" step="0.01" wire:model.live="items.{{ $index }}.price" class="input">
+                            <input type="number" step="0.01" wire:model.live="items.{{ $index }}.price" class="input @error('items.'.$index.'.price') input-error @enderror">
+                            @error('items.'.$index.'.price') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
                         <div>
                             @if (count($items) > 1)
@@ -110,7 +140,7 @@
                     </div>
                 @endforeach
             </div>
-            @error('items') <p class="text-red-600 text-sm">{{ $message }}</p> @enderror
+            @error('items') <p class="error-text">{{ $message }}</p> @enderror
         </div>
 
         <div class="card space-y-4">
@@ -135,7 +165,7 @@
                             <option value="{{ $value }}">{{ $label }}</option>
                         @endforeach
                     </select>
-                    @error('payment_method') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
+                    @error('payment_method') <span class="error-text">{{ $message }}</span> @enderror
                 </div>
             </div>
             <div><label class="label">Notas</label><textarea wire:model="notes" class="input" rows="2"></textarea></div>

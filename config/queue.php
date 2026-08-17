@@ -39,7 +39,14 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            /*
+             | Tiene que ser MAYOR que el timeout mas alto de cualquier job, o la
+             | cola da por colgado un job que sigue corriendo y lo devuelve a la
+             | fila. SendElectronicInvoiceJob declara timeout=120: con los 90 por
+             | defecto de Laravel, un envio lento se transmitia DOS VECES a
+             | Hacienda, que es justo lo que evitan los candados del servicio.
+             */
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 180),
             'after_commit' => false,
         ],
 

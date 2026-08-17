@@ -32,6 +32,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/invoices/{invoice}', InvoiceShow::class)->name('invoices.show');
     Route::get('/invoices/{invoice}/pdf', [InvoiceExportController::class, 'downloadInvoice'])->name('invoices.pdf');
     Route::get('/electronic-invoices/{electronicInvoice}/pdf', [ElectronicInvoiceController::class, 'downloadPdf'])->name('electronic-invoices.pdf');
+    Route::get('/electronic-invoices/{electronicInvoice}/respuesta.xml', [ElectronicInvoiceController::class, 'downloadResponseXml'])->name('electronic-invoices.response-xml');
 
     Route::middleware('role:admin')->group(function () {
         Route::get('/invoices-create', InvoiceForm::class)->name('invoices.create');

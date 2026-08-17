@@ -17,6 +17,9 @@ class PendingQueue extends Component
 
     public string $tab = 'pending'; // pending|sent|rejected
 
+    /** Comprobante cuyo detalle de rechazo se esta mostrando. */
+    public ?int $rejectionId = null;
+
     public function updatedSelectAll(bool $value): void
     {
         // Los que ya están en cola no se pueden volver a encolar: se excluyen
@@ -32,7 +35,18 @@ class PendingQueue extends Component
     {
         $this->selected = [];
         $this->selectAll = false;
+        $this->rejectionId = null;
         $this->resetPage();
+    }
+
+    public function showRejection(int $id): void
+    {
+        $this->rejectionId = $id;
+    }
+
+    public function closeRejection(): void
+    {
+        $this->rejectionId = null;
     }
 
     private function currentPageQuery()
@@ -97,7 +111,12 @@ class PendingQueue extends Component
 
     public function render()
     {
+        $rejection = $this->rejectionId
+            ? ElectronicInvoice::with('invoice')->find($this->rejectionId)
+            : null;
+
         return view('livewire.hacienda.pending-queue', [
+            'rejection' => $rejection,
             'items' => $this->baseQuery()->paginate(15),
         ])->layout('layouts.app', ['title' => 'Pendientes de envío a Hacienda']);
     }

@@ -27,6 +27,30 @@
         </div>
     @endif
 
+    @if ($rejection)
+        <div class="card border-red-200 dark:border-red-800">
+            <div class="flex items-start justify-between gap-3 mb-3">
+                <div>
+                    <h3 class="font-semibold">Motivo del rechazo</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ $rejection->invoice?->code }} · consecutivo {{ $rejection->consecutivo }}
+                    </p>
+                </div>
+                <button type="button" wire:click="closeRejection" class="text-gray-400 hover:text-gray-600" aria-label="Cerrar">
+                    <x-icon name="x" class="w-5 h-5" />
+                </button>
+            </div>
+
+            <x-rejection-detail :electronic-invoice="$rejection" />
+
+            <div class="mt-4">
+                <x-action-button action="retry({{ $rejection->id }})" variant="primary" loadingText="Reintentando...">
+                    <x-icon name="undo" class="w-4 h-4" /> Corregir y reintentar
+                </x-action-button>
+            </div>
+        </div>
+    @endif
+
     <div class="card">
         <div class="data-table-wrap">
             <table class="w-full text-left">
@@ -57,8 +81,14 @@
                             <td class="py-3 text-xs break-all max-w-[220px]">{{ $ei->clave }}</td>
                             <td class="py-3">
                                 <span class="text-sm">{{ $ei->statusLabel() }}</span>
-                                @if ($ei->error_message)
-                                    <div class="text-xs text-red-600 max-w-xs">{{ $ei->error_message }}</div>
+                                @if ($ei->wasRejected())
+                                    <div class="text-xs text-red-600 dark:text-red-400 max-w-xs mt-0.5">
+                                        {{ $ei->rejectionSummary() }}
+                                    </div>
+                                    <x-action-button action="showRejection({{ $ei->id }})" variant="link"
+                                        class="!text-xs !font-medium mt-1">Ver motivo</x-action-button>
+                                @elseif ($ei->error_message)
+                                    <div class="text-xs text-red-600 dark:text-red-400 max-w-xs mt-0.5">{{ $ei->error_message }}</div>
                                 @endif
                             </td>
                             <td class="py-3 text-right space-x-3 whitespace-nowrap">
@@ -95,8 +125,12 @@
                         </div>
                     </div>
                     <div class="mt-2 text-xs text-gray-500 break-all">{{ $ei->clave }}</div>
-                    @if ($ei->error_message)
-                        <div class="mt-1 text-xs text-red-600">{{ $ei->error_message }}</div>
+                    @if ($ei->wasRejected())
+                        <div class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $ei->rejectionSummary() }}</div>
+                        <x-action-button action="showRejection({{ $ei->id }})" variant="link"
+                            class="!text-xs !font-medium mt-1">Ver motivo</x-action-button>
+                    @elseif ($ei->error_message)
+                        <div class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $ei->error_message }}</div>
                     @endif
                     <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex flex-wrap gap-4">
                         @if (in_array($ei->status, ['pending', 'error']))

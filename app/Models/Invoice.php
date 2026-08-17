@@ -12,6 +12,15 @@ class Invoice extends Model
 {
     use HasFactory;
 
+    public const BILL_TICKET  = 'ticket';
+    public const BILL_INVOICE = 'invoice';
+
+    /** Etiquetas de cara al usuario, no los códigos de Hacienda. */
+    public const BILL_TYPES = [
+        self::BILL_TICKET  => 'Tiquete electrónico',
+        self::BILL_INVOICE => 'Factura electrónica',
+    ];
+
     public const STATUS_PENDING    = 'pending';
     public const STATUS_IN_TRANSIT = 'in_transit';
     public const STATUS_DELIVERED  = 'delivered';
@@ -54,6 +63,7 @@ class Invoice extends Model
 
     protected $fillable = [
         'code',
+        'bill_type',
         'status',
         'pickup_branch_id',
         'delivery_branch_id',
@@ -173,8 +183,24 @@ class Invoice extends Model
     }
 
     /** ¿Tiene datos suficientes del receptor para ser Factura (con cédula) en vez de Tiquete? */
+    /**
+     * ¿Se emite Factura Electrónica (con receptor identificado) o Tiquete?
+     *
+     * Manda la elección explícita del formulario. La identificación se sigue
+     * exigiendo porque una FE sin receptor identificado la rechaza Hacienda.
+     */
     public function receptorIdentificado(): bool
     {
-        return filled($this->recipient_identification);
+        return $this->bill_type === self::BILL_INVOICE && filled($this->recipient_identification);
+    }
+
+    public function wantsInvoice(): bool
+    {
+        return $this->bill_type === self::BILL_INVOICE;
+    }
+
+    public function billTypeLabel(): string
+    {
+        return self::BILL_TYPES[$this->bill_type] ?? self::BILL_TYPES[self::BILL_TICKET];
     }
 }

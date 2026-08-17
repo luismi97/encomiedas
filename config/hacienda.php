@@ -66,7 +66,13 @@ return [
 
     'sale_condition' => '01', // Contado
 
-    'measurement_unit' => 'Sp', // Servicios prestados
+    /*
+     | Unidad de medida por tipo de linea. Hacienda clasifica bien vs servicio
+     | por el CABYS, asi que la unidad tiene que seguir esa misma clasificacion:
+     | 'Sp' en una linea cuyo CABYS es un bien es una contradiccion.
+     */
+    'measurement_unit' => 'Sp',          // servicios prestados
+    'measurement_unit_goods' => 'Unid',  // mercancias
 
     'payment_methods' => [
         'cash'     => '01',
@@ -80,6 +86,21 @@ return [
     // mensajeria" — configurable desde Ajustes de la empresa si Hacienda
     // exige uno mas especifico segun la actividad economica registrada.
     'default_cabys_code' => '8511200000000',
+
+    /*
+     | Busqueda en el catalogo CABYS contra el API publico de Hacienda.
+     |
+     | A diferencia de un POS, aqui casi todas las lineas son el mismo servicio
+     | de transporte, asi que no se importa el catalogo completo: basta con
+     | poder buscar y validar un codigo desde la configuracion.
+     */
+    'cabys' => [
+        'url'        => 'https://api.hacienda.go.cr/fe/cabys',
+        'timeout'    => 10,           // segundos por request
+        'top'        => 15,           // max resultados por busqueda
+        'cache_ttl'  => 60 * 60 * 24, // 24h por termino buscado
+        'user_agent' => 'EncomiendasCR/1.0 (facturacion electronica)',
+    ],
 
     'disk' => 'hacienda',
 

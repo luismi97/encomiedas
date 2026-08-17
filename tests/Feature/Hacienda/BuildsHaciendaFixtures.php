@@ -78,6 +78,7 @@ trait BuildsHaciendaFixtures
         $invoice = Invoice::create(array_merge([
             'code'                          => 'ENC-000001',
             'status'                        => Invoice::STATUS_DELIVERED,
+            'bill_type'                     => Invoice::BILL_INVOICE,
             'pickup_branch_id'              => $branch->id,
             'delivery_branch_id'            => $branch->id,
             'sender_name'                   => 'Marta Solano',

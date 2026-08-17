@@ -54,6 +54,57 @@ class UiSmokeTest extends TestCase
         $this->get(route('login'))->assertOk()->assertSee('<svg', false);
     }
 
+    /**
+     * El estado visual por defecto del boton tiene que venir del servidor. Si
+     * el label es x-text y el spinner x-show sin x-cloak, basta con que el
+     * bundle tarde o falle para que el boton quede girando y sin texto.
+     *
+     * Ojo: no se puede buscar "x-cloak" en el HTML completo porque Livewire
+     * auto-inyecta un <style> con la regla [x-cloak].
+     */
+    public function test_el_login_no_depende_de_js_para_su_estado_inicial(): void
+    {
+        $html = $this->get(route('login'))->getContent();
+        $form = substr($html, strpos($html, '<form'), strpos($html, '</form>') - strpos($html, '<form'));
+
+        foreach (['x-data', 'x-show', 'x-text', 'x-init'] as $directive) {
+            $this->assertStringNotContainsString($directive, $form,
+                "El formulario de login depende de {$directive} para su estado inicial.");
+        }
+
+        $this->assertStringContainsString('>Entrar</span>', $form);
+        $this->assertStringContainsString('data-login-spinner hidden', $form);
+    }
+
+    /**
+     * En Tailwind, border-gray-300 define solo el COLOR. Sin la utilidad
+     * "border" el preflight deja border-width en 0 y el campo se ve flotando.
+     * Este proyecto no tiene el plugin @tailwindcss/forms que lo restauraria.
+     */
+    public function test_los_campos_del_login_declaran_ancho_de_borde(): void
+    {
+        $html = $this->get(route('login'))->getContent();
+
+        preg_match_all('/<input[^>]*>/', $html, $matches);
+        $this->assertNotEmpty($matches[0]);
+
+        foreach ($matches[0] as $input) {
+            if (str_contains($input, 'type="hidden"')) {
+                continue;
+            }
+
+            preg_match('/class="([^"]*)"/', $input, $class);
+            $classes = $class[1] ?? '';
+
+            $this->assertTrue(
+                str_contains($classes, 'input') || str_contains($classes, 'checkbox'),
+                "Campo del login sin clase de borde del sistema: {$classes}"
+            );
+            $this->assertDoesNotMatchRegularExpression('/(?<!-)\bborder-gray-\d+/', $classes,
+                "El login declara un color de borde suelto, sin ancho: {$classes}");
+        }
+    }
+
     public function test_no_quedan_emojis_en_la_interfaz(): void
     {
         $html = $this->actingAs($this->admin())->get(route('dashboard'))->getContent();
