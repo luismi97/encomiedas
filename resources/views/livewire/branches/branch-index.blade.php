@@ -1,47 +1,85 @@
 <div class="space-y-6">
+    @if ($feedback)
+        <div class="flex items-start gap-3 p-4 rounded-lg border text-base
+            {{ $feedbackType === 'error'
+                ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/40 text-red-800 dark:text-red-200'
+                : 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/40 text-green-800 dark:text-green-200' }}">
+            <x-icon name="{{ $feedbackType === 'error' ? 'warning' : 'check-circle' }}" class="w-5 h-5 mt-0.5" />
+            <span class="flex-1">{{ $feedback }}</span>
+            <button type="button" wire:click="dismissFeedback" class="opacity-60 hover:opacity-100" aria-label="Cerrar aviso">
+                <x-icon name="x" class="w-4 h-4" />
+            </button>
+        </div>
+    @endif
+
     <div class="flex items-center justify-between flex-wrap gap-3">
         <p class="text-gray-500 dark:text-gray-400">Puntos de recogida y entrega de encomiendas a nivel nacional.</p>
-        <x-action-button action="create" variant="primary" loadingText="Abriendo...">➕ Nueva sucursal</x-action-button>
+        <x-action-button action="create" variant="primary" loadingText="Abriendo..."><x-icon name="plus" class="w-4 h-4" /> Nueva sucursal</x-action-button>
     </div>
 
     @if ($showForm)
         <div class="card">
             <h2 class="text-lg font-semibold mb-4">{{ $editingId ? 'Editar sucursal' : 'Nueva sucursal' }}</h2>
+
+            @if ($codesLocked)
+                <div class="mb-4 flex items-start gap-3 p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 text-sm">
+                    <x-icon name="warning" class="w-5 h-5 mt-0.5" />
+                    <span>Esta sucursal ya emitió comprobantes electrónicos. Los códigos de Hacienda quedan fijos para no romper el consecutivo.</span>
+                </div>
+            @endif
+
+            @error('is_active')
+                <div class="mb-4 flex items-start gap-3 p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm">
+                    <x-icon name="warning" class="w-5 h-5 mt-0.5" />
+                    <span>{{ $message }}</span>
+                </div>
+            @enderror
+
             <form wire:submit="save" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="sm:col-span-2">
                     <label class="label">Nombre</label>
-                    <input type="text" wire:model="name" class="input">
-                    @error('name') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
+                    <input type="text" wire:model="name" class="input @error('name') input-error @enderror">
+                    @error('name') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label class="label">Código de sucursal (Hacienda)</label>
-                    <input type="text" wire:model="sucursal_code" maxlength="3" class="input">
-                    @error('sucursal_code') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
+                    <input type="text" wire:model="sucursal_code" maxlength="3" inputmode="numeric" @disabled($codesLocked) class="input @error('sucursal_code') input-error @enderror">
+                    @error('sucursal_code') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label class="label">Código de terminal (Hacienda)</label>
-                    <input type="text" wire:model="terminal_code" maxlength="5" class="input">
-                    @error('terminal_code') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
+                    <input type="text" wire:model="terminal_code" maxlength="5" inputmode="numeric" @disabled($codesLocked) class="input @error('terminal_code') input-error @enderror">
+                    @error('terminal_code') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
                 <div class="sm:col-span-2">
                     <label class="label">Dirección</label>
-                    <input type="text" wire:model="address" class="input">
+                    <input type="text" wire:model="address" class="input @error('address') input-error @enderror">
                 </div>
                 <div>
                     <label class="label">Provincia (1 dígito)</label>
-                    <input type="text" wire:model="province" maxlength="1" class="input">
+                    <input type="text" wire:model="province" maxlength="1" inputmode="numeric" class="input @error('province') input-error @enderror">
+                    @error('province') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label class="label">Cantón (2 dígitos)</label>
-                    <input type="text" wire:model="canton" maxlength="2" class="input">
+                    <input type="text" wire:model="canton" maxlength="2" inputmode="numeric" class="input @error('canton') input-error @enderror">
+                    @error('canton') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label class="label">Distrito (2 dígitos)</label>
-                    <input type="text" wire:model="district" maxlength="2" class="input">
+                    <input type="text" wire:model="district" maxlength="2" inputmode="numeric" class="input @error('district') input-error @enderror">
+                    @error('district') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label class="label">Teléfono</label>
-                    <input type="text" wire:model="phone" class="input">
+                    <input type="text" wire:model="phone" class="input @error('phone') input-error @enderror">
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label class="inline-flex items-center gap-2">
+                        <input type="checkbox" wire:model="is_active" class="checkbox">
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Sucursal activa</span>
+                    </label>
                 </div>
 
                 <div class="sm:col-span-2 flex gap-3 pt-2">

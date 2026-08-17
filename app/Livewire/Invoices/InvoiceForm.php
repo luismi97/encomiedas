@@ -28,6 +28,7 @@ class InvoiceForm extends Component
 
     public string $notes = '';
     public float $discount_amount = 0;
+    public string $payment_method = 'cash';
     public ?int $assigned_to = null;
 
     /** @var array<int,array<string,mixed>> */
@@ -56,6 +57,7 @@ class InvoiceForm extends Component
             $this->recipient_email = (string) $invoice->recipient_email;
             $this->notes = (string) $invoice->notes;
             $this->discount_amount = (float) $invoice->discount_amount;
+            $this->payment_method = $invoice->payment_method ?: 'cash';
             $this->assigned_to = $invoice->assigned_to;
             $this->items = $invoice->items->map(fn ($i) => [
                 'package_code' => $i->package_code,
@@ -112,6 +114,7 @@ class InvoiceForm extends Component
             'recipient_email' => 'nullable|email',
             'assigned_to' => 'nullable|exists:users,id',
             'discount_amount' => 'nullable|numeric|min:0',
+            'payment_method' => 'required|in:' . implode(',', array_keys(Invoice::PAYMENT_METHODS)),
             'items' => 'required|array|min:1',
             'items.*.package_code' => 'required|string|max:100',
             'items.*.price' => 'required|numeric|min:0',
@@ -137,6 +140,7 @@ class InvoiceForm extends Component
                 'recipient_email' => $data['recipient_email'],
                 'notes' => $this->notes,
                 'discount_amount' => $data['discount_amount'] ?: 0,
+                'payment_method' => $data['payment_method'],
                 'assigned_to' => $data['assigned_to'],
                 'subtotal' => $this->subtotal,
                 'tax_total' => $this->taxTotal,

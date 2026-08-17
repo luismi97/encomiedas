@@ -19,7 +19,13 @@ class PendingQueue extends Component
 
     public function updatedSelectAll(bool $value): void
     {
-        $this->selected = $value ? $this->currentPageQuery()->pluck('id')->toArray() : [];
+        // Los que ya están en cola no se pueden volver a encolar: se excluyen
+        // para que "seleccionar todos" no genere una lista de errores.
+        $this->selected = $value
+            ? $this->currentPageQuery()
+                ->whereIn('status', [ElectronicInvoice::STATUS_PENDING, ElectronicInvoice::STATUS_ERROR])
+                ->pluck('id')->toArray()
+            : [];
     }
 
     public function updatedTab(): void
@@ -37,7 +43,7 @@ class PendingQueue extends Component
     private function baseQuery()
     {
         $statusMap = [
-            'pending'  => [ElectronicInvoice::STATUS_PENDING, ElectronicInvoice::STATUS_ERROR],
+            'pending'  => [ElectronicInvoice::STATUS_PENDING, ElectronicInvoice::STATUS_QUEUED, ElectronicInvoice::STATUS_ERROR],
             'sent'     => [ElectronicInvoice::STATUS_SENT],
             'rejected' => [ElectronicInvoice::STATUS_REJECTED],
             'accepted' => [ElectronicInvoice::STATUS_ACCEPTED],
@@ -60,9 +66,9 @@ class PendingQueue extends Component
         $this->selected = [];
         $this->selectAll = false;
 
-        $message = count($result['sent']) . ' comprobante(s) enviados.';
+        $message = count($result['queued']) . ' comprobante(s) en cola de envío a Hacienda.';
         if (!empty($result['errors'])) {
-            $message .= ' ' . count($result['errors']) . ' con error.';
+            $message .= ' ' . count($result['errors']) . ' no se pudieron encolar.';
         }
         session()->flash('success', $message);
     }
@@ -71,8 +77,8 @@ class PendingQueue extends Component
     {
         $electronicInvoice = ElectronicInvoice::findOrFail($id);
         try {
-            $service->send($electronicInvoice);
-            session()->flash('success', 'Comprobante enviado.');
+            $service->queueSend($electronicInvoice);
+            session()->flash('success', 'Comprobante en cola de envío a Hacienda.');
         } catch (\Throwable $e) {
             session()->flash('error', $e->getMessage());
         }
@@ -83,7 +89,7 @@ class PendingQueue extends Component
         $electronicInvoice = ElectronicInvoice::findOrFail($id);
         try {
             $service->retry($electronicInvoice);
-            session()->flash('success', 'Comprobante reintentado.');
+            session()->flash('success', 'Comprobante en cola para reintento.');
         } catch (\Throwable $e) {
             session()->flash('error', $e->getMessage());
         }

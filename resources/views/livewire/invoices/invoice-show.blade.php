@@ -1,4 +1,6 @@
 <div class="max-w-3xl space-y-6">
+    <x-flash />
+
     <div class="card">
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -17,20 +19,20 @@
         <div class="mt-4 flex flex-wrap gap-3">
             @if (!in_array($invoice->status, [\App\Models\Invoice::STATUS_DELIVERED, \App\Models\Invoice::STATUS_CANCELLED]))
                 @if ($invoice->status === \App\Models\Invoice::STATUS_PENDING)
-                    <x-action-button action="updateStatus('in_transit')" variant="primary" loadingText="Actualizando...">🚚 Marcar en camino</x-action-button>
+                    <x-action-button action="updateStatus('in_transit')" variant="primary" loadingText="Actualizando..."><x-icon name="truck" class="w-4 h-4" /> Marcar en camino</x-action-button>
                 @endif
                 @if ($invoice->status === \App\Models\Invoice::STATUS_IN_TRANSIT)
-                    <x-action-button action="updateStatus('delivered')" variant="success" loadingText="Actualizando...">✅ Marcar entregada</x-action-button>
-                    <x-action-button action="updateStatus('returned')" variant="danger" confirm="¿Confirmar devolución de esta encomienda?" loadingText="Actualizando...">↩️ Marcar devuelta</x-action-button>
+                    <x-action-button action="updateStatus('delivered')" variant="success" loadingText="Actualizando..."><x-icon name="check" class="w-4 h-4" /> Marcar entregada</x-action-button>
+                    <x-action-button action="updateStatus('returned')" variant="danger" confirm="¿Confirmar devolución de esta encomienda?" loadingText="Actualizando..."><x-icon name="undo" class="w-4 h-4" /> Marcar devuelta</x-action-button>
                 @endif
             @endif
-            <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-secondary">📥 Descargar factura</a>
+            <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="download" class="w-4 h-4" /> Descargar factura</a>
         </div>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="card">
-            <h3 class="font-semibold mb-2">📤 Remitente</h3>
+            <h3 class="font-semibold mb-2 flex items-center gap-2"><x-icon name="upload" class="w-5 h-5 text-gray-400" /> Remitente</h3>
             <p>{{ $invoice->sender_name }}</p>
             @if ($invoice->sender_phone)<p class="text-sm text-gray-500">Tel: {{ $invoice->sender_phone }}</p>@endif
             @if ($invoice->sender_identification)<p class="text-sm text-gray-500">Identificación: {{ $invoice->sender_identification }}</p>@endif
@@ -38,7 +40,7 @@
             @if ($invoice->pickupBranch->address)<p class="text-sm text-gray-500">{{ $invoice->pickupBranch->address }}</p>@endif
         </div>
         <div class="card">
-            <h3 class="font-semibold mb-2">📥 Receptor</h3>
+            <h3 class="font-semibold mb-2 flex items-center gap-2"><x-icon name="inbox" class="w-5 h-5 text-gray-400" /> Receptor</h3>
             <p>{{ $invoice->recipient_name }}</p>
             @if ($invoice->recipient_phone)<p class="text-sm text-gray-500">Tel: {{ $invoice->recipient_phone }}</p>@endif
             @if ($invoice->recipient_identification)<p class="text-sm text-gray-500">Identificación ({{ $invoice->recipient_identification_type }}): {{ $invoice->recipient_identification }}</p>@endif
@@ -49,7 +51,7 @@
     </div>
 
     <div class="card">
-        <h3 class="font-semibold mb-2">🚚 Encomienda</h3>
+        <h3 class="font-semibold mb-2 flex items-center gap-2"><x-icon name="truck" class="w-5 h-5 text-gray-400" /> Encomienda</h3>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
             <div><span class="text-gray-500 block">Creada por</span>{{ $invoice->creator?->name ?? '—' }}</div>
             <div><span class="text-gray-500 block">Repartidor asignado</span>{{ $invoice->assignedTo?->name ?? '— Sin asignar —' }}</div>
@@ -112,7 +114,7 @@
 
     @if (auth()->user()->isAdmin())
         <div class="card">
-            <h3 class="font-semibold mb-3">🧾 Facturación electrónica (Hacienda)</h3>
+            <h3 class="font-semibold mb-3 flex items-center gap-2"><x-icon name="receipt" class="w-5 h-5 text-gray-400" /> Facturación electrónica (Hacienda)</h3>
             @if (!$invoice->electronicInvoice)
                 <p class="text-gray-500">La encomienda debe estar <strong>entregada</strong> para reservar el comprobante.</p>
             @else
@@ -129,19 +131,76 @@
 
                 <div class="mt-4 flex flex-wrap gap-3">
                     @if (in_array($ei->status, ['pending', 'error']))
-                        <x-action-button action="sendToHacienda" variant="primary" loadingText="Enviando...">📨 Enviar a Hacienda</x-action-button>
+                        <x-action-button action="sendToHacienda" variant="primary" loadingText="Enviando..."><x-icon name="send" class="w-4 h-4" /> Enviar a Hacienda</x-action-button>
                     @endif
                     @if ($ei->pdf_path)
-                        <a href="{{ route('electronic-invoices.pdf', $ei) }}" target="_blank" class="btn-secondary">📄 Ver comprobante PDF</a>
+                        <a href="{{ route('electronic-invoices.pdf', $ei) }}" target="_blank" class="btn-secondary"><x-icon name="document" class="w-4 h-4" /> Ver comprobante PDF</a>
+                    @endif
+                    @if ($ei->status === 'accepted')
+                        <x-action-button action="openNoteForm('NC')" variant="secondary"><x-icon name="undo" class="w-4 h-4" /> Nota de crédito</x-action-button>
+                        <x-action-button action="openNoteForm('ND')" variant="secondary"><x-icon name="plus" class="w-4 h-4" /> Nota de débito</x-action-button>
                     @endif
                 </div>
+
+                @if ($ei->status === 'accepted' && !$showNoteForm)
+                    <p class="mt-3 text-xs text-gray-500">
+                        Un comprobante aceptado por Hacienda no se puede anular ni editar: se corrige emitiendo una nota.
+                    </p>
+                @endif
+
+                @if ($showNoteForm)
+                    <div class="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+                        <h4 class="font-semibold">
+                            {{ $noteType === 'NC' ? 'Nota de crédito (anula o rebaja)' : 'Nota de débito (cobro adicional)' }}
+                        </h4>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <label class="label">Monto (₡, IVA incluido)</label>
+                                <input type="number" step="0.01" min="0.01" wire:model="noteAmount" class="input">
+                                @error('noteAmount') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
+                            </div>
+                            <div>
+                                <label class="label">Razón</label>
+                                <input type="text" maxlength="180" wire:model="noteReason" class="input"
+                                       placeholder="{{ $noteType === 'NC' ? 'Anulación por encomienda devuelta' : 'Cobro adicional por sobrepeso' }}">
+                                @error('noteReason') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <x-action-button action="issueNote" variant="primary" loadingText="Emitiendo...">Emitir y enviar</x-action-button>
+                            <x-action-button action="closeNoteForm" variant="link-muted">Cancelar</x-action-button>
+                        </div>
+                    </div>
+                @endif
+
+                @if ($invoice->electronicNotes->isNotEmpty())
+                    <div class="mt-4 border-t border-gray-100 dark:border-gray-700 pt-3">
+                        <h4 class="font-semibold text-sm mb-2">Notas emitidas</h4>
+                        <ul class="space-y-1 text-sm">
+                            @foreach ($invoice->electronicNotes as $note)
+                                <li class="flex flex-wrap items-baseline justify-between gap-2">
+                                    <span>
+                                        {{ $note->typeLabel() }} · {{ $note->consecutivo }}
+                                        <span class="text-gray-500">— {{ $note->reference_reason }}</span>
+                                    </span>
+                                    <span class="text-gray-500">
+                                        ₡{{ number_format((float) $note->total, 2) }} · {{ $note->statusLabel() }}
+                                        @if ($note->pdf_path)
+                                            <a href="{{ route('electronic-invoices.pdf', $note) }}" target="_blank" class="text-brand-600 ml-2">PDF</a>
+                                        @endif
+                                    </span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
             @endif
         </div>
     @endif
 
     @if ($invoice->activityLogs->isNotEmpty())
         <div class="card">
-            <h3 class="font-semibold mb-3">🕒 Historial de actividad</h3>
+            <h3 class="font-semibold mb-3 flex items-center gap-2"><x-icon name="clock" class="w-5 h-5 text-gray-400" /> Historial de actividad</h3>
             <ul class="space-y-2 text-sm">
                 @foreach ($invoice->activityLogs as $log)
                     <li class="flex justify-between gap-3 border-b border-gray-100 dark:border-gray-700/50 pb-2">
@@ -153,5 +212,5 @@
         </div>
     @endif
 
-    <a href="{{ route('invoices.index') }}" class="btn-secondary inline-block">← Volver</a>
+    <a href="{{ route('invoices.index') }}" class="btn-secondary inline-flex"><x-icon name="arrow-left" class="w-4 h-4" /> Volver</a>
 </div>

@@ -23,36 +23,38 @@
         class="fixed inset-y-0 left-0 z-40 w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform lg:translate-x-0"
         :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
         <div class="h-16 flex items-center gap-2 px-5 border-b border-gray-200 dark:border-gray-700">
-            <span class="text-2xl">📦</span>
+            <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">
+                <x-icon name="box" class="w-5 h-5" />
+            </span>
             <span class="font-bold text-lg">{{ config('app.name') }}</span>
         </div>
 
         <nav class="p-3 space-y-1">
             <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'nav-link-active' : '' }}">
-                🏠 <span>Inicio</span>
+                <x-icon name="home" /> <span>Inicio</span>
             </a>
             <a href="{{ route('invoices.index') }}" class="nav-link {{ request()->routeIs('invoices.*') ? 'nav-link-active' : '' }}">
-                📋 <span>Facturas / Encomiendas</span>
+                <x-icon name="clipboard-list" /> <span>Facturas / Encomiendas</span>
             </a>
 
             @if (auth()->user()->isAdmin())
                 <a href="{{ route('hacienda.pending') }}" class="nav-link {{ request()->routeIs('hacienda.*') ? 'nav-link-active' : '' }}">
-                    🧾 <span>Pendientes de envío a Hacienda</span>
+                    <x-icon name="receipt" /> <span>Pendientes de envío a Hacienda</span>
                 </a>
                 <a href="{{ route('branches.index') }}" class="nav-link {{ request()->routeIs('branches.*') ? 'nav-link-active' : '' }}">
-                    🏢 <span>Sucursales</span>
+                    <x-icon name="building" /> <span>Sucursales</span>
                 </a>
                 <a href="{{ route('taxes.index') }}" class="nav-link {{ request()->routeIs('taxes.*') ? 'nav-link-active' : '' }}">
-                    💰 <span>Impuestos</span>
+                    <x-icon name="banknotes" /> <span>Impuestos</span>
                 </a>
                 <a href="{{ route('users.index') }}" class="nav-link {{ request()->routeIs('users.*') ? 'nav-link-active' : '' }}">
-                    👥 <span>Usuarios</span>
+                    <x-icon name="users" /> <span>Usuarios</span>
                 </a>
                 <a href="{{ route('activity-logs.index') }}" class="nav-link {{ request()->routeIs('activity-logs.*') ? 'nav-link-active' : '' }}">
-                    🕒 <span>Actividad de usuarios</span>
+                    <x-icon name="clock" /> <span>Actividad de usuarios</span>
                 </a>
                 <a href="{{ route('settings.company') }}" class="nav-link {{ request()->routeIs('settings.*') ? 'nav-link-active' : '' }}">
-                    ⚙️ <span>Configuración de la empresa</span>
+                    <x-icon name="cog" /> <span>Configuración de la empresa</span>
                 </a>
             @endif
         </nav>
@@ -63,15 +65,15 @@
         <header class="sticky top-0 z-20 h-16 flex items-center justify-between gap-3 px-4 sm:px-6 bg-white/90 dark:bg-gray-800/90 backdrop-blur border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center gap-3">
                 <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Abrir menú">
-                    ☰
+                    <x-icon name="menu" class="w-6 h-6" />
                 </button>
                 <h1 class="text-lg sm:text-xl font-semibold">{{ $title ?? 'Inicio' }}</h1>
             </div>
 
             <div class="flex items-center gap-2 sm:gap-4">
                 <button @click="dark = !dark" type="button" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cambiar tema">
-                    <span x-show="!dark">🌙</span>
-                    <span x-show="dark">☀️</span>
+                    <span x-show="!dark"><x-icon name="moon" class="w-5 h-5" /></span>
+                    <span x-show="dark" x-cloak><x-icon name="sun" class="w-5 h-5" /></span>
                 </button>
 
                 <div class="hidden sm:block text-right leading-tight">
@@ -90,13 +92,15 @@
 
         <main class="p-4 sm:p-6">
             @if (session('success'))
-                <div class="mb-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/40 text-green-800 dark:text-green-200 text-base">
-                    ✅ {{ session('success') }}
+                <div class="mb-4 flex items-start gap-3 p-4 rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/40 text-green-800 dark:text-green-200 text-base">
+                    <x-icon name="check-circle" class="w-5 h-5 mt-0.5" />
+                    <span>{{ session('success') }}</span>
                 </div>
             @endif
             @if (session('error'))
-                <div class="mb-4 p-4 rounded-lg bg-red-50 dark:bg-red-900/40 text-red-800 dark:text-red-200 text-base">
-                    ⚠️ {{ session('error') }}
+                <div class="mb-4 flex items-start gap-3 p-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/40 text-red-800 dark:text-red-200 text-base">
+                    <x-icon name="warning" class="w-5 h-5 mt-0.5" />
+                    <span>{{ session('error') }}</span>
                 </div>
             @endif
 

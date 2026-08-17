@@ -11,6 +11,12 @@ class InvoiceShow extends Component
 {
     public Invoice $invoice;
 
+    // Formulario de nota de crédito / débito
+    public bool $showNoteForm = false;
+    public string $noteType = 'NC';
+    public string $noteReason = '';
+    public ?float $noteAmount = null;
+
     public function mount(Invoice $invoice): void
     {
         $user = auth()->user();
@@ -18,7 +24,7 @@ class InvoiceShow extends Component
             abort(403, 'Esta encomienda no está asignada a usted.');
         }
 
-        $this->invoice = $invoice->load(['items', 'taxes', 'pickupBranch', 'deliveryBranch', 'creator', 'assignedTo', 'electronicInvoice', 'activityLogs.user']);
+        $this->invoice = $invoice->load(['items', 'taxes', 'pickupBranch', 'deliveryBranch', 'creator', 'assignedTo', 'electronicInvoice', 'electronicNotes', 'activityLogs.user']);
     }
 
     public function updateStatus(string $status): void
@@ -42,7 +48,7 @@ class InvoiceShow extends Component
             $status,
         );
 
-        $this->invoice->refresh()->load(['electronicInvoice', 'activityLogs.user']);
+        $this->invoice->refresh()->load(['electronicInvoice', 'electronicNotes', 'activityLogs.user']);
 
         session()->flash('success', 'Estado actualizado a "' . $this->invoice->statusLabel() . '".');
     }
@@ -56,17 +62,75 @@ class InvoiceShow extends Component
         }
 
         try {
-            $service->send($electronicInvoice);
-            $this->invoice->refresh()->load(['electronicInvoice', 'activityLogs.user']);
+            $service->queueSend($electronicInvoice);
+            $this->reloadInvoice();
             ActivityLog::record(
                 'hacienda_sent',
                 auth()->user()->name . " envió el comprobante de {$this->invoice->code} a Hacienda.",
                 $this->invoice,
             );
-            session()->flash('success', 'Comprobante enviado a Hacienda.');
+            session()->flash('success', 'Comprobante en cola de envío a Hacienda.');
         } catch (\Throwable $e) {
             session()->flash('error', $e->getMessage());
         }
+    }
+
+    public function openNoteForm(string $type): void
+    {
+        $this->noteType = in_array($type, ['NC', 'ND'], true) ? $type : 'NC';
+        $this->noteReason = '';
+        $this->noteAmount = (float) ($this->invoice->electronicInvoice?->total ?? 0);
+        $this->showNoteForm = true;
+    }
+
+    public function closeNoteForm(): void
+    {
+        $this->showNoteForm = false;
+        $this->resetValidation();
+    }
+
+    /**
+     * Emite una nota de crédito o débito contra el comprobante aceptado. No
+     * existe "anular" una factura ante Hacienda: se corrige con una nota.
+     */
+    public function issueNote(ElectronicBillingService $service): void
+    {
+        $this->validate([
+            'noteType'   => 'required|in:NC,ND',
+            'noteReason' => 'required|string|min:5|max:180',
+            'noteAmount' => 'required|numeric|min:0.01',
+        ], [], [
+            'noteReason' => 'razón',
+            'noteAmount' => 'monto',
+        ]);
+
+        $original = $this->invoice->electronicInvoice;
+
+        if (!$original) {
+            session()->flash('error', 'Esta factura no tiene comprobante electrónico.');
+            return;
+        }
+
+        try {
+            $note = $service->issueNote($original, $this->noteType, $this->noteReason, $this->noteAmount);
+
+            ActivityLog::record(
+                'hacienda_note_issued',
+                auth()->user()->name . ' emitió una ' . $note->typeLabel() . " sobre {$this->invoice->code}: {$this->noteReason}.",
+                $this->invoice,
+            );
+
+            $this->showNoteForm = false;
+            $this->reloadInvoice();
+            session()->flash('success', $note->typeLabel() . ' ' . $note->consecutivo . ' emitida y en cola de envío.');
+        } catch (\Throwable $e) {
+            session()->flash('error', $e->getMessage());
+        }
+    }
+
+    private function reloadInvoice(): void
+    {
+        $this->invoice->refresh()->load(['electronicInvoice', 'electronicNotes', 'activityLogs.user']);
     }
 
     public function render()

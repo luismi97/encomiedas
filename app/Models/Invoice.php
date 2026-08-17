@@ -26,6 +26,15 @@ class Invoice extends Model
         self::STATUS_CANCELLED  => 'Anulada',
     ];
 
+    /** Medios de pago; las llaves se traducen al catálogo de Hacienda en Catalogs::paymentMethod(). */
+    public const PAYMENT_METHODS = [
+        'cash'     => 'Efectivo',
+        'card'     => 'Tarjeta',
+        'sinpe'    => 'SINPE Móvil',
+        'transfer' => 'Transferencia',
+        'other'    => 'Otro',
+    ];
+
     public const STATUS_COLORS = [
         self::STATUS_PENDING    => 'yellow',
         self::STATUS_IN_TRANSIT => 'blue',
@@ -60,6 +69,7 @@ class Invoice extends Model
         'discount_amount',
         'tax_total',
         'total',
+        'payment_method',
         'notes',
         'created_by',
         'assigned_to',
@@ -115,9 +125,31 @@ class Invoice extends Model
     }
 
     /** Comprobante electrónico vigente (el de mayor id). */
+    /**
+     * El comprobante principal (factura o tiquete) de la encomienda.
+     *
+     * Se restringe a los tipos 01/04 a propósito: las notas de crédito y
+     * débito también cuelgan de esta factura y son más recientes, así que sin
+     * el filtro latestOfMany() devolvería la nota en lugar del comprobante que
+     * la nota corrige.
+     */
     public function electronicInvoice(): HasOne
     {
-        return $this->hasOne(ElectronicInvoice::class)->latestOfMany();
+        // La restricción va DENTRO de ofMany(): puesta por fuera, la subconsulta
+        // seguiría eligiendo el comprobante más reciente —la nota— y el filtro
+        // externo lo descartaría después, devolviendo null.
+        return $this->hasOne(ElectronicInvoice::class)->ofMany(
+            ['id' => 'max'],
+            fn ($query) => $query->whereIn('document_type', ['01', '04'])
+        );
+    }
+
+    /** Notas de crédito/débito emitidas contra el comprobante de esta encomienda. */
+    public function electronicNotes(): HasMany
+    {
+        return $this->hasMany(ElectronicInvoice::class)
+            ->whereIn('document_type', ['02', '03'])
+            ->latest();
     }
 
     public function electronicInvoices(): HasMany

@@ -1,4 +1,6 @@
 <div class="space-y-6 max-w-4xl">
+    <x-flash />
+
     <div class="card">
         <p class="text-gray-500 dark:text-gray-400 mb-4">
             Estos datos se usan para la facturación electrónica ante el Ministerio de Hacienda.

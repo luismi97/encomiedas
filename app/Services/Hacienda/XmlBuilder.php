@@ -32,6 +32,12 @@ abstract class XmlBuilder
     abstract protected function documentLetter(): string;
     abstract protected function includesReceptor(): bool;
 
+    /** Solo las notas de crédito/débito llevan el bloque InformacionReferencia. */
+    protected function includesRefDocumento(): bool
+    {
+        return false;
+    }
+
     public function __construct(ElectronicInvoice $electronicInvoice)
     {
         $this->electronicInvoice = $electronicInvoice;
@@ -58,7 +64,7 @@ abstract class XmlBuilder
         $issuedAt = Carbon::parse($this->electronicInvoice->issued_at);
 
         $root->appendChild($this->el('Clave', $this->electronicInvoice->clave));
-        $root->appendChild($this->el('ProveedorSistemas', $emisor['identification_number'] ?? ''));
+        $root->appendChild($this->el('ProveedorSistemas', $emisor['proveedor_sistemas'] ?? $emisor['identification_number'] ?? ''));
         $root->appendChild($this->el('CodigoActividadEmisor', Catalogs::normalizeActivityCode($emisor['activity_code'] ?? null)));
 
         $receptorData = $this->electronicInvoice->receptor_data ?? [];
@@ -79,6 +85,11 @@ abstract class XmlBuilder
         $root->appendChild($this->el('CondicionVenta', config('hacienda.sale_condition')));
         $root->appendChild($this->buildDetalleServicio());
         $root->appendChild($this->buildResumen());
+
+        // El esquema v4.4 ubica InformacionReferencia DESPUÉS de ResumenFactura.
+        if ($this->includesRefDocumento() && $this->electronicInvoice->reference_invoice_id) {
+            $root->appendChild($this->buildInformacionReferencia());
+        }
 
         return $this->doc->saveXML();
     }
@@ -322,6 +333,12 @@ abstract class XmlBuilder
         if (($r['serv_exento'] ?? 0) > 0) {
             $resumen->appendChild($this->el('TotalServExentos', $this->num($r['serv_exento'])));
         }
+        if (($r['merc_gravada'] ?? 0) > 0) {
+            $resumen->appendChild($this->el('TotalMercanciasGravadas', $this->num($r['merc_gravada'])));
+        }
+        if (($r['merc_exenta'] ?? 0) > 0) {
+            $resumen->appendChild($this->el('TotalMercanciasExentas', $this->num($r['merc_exenta'])));
+        }
         if (($r['gravado'] ?? 0) > 0) {
             $resumen->appendChild($this->el('TotalGravado', $this->num($r['gravado'])));
         }
@@ -344,16 +361,170 @@ abstract class XmlBuilder
 
         $resumen->appendChild($this->el('TotalImpuesto', $this->num($r['impuesto'] ?? 0)));
 
-        // Sin registro de pagos parciales en este sistema: se declara todo en
-        // efectivo salvo que se indique otro medio al momento del envío.
-        $medio = $this->doc->createElement('MedioPago');
-        $medio->appendChild($this->el('TipoMedioPago', Catalogs::paymentMethod('cash')));
-        $medio->appendChild($this->el('TotalMedioPago', $this->num($r['total'] ?? 0)));
-        $resumen->appendChild($medio);
+        foreach ($this->mediosPago() as $mp) {
+            $medio = $this->doc->createElement('MedioPago');
+            $medio->appendChild($this->el('TipoMedioPago', $mp['tipo']));
+            $medio->appendChild($this->el('TotalMedioPago', $this->num($mp['total'])));
+            $resumen->appendChild($medio);
+        }
 
         $resumen->appendChild($this->el('TotalComprobante', $this->num($r['total'] ?? 0)));
 
         return $resumen;
+    }
+
+    /**
+     * Medios de pago declarados. La suma de TotalMedioPago tiene que dar igual
+     * que TotalComprobante, así que cualquier diferencia de redondeo se ajusta
+     * contra el medio mayor.
+     *
+     * @return array<int,array{tipo:string,total:float}>
+     */
+    protected function mediosPago(): array
+    {
+        $total = round((float) ($this->resumen['total'] ?? 0), 5);
+        $method = $this->electronicInvoice->invoice->payment_method ?? 'cash';
+
+        return [[
+            'tipo'  => Catalogs::paymentMethod($method),
+            'total' => $total,
+        ]];
+    }
+
+    /** Las secciones CABYS 6-9 son servicios; 0-5 son mercancías. */
+    protected function isService(?string $cabys): bool
+    {
+        return $cabys !== null && $cabys !== '' && $cabys[0] >= '6';
+    }
+
+    /**
+     * Bloque que amarra la nota al comprobante que corrige o anula.
+     *
+     * v4.4 renombró los campos de v4.3 con el sufijo "IR": TipoDocIR y
+     * FechaEmisionIR. El Numero es la CLAVE de 50 dígitos del original, no su
+     * consecutivo.
+     */
+    protected function buildInformacionReferencia(): DOMElement
+    {
+        $original = $this->electronicInvoice->referenceInvoice()->first();
+
+        if (!$original) {
+            throw new \RuntimeException('La nota no tiene comprobante de referencia.');
+        }
+
+        $info = $this->doc->createElement('InformacionReferencia');
+        $info->appendChild($this->el('TipoDocIR', $original->document_type));
+        $info->appendChild($this->el('Numero', $original->clave));
+        $info->appendChild($this->el('FechaEmisionIR', Carbon::parse($original->issued_at)->format('Y-m-d\TH:i:sP')));
+        $info->appendChild($this->el('Codigo', $this->reasonCode()));
+        $info->appendChild($this->el('Razon', mb_substr($this->electronicInvoice->reference_reason ?: 'Anulación', 0, 180)));
+
+        return $info;
+    }
+
+    /**
+     * Código del catálogo de referencias v4.4. Se restringe a los valores que
+     * no obligan a mandar el elemento "Otro": 01 anula, 02 corrige el monto.
+     */
+    protected function reasonCode(): string
+    {
+        $reason = mb_strtolower($this->electronicInvoice->reference_reason ?: '');
+
+        foreach (['corrige', 'monto', 'descuento', 'ajuste'] as $needle) {
+            if (str_contains($reason, $needle)) {
+                return '02';
+            }
+        }
+
+        return '01';
+    }
+
+    /**
+     * Arma las líneas de una nota a partir de las filas que digitó el usuario.
+     * Cada fila trae {detalle, cabys, cantidad, precio}, donde precio es el
+     * precio con IVA incluido (el que ve el cliente); el IVA se despeja hacia
+     * atrás con la tarifa del comprobante original.
+     *
+     * @param array<int,array<string,mixed>> $noteLines
+     */
+    protected function computeCustomNoteLines(array $noteLines, string $docLabel = 'Nota'): void
+    {
+        $original = $this->electronicInvoice->referenceInvoice()->first();
+        $emisor   = $this->electronicInvoice->emisor_data ?? [];
+
+        $rate = (float) ($emisor['iva_rate'] ?? config('hacienda.tax.iva_rate'));
+        $this->ivaPercent = $rate;
+        $factor = 1 + $rate / 100;
+
+        $defaultCabys = $original->emisor_data['default_cabys']
+            ?? $emisor['default_cabys']
+            ?? config('hacienda.default_cabys_code');
+
+        foreach (array_values($noteLines) as $i => $line) {
+            $qty      = max(0.001, (float) ($line['cantidad'] ?? 1));
+            $unitIncl = round(abs((float) ($line['precio'] ?? 0)), 5);
+            $unitBase = $rate > 0 ? round($unitIncl / $factor, 5) : $unitIncl;
+            $gross    = round($unitBase * $qty, 5);
+            $iva      = $rate > 0 ? round($gross * $rate / 100, 5) : 0.0;
+            $cabys    = !empty($line['cabys']) ? $line['cabys'] : $defaultCabys;
+            $detalle  = !empty($line['detalle']) ? $line['detalle'] : ($docLabel . ' - Línea ' . ($i + 1));
+
+            $this->lines[] = [
+                'numero'     => $i + 1,
+                'cabys'      => $cabys,
+                'cantidad'   => $qty,
+                'detalle'    => mb_substr($detalle, 0, 160),
+                'precio'     => $unitBase,
+                'montoTotal' => $gross,
+                'descuento'  => 0,
+                'subTotal'   => $gross,
+                'iva'        => $iva,
+                'iva_rate'   => $rate,
+                'iva_codigo' => Catalogs::ivaRateCode($rate),
+                'totalLinea' => round($gross + $iva, 5),
+            ];
+        }
+
+        $this->desglosePorTarifa = $this->buildDesgloseFromLines();
+
+        $servGravado = $servExento = $mercGravada = $mercExenta = 0.0;
+        $totalBase = $totalIva = 0.0;
+
+        foreach ($this->lines as $l) {
+            $isService = $this->isService($l['cabys']);
+            $gravado   = $l['iva'] > 0;
+
+            if ($gravado && $isService) {
+                $servGravado += $l['montoTotal'];
+            } elseif ($gravado) {
+                $mercGravada += $l['montoTotal'];
+            } elseif ($isService) {
+                $servExento += $l['montoTotal'];
+            } else {
+                $mercExenta += $l['montoTotal'];
+            }
+
+            $totalBase += $l['subTotal'];
+            $totalIva  += $l['iva'];
+        }
+
+        $totalBase = round($totalBase, 5);
+        $totalIva  = round($totalIva, 5);
+
+        $this->resumen = [
+            'serv_gravado' => round($servGravado, 5),
+            'serv_exento'  => round($servExento, 5),
+            'merc_gravada' => round($mercGravada, 5),
+            'merc_exenta'  => round($mercExenta, 5),
+            'gravado'      => round($servGravado + $mercGravada, 5),
+            'exento'       => round($servExento + $mercExenta, 5),
+            'total_venta'  => $totalBase,
+            'descuentos'   => 0.0,
+            'venta_neta'   => $totalBase,
+            'impuesto'     => $totalIva,
+            'otros_cargos' => 0.0,
+            'total'        => round($totalBase + $totalIva, 5),
+        ];
     }
 
     // ---------------------------------------------------------------------

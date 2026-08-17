@@ -1,7 +1,9 @@
 <div class="space-y-6">
+    <x-flash />
+
     <div class="flex items-center justify-between flex-wrap gap-3">
         <p class="text-gray-500 dark:text-gray-400">Impuestos aplicables a las facturas de encomienda (ej. IVA 13%).</p>
-        <x-action-button action="create" variant="primary" loadingText="Abriendo...">➕ Nuevo impuesto</x-action-button>
+        <x-action-button action="create" variant="primary" loadingText="Abriendo..."><x-icon name="plus" class="w-4 h-4" /> Nuevo impuesto</x-action-button>
     </div>
 
     @if ($showForm)
@@ -62,7 +64,7 @@
                             <td class="py-3 font-medium">{{ $tax->name }}</td>
                             <td class="py-3">{{ number_format($tax->percent, 2) }}%</td>
                             <td class="py-3">{{ $tax->hacienda_code }}</td>
-                            <td class="py-3">{{ $tax->is_default ? '⭐' : '' }}</td>
+                            <td class="py-3">@if ($tax->is_default)<span class="badge bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200"><x-icon name="star" solid class="w-3.5 h-3.5 mr-1" /> Predeterminado</span>@endif</td>
                             <td class="py-3">
                                 <span class="badge {{ $tax->is_active ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }}">
                                     {{ $tax->is_active ? 'Activo' : 'Inactivo' }}
@@ -84,7 +86,7 @@
             @forelse ($taxes as $tax)
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <div class="flex items-start justify-between gap-2">
-                        <div class="font-semibold">{{ $tax->name }} {{ $tax->is_default ? '⭐' : '' }}</div>
+                        <div class="font-semibold flex items-center gap-1.5">{{ $tax->name }}@if ($tax->is_default)<x-icon name="star" solid class="w-4 h-4 text-brand-500" /><span class="sr-only">Predeterminado</span>@endif</div>
                         <span class="badge shrink-0 {{ $tax->is_active ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }}">
                             {{ $tax->is_active ? 'Activo' : 'Inactivo' }}
                         </span>

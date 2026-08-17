@@ -24,15 +24,15 @@
                 <div class="text-sm text-gray-500 dark:text-gray-400">Pendientes de envío a Hacienda</div>
                 <div class="text-2xl font-bold mt-1">{{ $haciendaPending }}</div>
             </div>
-            <span class="text-3xl">🧾</span>
+            <span class="flex h-12 w-12 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300"><x-icon name="receipt" class="w-6 h-6" /></span>
         </a>
     @endif
 
     <div class="flex flex-wrap gap-3">
         @if (auth()->user()->isAdmin())
-            <a href="{{ route('invoices.create') }}" class="btn-primary">➕ Nueva factura</a>
+            <a href="{{ route('invoices.create') }}" class="btn-primary"><x-icon name="plus" class="w-4 h-4" /> Nueva factura</a>
         @endif
-        <a href="{{ route('invoices.index') }}" class="btn-secondary">📋 Ver todas las facturas</a>
+        <a href="{{ route('invoices.index') }}" class="btn-secondary"><x-icon name="clipboard-list" class="w-4 h-4" /> Ver todas las facturas</a>
     </div>
 
     <div class="card">
@@ -53,14 +53,14 @@
                         <tr class="border-b border-gray-100 dark:border-gray-700/50">
                             <td class="py-3 px-4 sm:px-0 font-medium">{{ $invoice->code }}</td>
                             <td class="py-3 px-4">{{ $invoice->recipient_name }}</td>
-                            <td class="py-3 px-4 text-sm">{{ $invoice->pickupBranch->name }} → {{ $invoice->deliveryBranch->name }}</td>
+                            <td class="py-3 px-4 text-sm">{{ $invoice->pickupBranch->name }} <span class="text-gray-400">&rarr;</span> {{ $invoice->deliveryBranch->name }}</td>
                             <td class="py-3 px-4">
                                 <span class="badge {{ $invoice->statusBadgeClasses() }}">
                                     {{ $invoice->statusLabel() }}
                                 </span>
                             </td>
                             <td class="py-3 px-4 text-right">
-                                <a href="{{ route('invoices.show', $invoice) }}" class="text-brand-600 dark:text-brand-300 font-medium">Ver →</a>
+                                <a href="{{ route('invoices.show', $invoice) }}" class="text-brand-600 dark:text-brand-300 font-medium">Ver detalle</a>
                             </td>
                         </tr>
                     @empty

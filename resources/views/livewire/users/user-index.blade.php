@@ -1,7 +1,9 @@
 <div class="space-y-6">
+    <x-flash />
+
     <div class="flex items-center justify-between flex-wrap gap-3">
         <p class="text-gray-500 dark:text-gray-400">Administradores y repartidores del sistema.</p>
-        <x-action-button action="create" variant="primary" loadingText="Abriendo...">➕ Nuevo usuario</x-action-button>
+        <x-action-button action="create" variant="primary" loadingText="Abriendo..."><x-icon name="plus" class="w-4 h-4" /> Nuevo usuario</x-action-button>
     </div>
 
     @if ($showForm)

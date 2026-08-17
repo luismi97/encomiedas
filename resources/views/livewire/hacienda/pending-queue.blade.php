@@ -1,4 +1,6 @@
 <div class="space-y-6">
+    <x-flash />
+
     <p class="text-gray-500 dark:text-gray-400">
         Cuando una encomienda se marca como <strong>entregada</strong>, su comprobante se reserva aquí
         y espera a que un administrador decida enviarlo a Hacienda (individual o en bloque).
@@ -20,7 +22,7 @@
                 Seleccionar todos en esta página
             </label>
             <x-action-button action="sendSelected" variant="primary" loadingText="Enviando..." :disabled="empty($selected)">
-                📨 Enviar seleccionadas a Hacienda ({{ count($selected) }})
+                <x-icon name="send" class="w-4 h-4" /> Enviar seleccionadas a Hacienda ({{ count($selected) }})
             </x-action-button>
         </div>
     @endif

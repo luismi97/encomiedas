@@ -8,7 +8,10 @@
     'disabled' => false,
 ])
 @php
-    $target = $target ?? \Illuminate\Support\Str::before($action ?? '', '(');
+    // wire:target debe conservar los argumentos: si se recorta a "sendOne", ese
+    // target coincide con CUALQUIER sendOne(...) y todas las filas de la lista
+    // se ponen en estado de carga a la vez. Livewire 3 compara method + params.
+    $target = $target ?? ($action ?? '');
     $classes = match ($variant) {
         'primary' => 'btn-primary',
         'secondary' => 'btn-secondary',

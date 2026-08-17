@@ -9,7 +9,7 @@
 <body class="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 px-4">
     <div class="w-full max-w-md">
         <div class="text-center mb-6">
-            <h1 class="text-2xl font-bold text-gray-800 dark:text-white">📦 {{ config('app.name') }}</h1>
+            <h1 class="text-2xl font-bold text-gray-800 dark:text-white flex items-center justify-center gap-2"><span class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white"><x-icon name="box" class="w-5 h-5" /></span>{{ config('app.name') }}</h1>
             <p class="text-gray-500 dark:text-gray-400 mt-1">Sistema de encomiendas</p>
         </div>
 
@@ -46,8 +46,8 @@
 
         <button @click="dark = !dark" type="button"
             class="mt-6 mx-auto flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
-            <span x-show="!dark">🌙 Modo oscuro</span>
-            <span x-show="dark">☀️ Modo claro</span>
+            <span x-show="!dark" class="inline-flex items-center gap-1.5"><x-icon name="moon" class="w-4 h-4" /> Modo oscuro</span>
+            <span x-show="dark" x-cloak class="inline-flex items-center gap-1.5"><x-icon name="sun" class="w-4 h-4" /> Modo claro</span>
         </button>
     </div>
 </body>

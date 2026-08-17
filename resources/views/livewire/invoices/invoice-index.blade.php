@@ -1,4 +1,6 @@
 <div class="space-y-6">
+    <x-flash />
+
     <div class="card space-y-4">
         <div class="flex flex-wrap items-center gap-2">
             @foreach (['today' => 'Hoy', 'week' => 'Esta semana', 'month' => 'Este mes', 'range' => 'Rango', 'all' => 'Todas'] as $value => $label)
@@ -40,11 +42,11 @@
 
         <div class="flex flex-wrap gap-3 pt-1">
             @if (auth()->user()->isAdmin())
-                <a href="{{ route('invoices.create') }}" class="btn-primary">➕ Nueva factura</a>
+                <a href="{{ route('invoices.create') }}" class="btn-primary"><x-icon name="plus" class="w-4 h-4" /> Nueva factura</a>
             @endif
             <a href="{{ route('invoices.export', ['from' => $from, 'to' => $to, 'status' => $status, 'branch_id' => $branchId, 'search' => $search]) }}"
                class="btn-secondary" target="_blank">
-                📄 Exportar PDF
+                <x-icon name="document" class="w-4 h-4" /> Exportar PDF
             </a>
         </div>
     </div>
@@ -61,25 +63,25 @@
                 </div>
 
                 <div class="mt-3 text-sm space-y-1">
-                    <div>📤 <strong>{{ $invoice->sender_name }}</strong> — {{ $invoice->pickupBranch->name }}</div>
-                    <div>📥 <strong>{{ $invoice->recipient_name }}</strong> — {{ $invoice->deliveryBranch->name }}</div>
+                    <div class="flex items-start gap-2"><x-icon name="upload" class="w-4 h-4 mt-0.5 text-gray-400" /><span><strong>{{ $invoice->sender_name }}</strong> — {{ $invoice->pickupBranch->name }}</span></div>
+                    <div class="flex items-start gap-2"><x-icon name="inbox" class="w-4 h-4 mt-0.5 text-gray-400" /><span><strong>{{ $invoice->recipient_name }}</strong> — {{ $invoice->deliveryBranch->name }}</span></div>
                     @if ($invoice->assignedTo)
-                        <div>🚚 Repartidor: {{ $invoice->assignedTo->name }}</div>
+                        <div class="flex items-start gap-2"><x-icon name="truck" class="w-4 h-4 mt-0.5 text-gray-400" /><span>Repartidor: {{ $invoice->assignedTo->name }}</span></div>
                     @endif
                     <div class="font-semibold text-gray-700 dark:text-gray-200">Total: ₡{{ number_format($invoice->total, 2) }}</div>
                 </div>
 
                 <div class="mt-4 flex flex-wrap gap-2">
                     <a href="{{ route('invoices.show', $invoice) }}" class="btn-secondary !py-2 !px-3 text-sm">Ver detalle</a>
-                    <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-secondary !py-2 !px-3 text-sm">📥 Factura</a>
+                    <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-secondary !py-2 !px-3 text-sm"><x-icon name="document" class="w-4 h-4" /> Factura</a>
 
                     @if (!in_array($invoice->status, [\App\Models\Invoice::STATUS_DELIVERED, \App\Models\Invoice::STATUS_CANCELLED]))
                         @if ($invoice->status === \App\Models\Invoice::STATUS_PENDING)
-                            <x-action-button action="updateStatus({{ $invoice->id }}, 'in_transit')" variant="primary" loadingText="..." class="!py-2 !px-3 text-sm">🚚 En camino</x-action-button>
+                            <x-action-button action="updateStatus({{ $invoice->id }}, 'in_transit')" variant="primary" loadingText="..." class="!py-2 !px-3 text-sm"><x-icon name="truck" class="w-4 h-4" /> En camino</x-action-button>
                         @endif
                         @if ($invoice->status === \App\Models\Invoice::STATUS_IN_TRANSIT)
-                            <x-action-button action="updateStatus({{ $invoice->id }}, 'delivered')" variant="success" loadingText="..." class="!py-2 !px-3 text-sm">✅ Entregada</x-action-button>
-                            <x-action-button action="updateStatus({{ $invoice->id }}, 'returned')" variant="danger" confirm="¿Marcar como devuelta?" loadingText="..." class="!py-2 !px-3 text-sm">↩️ Devuelta</x-action-button>
+                            <x-action-button action="updateStatus({{ $invoice->id }}, 'delivered')" variant="success" loadingText="..." class="!py-2 !px-3 text-sm"><x-icon name="check" class="w-4 h-4" /> Entregada</x-action-button>
+                            <x-action-button action="updateStatus({{ $invoice->id }}, 'returned')" variant="danger" confirm="¿Marcar como devuelta?" loadingText="..." class="!py-2 !px-3 text-sm"><x-icon name="undo" class="w-4 h-4" /> Devuelta</x-action-button>
                         @endif
                     @endif
                 </div>

@@ -39,8 +39,8 @@ class CompanySettingsForm extends Component
     {
         $settings = CompanySetting::instance();
 
-        $this->enabled = $settings->enabled;
-        $this->environment = $settings->environment;
+        $this->enabled = (bool) $settings->enabled;
+        $this->environment = $settings->environment ?: 'sandbox';
         $this->name = (string) $settings->name;
         $this->commercial_name = (string) $settings->commercial_name;
         $this->identification_type = $settings->identification_type ?: '02';

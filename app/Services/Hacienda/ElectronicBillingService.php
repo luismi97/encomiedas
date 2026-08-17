@@ -2,12 +2,15 @@
 
 namespace App\Services\Hacienda;
 
+use App\Jobs\SendElectronicInvoiceJob;
 use App\Models\CompanySetting;
 use App\Models\ElectronicInvoice;
 use App\Models\Invoice;
+use App\Notifications\SendElectronicInvoice;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
@@ -85,7 +88,7 @@ class ElectronicBillingService
             'clave'         => $clave['clave'],
             'consecutivo'   => $clave['consecutivo'],
             'security_code' => $clave['security_code'],
-            'environment'   => $settings->environment,
+            'environment'   => $settings->effectiveEnvironment(),
             'currency_code' => 'CRC',
             'exchange_rate' => 1,
             'emisor_data'   => $this->emisorSnapshot($settings),
@@ -104,7 +107,7 @@ class ElectronicBillingService
         return $this->sendBlocker($electronicInvoice) === null;
     }
 
-    public function sendBlocker(ElectronicInvoice $electronicInvoice): ?string
+    public function sendBlocker(ElectronicInvoice $electronicInvoice, bool $fromQueue = false): ?string
     {
         if (in_array($electronicInvoice->status, [
             ElectronicInvoice::STATUS_ACCEPTED,
@@ -112,6 +115,13 @@ class ElectronicBillingService
             ElectronicInvoice::STATUS_SENDING,
         ], true)) {
             return 'Este comprobante ya fue enviado a Hacienda.';
+        }
+
+        // 'queued' significa que ya hay un job encargado de este comprobante:
+        // solo ese job puede continuar. Sin esto, dos clics seguidos al botón
+        // de enviar terminan transmitiendo el mismo comprobante dos veces.
+        if (!$fromQueue && $electronicInvoice->status === ElectronicInvoice::STATUS_QUEUED) {
+            return 'Este comprobante ya está en la cola de envío.';
         }
 
         $settings = CompanySetting::instance();
@@ -123,9 +133,9 @@ class ElectronicBillingService
     }
 
     /** Construye, firma y transmite un comprobante pendiente o con error. */
-    public function send(ElectronicInvoice $electronicInvoice): ElectronicInvoice
+    public function send(ElectronicInvoice $electronicInvoice, bool $fromQueue = false): ElectronicInvoice
     {
-        if ($reason = $this->sendBlocker($electronicInvoice)) {
+        if ($reason = $this->sendBlocker($electronicInvoice, $fromQueue)) {
             throw new RuntimeException($reason);
         }
 
@@ -146,30 +156,57 @@ class ElectronicBillingService
     }
 
     /**
-     * Envía una selección de comprobantes pendientes. Devuelve un resumen
-     * (enviados / con error) para mostrar al administrador.
+     * Manda un comprobante a la cola de envío.
+     *
+     * Firmar y transmitir toma segundos; hacerlo dentro del request hace que
+     * un envío en bloque se caiga por timeout a media lista. El cambio de
+     * estado va bajo candado para que dos clics (o dos pestañas) no encolen
+     * el mismo comprobante dos veces.
+     */
+    public function queueSend(ElectronicInvoice $electronicInvoice): void
+    {
+        $queued = DB::transaction(function () use ($electronicInvoice) {
+            $fresh = ElectronicInvoice::whereKey($electronicInvoice->id)->lockForUpdate()->first();
+
+            if (!$fresh) {
+                throw new RuntimeException('El comprobante ya no existe.');
+            }
+
+            if ($reason = $this->sendBlocker($fresh)) {
+                throw new RuntimeException($reason);
+            }
+
+            $fresh->status = ElectronicInvoice::STATUS_QUEUED;
+            $fresh->error_message = null;
+            $fresh->save();
+
+            return $fresh;
+        });
+
+        SendElectronicInvoiceJob::dispatch($queued->id);
+    }
+
+    /**
+     * Encola una selección de comprobantes. Devuelve un resumen (encolados /
+     * con error) para mostrar al administrador.
      *
      * @param array<int> $ids
      */
     public function sendBatch(array $ids): array
     {
-        $sent = [];
+        $queued = [];
         $errors = [];
 
         foreach (ElectronicInvoice::whereIn('id', $ids)->get() as $electronicInvoice) {
             try {
-                $result = $this->send($electronicInvoice);
-                if ($result->status === ElectronicInvoice::STATUS_ERROR) {
-                    $errors[] = ['id' => $electronicInvoice->id, 'message' => $result->error_message];
-                } else {
-                    $sent[] = $electronicInvoice->id;
-                }
+                $this->queueSend($electronicInvoice);
+                $queued[] = $electronicInvoice->id;
             } catch (\Throwable $e) {
                 $errors[] = ['id' => $electronicInvoice->id, 'message' => $e->getMessage()];
             }
         }
 
-        return ['sent' => $sent, 'errors' => $errors];
+        return ['queued' => $queued, 'errors' => $errors];
     }
 
     /** Rearma, refirma y reenvía un comprobante rechazado o con error. */
@@ -189,7 +226,9 @@ class ElectronicBillingService
         $electronicInvoice->error_message = null;
         $electronicInvoice->save();
 
-        return $this->send($electronicInvoice);
+        $this->queueSend($electronicInvoice);
+
+        return $electronicInvoice->fresh();
     }
 
     private function regenerateClave(ElectronicInvoice $electronicInvoice, CompanySetting $settings): void
@@ -201,8 +240,11 @@ class ElectronicBillingService
             return;
         }
 
-        $letter  = $invoice->receptorIdentificado() ? 'FE' : 'TE';
-        $docCode = Catalogs::documentCode($letter);
+        // Una nota conserva su tipo (02/03); solo FE/TE se recalculan según
+        // si la encomienda tiene receptor identificado.
+        $docCode = $electronicInvoice->isNote()
+            ? $electronicInvoice->document_type
+            : Catalogs::documentCode($invoice->receptorIdentificado() ? 'FE' : 'TE');
         $issuedAt = Carbon::now(config('app.timezone') ?: 'America/Costa_Rica');
 
         $clave = $this->claveGenerator->generate($branch, $docCode, $settings->identification_number, $issuedAt);
@@ -247,6 +289,7 @@ class ElectronicBillingService
             }
             $electronicInvoice->save();
             app(PdfGenerator::class)->generate($electronicInvoice);
+            $this->sendInvoiceEmail($electronicInvoice->fresh());
         } elseif ($estado === 'rechazado') {
             $electronicInvoice->status = ElectronicInvoice::STATUS_REJECTED;
             if ($xmlB64 = $response->json('respuesta-xml')) {
@@ -270,15 +313,20 @@ class ElectronicBillingService
     {
         return match ($code) {
             '01' => 'FE',
+            '02' => 'ND',
+            '03' => 'NC',
             default => 'TE',
         };
     }
 
     private function buildAndSign(ElectronicInvoice $electronicInvoice, string $letter): void
     {
-        $builder = $letter === 'FE'
-            ? new FacturaElectronicaXml($electronicInvoice)
-            : new TiqueteElectronicoXml($electronicInvoice);
+        $builder = match ($letter) {
+            'FE' => new FacturaElectronicaXml($electronicInvoice),
+            'NC' => new NotaCreditoXml($electronicInvoice),
+            'ND' => new NotaDebitoXml($electronicInvoice),
+            default => new TiqueteElectronicoXml($electronicInvoice),
+        };
 
         $xml = $builder->build();
         $totals = $builder->totals();
@@ -356,6 +404,149 @@ class ElectronicBillingService
         $path = "respuestas/{$yearMonth}/{$electronicInvoice->clave}-respuesta.xml";
         $this->disk()->put($path, $xml);
         return $path;
+    }
+
+    /**
+     * Emite una nota de crédito (NC) o de débito (ND) contra un comprobante ya
+     * aceptado por Hacienda.
+     *
+     * Es la única manera de revertir o corregir un comprobante: uno aceptado no
+     * se borra ni se edita. La nota nace con clave y consecutivo propios (tipo
+     * 03 o 02) y queda encolada para transmitirse.
+     *
+     * @param 'NC'|'ND' $type
+     * @param array<int,array<string,mixed>>|null $lines Líneas detalladas; si
+     *        se omiten, la nota va por un monto global.
+     */
+    public function issueNote(
+        ElectronicInvoice $original,
+        string $type,
+        string $reason,
+        ?float $amount = null,
+        ?array $lines = null
+    ): ElectronicInvoice {
+        if (!in_array($type, ['NC', 'ND'], true)) {
+            throw new RuntimeException('Tipo de nota inválido: ' . $type);
+        }
+
+        $settings = CompanySetting::instance();
+        if (!$settings->isReady()) {
+            throw new RuntimeException('La facturación electrónica no está configurada.');
+        }
+
+        // Solo tiene sentido corregir lo que Hacienda ya aceptó. Un comprobante
+        // rechazado o sin enviar se corrige reintentándolo, no con una nota.
+        if ($original->status !== ElectronicInvoice::STATUS_ACCEPTED) {
+            throw new RuntimeException('Solo se puede emitir una nota sobre un comprobante aceptado por Hacienda.');
+        }
+
+        if ($original->isNote()) {
+            throw new RuntimeException('No se puede emitir una nota sobre otra nota.');
+        }
+
+        $lines = array_values(array_filter($lines ?? [], fn ($line) => (float) ($line['precio'] ?? 0) > 0));
+
+        $total = !empty($lines)
+            ? round(array_sum(array_map(
+                fn ($line) => (float) ($line['precio'] ?? 0) * max(0.001, (float) ($line['cantidad'] ?? 1)),
+                $lines
+            )), 5)
+            : round(abs((float) ($amount ?? $original->total)), 5);
+
+        if ($total <= 0) {
+            throw new RuntimeException('El monto de la nota debe ser mayor que cero.');
+        }
+
+        if ($type === 'NC' && $total > round((float) $original->total, 5) + 0.00001) {
+            throw new RuntimeException('Una nota de crédito no puede exceder el total del comprobante que corrige.');
+        }
+
+        $branch = $original->branch ?: $original->invoice?->pickupBranch;
+        if (!$branch) {
+            throw new RuntimeException('El comprobante original no tiene sucursal asociada.');
+        }
+
+        $docCode  = Catalogs::documentCode($type);
+        $issuedAt = Carbon::now(config('app.timezone') ?: 'America/Costa_Rica');
+
+        $clave = $this->claveGenerator->generate(
+            $branch,
+            $docCode,
+            $settings->identification_number,
+            $issuedAt
+        );
+
+        // La nota se emite con los datos del comprobante original, no con los
+        // de hoy: si la empresa cambió de nombre o de dirección después, la
+        // nota tiene que seguir cuadrando con lo que se emitió en su momento.
+        $emisor = $original->emisor_data ?? $this->emisorSnapshot($settings);
+        $emisor['iva_rate'] = $this->originalIvaRate($original);
+
+        $note = new ElectronicInvoice([
+            'branch_id'            => $branch->id,
+            'invoice_id'           => $original->invoice_id,
+            'reference_invoice_id' => $original->id,
+            'reference_reason'     => $reason,
+            'note_lines'           => !empty($lines) ? $lines : null,
+            'document_type'        => $docCode,
+            'clave'                => $clave['clave'],
+            'consecutivo'          => $clave['consecutivo'],
+            'security_code'        => $clave['security_code'],
+            'environment'          => $settings->effectiveEnvironment(),
+            'currency_code'        => $original->currency_code ?: 'CRC',
+            'exchange_rate'        => $original->exchange_rate ?: 1,
+            'emisor_data'          => $emisor,
+            'receptor_data'        => $original->receptor_data,
+            'total'                => $total,
+            'status'               => ElectronicInvoice::STATUS_PENDING,
+        ]);
+        $note->issued_at = $issuedAt;
+        $note->save();
+
+        $this->queueSend($note);
+
+        return $note->fresh();
+    }
+
+    /**
+     * Tarifa de IVA con la que se emitió el comprobante original. Se despeja de
+     * los totales que quedaron guardados —no de la configuración de hoy— para
+     * que la nota use la misma tarifa aunque el impuesto haya cambiado después.
+     */
+    private function originalIvaRate(ElectronicInvoice $original): float
+    {
+        $base = (float) $original->sub_total;
+
+        if ($base > 0 && $original->total_tax > 0) {
+            return round((float) $original->total_tax / $base * 100, 2);
+        }
+
+        $configured = (float) ($original->invoice?->taxes->sum('percent') ?? 0);
+
+        return $configured > 0 ? $configured : (float) config('hacienda.tax.iva_rate');
+    }
+
+    /**
+     * Le entrega al receptor el comprobante aceptado: XML firmado, respuesta de
+     * Hacienda y PDF. Un fallo de correo nunca debe tumbar la aceptación, que
+     * ya ocurrió del lado de Hacienda.
+     */
+    private function sendInvoiceEmail(ElectronicInvoice $electronicInvoice): void
+    {
+        try {
+            $email = $electronicInvoice->receptor_data['email']
+                ?? $electronicInvoice->invoice?->recipient_email;
+
+            if (!$email) {
+                Log::info("Hacienda: comprobante {$electronicInvoice->clave} sin correo del receptor, no se envía.");
+                return;
+            }
+
+            Notification::route('mail', $email)->notify(new SendElectronicInvoice($electronicInvoice));
+            Log::info("Hacienda: comprobante {$electronicInvoice->clave} enviado a {$email}.");
+        } catch (\Throwable $e) {
+            Log::warning("Hacienda: no se pudo enviar el correo del comprobante {$electronicInvoice->clave}: {$e->getMessage()}");
+        }
     }
 
     private function emisorSnapshot(CompanySetting $settings): array

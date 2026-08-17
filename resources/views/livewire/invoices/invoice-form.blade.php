@@ -1,4 +1,6 @@
 <div class="max-w-4xl space-y-6">
+    <x-flash />
+
     <form wire:submit="save" class="space-y-6">
         <div class="card space-y-4">
             <h2 class="text-lg font-semibold">Ruta</h2>
@@ -69,7 +71,7 @@
         <div class="card space-y-4">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Paquetes</h2>
-                <button type="button" wire:click="addItem" class="btn-secondary !py-2 !px-3 text-sm">➕ Agregar paquete</button>
+                <button type="button" wire:click="addItem" class="btn-secondary !py-2 !px-3 text-sm"><x-icon name="plus" class="w-4 h-4" /> Agregar paquete</button>
             </div>
 
             <div class="space-y-3">
@@ -121,9 +123,20 @@
                     </label>
                 @endforeach
             </div>
-            <div class="max-w-xs">
-                <label class="label">Descuento (₡)</label>
-                <input type="number" step="0.01" wire:model.live="discount_amount" class="input">
+            <div class="grid gap-4 sm:grid-cols-2 max-w-xl">
+                <div>
+                    <label class="label">Descuento (₡)</label>
+                    <input type="number" step="0.01" wire:model.live="discount_amount" class="input">
+                </div>
+                <div>
+                    <label class="label">Medio de pago</label>
+                    <select wire:model="payment_method" class="input">
+                        @foreach (\App\Models\Invoice::PAYMENT_METHODS as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    @error('payment_method') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
+                </div>
             </div>
             <div><label class="label">Notas</label><textarea wire:model="notes" class="input" rows="2"></textarea></div>
         </div>
@@ -142,7 +155,7 @@
         </div>
 
         <div class="flex gap-3">
-            <x-action-button type="submit" target="save" variant="primary" loadingText="Guardando...">💾 Guardar factura</x-action-button>
+            <x-action-button type="submit" target="save" variant="primary" loadingText="Guardando..."><x-icon name="check" class="w-4 h-4" /> Guardar factura</x-action-button>
             <a href="{{ route('invoices.index') }}" class="btn-secondary">Cancelar</a>
         </div>
     </form>
