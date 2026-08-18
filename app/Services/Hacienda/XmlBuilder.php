@@ -3,6 +3,7 @@
 namespace App\Services\Hacienda;
 
 use App\Models\ElectronicInvoice;
+use App\Models\Invoice;
 use Carbon\Carbon;
 use DOMDocument;
 use DOMElement;
@@ -82,7 +83,17 @@ abstract class XmlBuilder
             $root->appendChild($this->buildReceptor($receptorData));
         }
 
-        $root->appendChild($this->el('CondicionVenta', config('hacienda.sale_condition')));
+        // La condición sale de la guía; config es solo el respaldo para
+        // comprobantes viejos que no la tienen.
+        $condicion = $this->electronicInvoice->invoice?->sale_condition
+            ?: config('hacienda.sale_condition');
+        $root->appendChild($this->el('CondicionVenta', $condicion));
+
+        // Hacienda exige el plazo cuando la venta es a crédito.
+        if ($condicion === Invoice::SALE_CREDIT) {
+            $plazo = (int) ($this->electronicInvoice->invoice?->credit_term_days ?: 30);
+            $root->appendChild($this->el('PlazoCredito', (string) $plazo));
+        }
         $root->appendChild($this->buildDetalleServicio());
         $root->appendChild($this->buildResumen());
 

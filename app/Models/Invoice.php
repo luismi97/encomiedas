@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,6 +12,17 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Invoice extends Model
 {
     use HasFactory;
+    use BelongsToBranch;
+
+    /**
+     * Una guía es de dos sedes: la de origen y la de destino. El cajero de
+     * cualquiera de las dos tiene que verla, porque una la recibe y la otra la
+     * entrega.
+     */
+    public function branchColumns(): array
+    {
+        return ['pickup_branch_id', 'delivery_branch_id'];
+    }
 
     public const BILL_TICKET  = 'ticket';
     public const BILL_INVOICE = 'invoice';
@@ -79,6 +91,16 @@ class Invoice extends Model
         self::STATUS_CANCELLED      => [],
     ];
 
+    /*
+     | Condición de venta del comprobante (catálogo de Hacienda).
+     |
+     | Estaba fija en configuración; con crédito deja de ser global, porque la
+     | misma empresa cobra de contado en mostrador y a crédito a sus clientes
+     | con convenio.
+     */
+    public const SALE_CASH   = '01';
+    public const SALE_CREDIT = '02';
+
     /** Medios de pago; las llaves se traducen al catálogo de Hacienda en Catalogs::paymentMethod(). */
     public const PAYMENT_METHODS = [
         'cash'     => 'Efectivo',
@@ -143,6 +165,9 @@ class Invoice extends Model
         'tax_total',
         'total',
         'payment_method',
+        'sale_condition',
+        'credit_term_days',
+        'credit_statement_id',
         'notes',
         'created_by',
         'assigned_to',
@@ -174,6 +199,27 @@ class Invoice extends Model
     public function recipientCustomer(): BelongsTo
     {
         return $this->belongsTo(Customer::class, 'recipient_customer_id');
+    }
+
+    public function creditStatement(): BelongsTo
+    {
+        return $this->belongsTo(CreditStatement::class, 'credit_statement_id');
+    }
+
+    public function esCredito(): bool
+    {
+        return $this->sale_condition === self::SALE_CREDIT;
+    }
+
+    /** Ya facturada en un corte: no puede volver a entrar en otro. */
+    public function fueCortada(): bool
+    {
+        return $this->credit_statement_id !== null;
+    }
+
+    public function saleConditionLabel(): string
+    {
+        return \App\Services\Hacienda\Catalogs::saleConditionLabel($this->sale_condition);
     }
 
     /** Líneas de manifiesto donde aparece esta guía. */

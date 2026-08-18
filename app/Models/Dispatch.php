@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
+use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,6 +20,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Dispatch extends Model
 {
     use HasFactory;
+    use BelongsToBranch;
+
+    /** Un cierre lo arma la sede origen y lo recibe la destino. */
+    public function branchColumns(): array
+    {
+        return ['origin_branch_id', 'destination_branch_id'];
+    }
 
     public const STATUS_OPEN       = 'open';
     public const STATUS_DISPATCHED = 'dispatched';

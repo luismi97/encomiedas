@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
+use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /** Caja física de una sede. Una sede puede tener varias. */
 class CashRegister extends Model
 {
+    use BelongsToBranch;
+
     protected $fillable = ['branch_id', 'name', 'is_active'];
 
     protected function casts(): array

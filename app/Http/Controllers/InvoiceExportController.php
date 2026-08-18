@@ -55,6 +55,17 @@ class InvoiceExportController extends Controller
     }
 
     /** Descarga la factura de la encomienda con toda la información requerida. */
+    /** Estado de cuenta consolidado de un período de crédito. */
+    public function creditStatementPdf(\App\Models\CreditStatement $statement)
+    {
+        $statement->load(['customer', 'issuer', 'payments', 'guides.pickupBranch', 'guides.deliveryBranch']);
+
+        return Pdf::loadView('pdf.credit-statement', [
+            'estado'  => $statement,
+            'company' => CompanySetting::instance(),
+        ])->setPaper('letter')->stream("{$statement->code}.pdf");
+    }
+
     /** Reporte de cierre de caja, con el arqueo y espacio para firmas. */
     public function cashSessionPdf(\App\Models\CashSession $session, \App\Services\CajaService $caja)
     {

@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 
 class UserIndex extends Component
@@ -34,7 +35,7 @@ class UserIndex extends Component
             'username' => $usernameRules,
             'email' => 'required|email|unique:users,email,' . $this->editingId,
             'password' => $this->editingId ? 'nullable|string|min:6' : 'required|string|min:6',
-            'role' => 'required|in:admin,repartidor',
+            'role' => ['required', Rule::in(array_keys(User::ROLES))],
             'branch_id' => 'nullable|exists:branches,id',
             'phone' => 'nullable|string|max:30',
         ];
@@ -63,6 +64,15 @@ class UserIndex extends Component
 
     public function save(): void
     {
+        // Un cajero sin sede no tendría contra cuál validar su caja: terminaría
+        // operando la de cualquiera.
+        if (in_array($this->role, User::ROLES_CON_SEDE, true) && ! $this->branch_id) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Un ' . strtolower(User::ROLES[$this->role]) . ' necesita sede asignada: '
+                    . 'solo puede operar la caja y las encomiendas de la suya.',
+            ]);
+        }
+
         $data = $this->validate();
 
         $data['username'] = $data['username'] !== '' ? $data['username'] : null;

@@ -32,19 +32,30 @@
                 </div>
                 <div>
                     <label class="label">Rol</label>
-                    <select wire:model="role" class="input">
-                        <option value="admin">Administrador</option>
-                        <option value="repartidor">Repartidor</option>
+                    <select wire:model.live="role" class="input">
+                        @foreach (\App\Models\User::ROLES as $valor => $etiqueta)
+                            <option value="{{ $valor }}">{{ $etiqueta }}</option>
+                        @endforeach
                     </select>
+                    @error('role') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label class="label">Sucursal base</label>
-                    <select wire:model="branch_id" class="input">
+                    <label class="label">
+                        Sucursal base
+                        @if (in_array($role, \App\Models\User::ROLES_CON_SEDE, true))
+                            <span class="text-red-600">*</span>
+                        @endif
+                    </label>
+                    <select wire:model="branch_id" class="input @error('branch_id') input-error @enderror">
                         <option value="">— Sin asignar —</option>
                         @foreach ($branches as $branch)
                             <option value="{{ $branch->id }}">{{ $branch->name }}</option>
                         @endforeach
                     </select>
+                    @error('branch_id') <p class="error-text">{{ $message }}</p> @enderror
+                    @if (in_array($role, \App\Models\User::ROLES_CON_SEDE, true))
+                        <p class="text-xs text-gray-500 mt-1">Solo podrá operar la caja y las encomiendas de esta sede.</p>
+                    @endif
                 </div>
                 <div>
                     <label class="label">Teléfono</label>

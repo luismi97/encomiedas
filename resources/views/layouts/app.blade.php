@@ -42,18 +42,24 @@
                 <x-icon name="clipboard-list" /> <span>Facturas / Encomiendas</span>
             </a>
 
-            @if (auth()->user()->isAdmin())
+            @if (auth()->user()->puedeOperarCaja())
                 <a href="{{ route('caja.index') }}" class="nav-link {{ request()->routeIs('caja.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="banknotes" /> <span>Caja</span>
                 </a>
                 <a href="{{ route('dispatches.index') }}" class="nav-link {{ request()->routeIs('dispatches.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="truck" /> <span>Cierres de envío</span>
                 </a>
-                <a href="{{ route('hacienda.pending') }}" class="nav-link {{ request()->routeIs('hacienda.*') ? 'nav-link-active' : '' }}">
-                    <x-icon name="receipt" /> <span>Pendientes de envío a Hacienda</span>
-                </a>
                 <a href="{{ route('customers.index') }}" class="nav-link {{ request()->routeIs('customers.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="users" /> <span>Clientes</span>
+                </a>
+                <a href="{{ route('credito.index') }}" class="nav-link {{ request()->routeIs('credito.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="receipt" /> <span>Crédito</span>
+                </a>
+            @endif
+
+            @if (auth()->user()->puedeConfigurar())
+                <a href="{{ route('hacienda.pending') }}" class="nav-link {{ request()->routeIs('hacienda.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="receipt" /> <span>Pendientes de envío a Hacienda</span>
                 </a>
                 <a href="{{ route('branches.index') }}" class="nav-link {{ request()->routeIs('branches.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="building" /> <span>Sucursales</span>
@@ -95,7 +101,9 @@
 
                 <div class="hidden sm:block text-right leading-tight">
                     <div class="font-medium">{{ auth()->user()->name }}</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ auth()->user()->isAdmin() ? 'Administrador' : 'Repartidor' }}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ auth()->user()->roleLabel() }}@if (auth()->user()->branch) · {{ auth()->user()->branch->name }}@endif
+                    </div>
                 </div>
 
                 <form method="POST" action="{{ route('logout') }}">
