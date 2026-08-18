@@ -149,6 +149,11 @@ class Invoice extends Model
         'disposed_at',
         'received_by_name',
         'received_by_identification',
+        'delivery_signature',
+        'delivery_photo_path',
+        'cancellation_reason',
+        'cancelled_by',
+        'cancelled_at',
         'status',
         'pickup_branch_id',
         'delivery_branch_id',
@@ -187,6 +192,7 @@ class Invoice extends Model
             'arrived_at' => 'datetime',
             'disposal_warned_at' => 'datetime',
             'disposed_at' => 'datetime',
+            'cancelled_at' => 'datetime',
             'declared_value' => 'decimal:2',
         ];
     }
@@ -199,6 +205,41 @@ class Invoice extends Model
     public function recipientCustomer(): BelongsTo
     {
         return $this->belongsTo(Customer::class, 'recipient_customer_id');
+    }
+
+    public function incidents(): HasMany
+    {
+        return $this->hasMany(GuideIncident::class)->latest('reported_at');
+    }
+
+    public function tieneIncidenciasAbiertas(): bool
+    {
+        return $this->incidents()->whereNull('resolved_at')->exists();
+    }
+
+    public function printLogs(): HasMany
+    {
+        return $this->hasMany(PrintLog::class)->latest('id');
+    }
+
+    public function canceller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    /** ¿Se registró quién retiró el paquete? */
+    public function tieneEvidenciaDeEntrega(): bool
+    {
+        return filled($this->received_by_name) || filled($this->delivery_signature);
+    }
+
+    /**
+     * Una guía ya despachada no se anula: viaja en un camión y hay un
+     * manifiesto firmado que la incluye. Se devuelve, que es otra cosa.
+     */
+    public function sePuedeAnular(): bool
+    {
+        return in_array($this->status, [self::STATUS_PENDING, self::STATUS_READY], true);
     }
 
     public function creditStatement(): BelongsTo

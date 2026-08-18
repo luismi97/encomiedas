@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Caja;
 
+use App\Models\Branch;
 use App\Models\CashMovement;
 use App\Models\CashRegister;
 use App\Models\CashSession;
@@ -32,12 +33,54 @@ class CajaPanel extends Component
 
     public function mount(CajaService $caja): void
     {
-        $sesion = $caja->sesionAbiertaPara(auth()->user());
+        $this->seleccionarCajaPorDefecto($caja->sesionAbiertaPara(auth()->user()));
+    }
 
-        $this->registerId = $sesion?->cash_register_id
+    private function seleccionarCajaPorDefecto(?CashSession $sesionAbierta = null): void
+    {
+        $this->registerId = $sesionAbierta?->cash_register_id
             ?? CashRegister::active()
                 ->when(auth()->user()->branch_id, fn ($q) => $q->where('branch_id', auth()->user()->branch_id))
-                ->value('id');
+                ->value('id')
+            // Un cajero sin sede asignada no tiene caja «suya»: igual necesita una.
+            ?? CashRegister::active()->value('id');
+    }
+
+    /**
+     * Crea la «Caja principal» que le falte a cada sede.
+     *
+     * Hasta ahora las cajas solo nacían de un seeder, así que una instalación
+     * que nunca lo corrió dejaba al cajero con un selector vacío y sin ninguna
+     * pantalla donde arreglarlo.
+     */
+    public function crearCajasFaltantes(): void
+    {
+        $this->feedback = null;
+
+        if (! auth()->user()->puedeConfigurar()) {
+            $this->notify('error', 'Solo un administrador puede crear cajas.');
+
+            return;
+        }
+
+        $sedes = Branch::where('is_active', true)
+            ->whereDoesntHave('cashRegisters')
+            ->get();
+
+        if ($sedes->isEmpty()) {
+            $this->notify('error', 'No hay ninguna sede activa sin caja. Registrá primero una sede.');
+
+            return;
+        }
+
+        foreach ($sedes as $sede) {
+            $sede->cashRegisters()->create(['name' => Branch::CAJA_PRINCIPAL, 'is_active' => true]);
+        }
+
+        $this->seleccionarCajaPorDefecto();
+        $this->notify('success', $sedes->count() === 1
+            ? 'Caja creada para ' . $sedes->first()->name . '. Ya podés abrir el turno.'
+            : 'Se crearon ' . $sedes->count() . ' cajas, una por sede. Ya podés abrir el turno.');
     }
 
     private function notify(string $type, string $message): void
@@ -66,7 +109,9 @@ class CajaPanel extends Component
         $this->feedback = null;
 
         if (! $caja = $this->caja()) {
-            $this->notify('error', 'Elegí una caja antes de abrir el turno.');
+            $this->notify('error', CashRegister::active()->exists()
+                ? 'Elegí una caja antes de abrir el turno.'
+                : 'Todavía no hay ninguna caja registrada: hay que crear la caja de la sede antes de abrir un turno.');
 
             return;
         }
@@ -176,6 +221,8 @@ class CajaPanel extends Component
             'porMedio'      => $sesion ? $servicio->totalesPorMedio($sesion) : collect(),
             'denominaciones' => Denomination::active()->get(),
             'cajas'         => CashRegister::active()->with('branch')->get(),
+            'sinSedes'      => ! Branch::where('is_active', true)->exists(),
+            'puedeCrearCajas' => auth()->user()->puedeConfigurar(),
             'historial'     => CashSession::with(['opener', 'closer', 'register.branch'])
                 ->where('status', CashSession::STATUS_CLOSED)
                 ->latest('closed_at')

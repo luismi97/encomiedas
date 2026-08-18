@@ -27,7 +27,9 @@ class CajaServiceTest extends TestCase
         parent::setUp();
 
         $this->sede = Branch::create(['name' => 'San José', 'prefix' => 'SJ', 'sucursal_code' => '001', 'terminal_code' => '00001', 'is_active' => true]);
-        $this->caja = CashRegister::create(['branch_id' => $this->sede->id, 'name' => 'Caja principal', 'is_active' => true]);
+        // La sede nace con su «Caja principal»; crear otra dejaría dos en la
+        // misma sede y las pruebas de turno único dejarían de probar nada.
+        $this->caja = $this->sede->cashRegisters()->firstOrFail();
 
         $this->cajero = User::create([
             'name' => 'Yolanda Campos', 'username' => 'cajera', 'email' => 'cajera@t.test',
@@ -35,8 +37,13 @@ class CajaServiceTest extends TestCase
             'branch_id' => $this->sede->id,
         ]);
 
+        // Las denominaciones ya vienen con el esquema: firstOrCreate para no
+        // chocar con el índice único de `value`.
         foreach ([20000, 10000, 5000, 2000, 1000, 500, 100, 50, 25] as $orden => $valor) {
-            Denomination::create(['value' => $valor, 'sort_order' => $orden, 'is_active' => true]);
+            Denomination::firstOrCreate(
+                ['value' => $valor],
+                ['sort_order' => $orden, 'is_active' => true]
+            );
         }
     }
 

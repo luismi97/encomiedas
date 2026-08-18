@@ -72,18 +72,34 @@
                 </div>
 
                 <div class="mt-4 flex flex-wrap gap-2">
+                    {{-- Imprimir sin entrar a la guía: es lo que más se repite
+                         en mostrador, una etiqueta por cada paquete recibido. --}}
+                    <a href="{{ route('invoices.recibo', $invoice) }}" target="_blank"
+                       class="btn-primary !py-2 !px-3 text-sm">
+                        <x-icon name="document" class="w-4 h-4" /> Etiqueta
+                    </a>
                     <a href="{{ route('invoices.show', $invoice) }}" class="btn-secondary !py-2 !px-3 text-sm">Ver detalle</a>
                     <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-secondary !py-2 !px-3 text-sm"><x-icon name="document" class="w-4 h-4" /> Factura</a>
 
-                    @if (!in_array($invoice->status, [\App\Models\Invoice::STATUS_DELIVERED, \App\Models\Invoice::STATUS_CANCELLED]))
-                        @if ($invoice->status === \App\Models\Invoice::STATUS_PENDING)
-                            <x-action-button action="updateStatus({{ $invoice->id }}, 'in_transit')" variant="primary" loadingText="..." class="!py-2 !px-3 text-sm"><x-icon name="truck" class="w-4 h-4" /> En camino</x-action-button>
-                        @endif
-                        @if ($invoice->status === \App\Models\Invoice::STATUS_IN_TRANSIT)
-                            <x-action-button action="updateStatus({{ $invoice->id }}, 'delivered')" variant="success" loadingText="..." class="!py-2 !px-3 text-sm"><x-icon name="check" class="w-4 h-4" /> Entregada</x-action-button>
-                            <x-action-button action="updateStatus({{ $invoice->id }}, 'returned')" variant="danger" confirm="¿Marcar como devuelta?" loadingText="..." class="!py-2 !px-3 text-sm"><x-icon name="undo" class="w-4 h-4" /> Devuelta</x-action-button>
-                        @endif
-                    @endif
+                    {{-- Los estados salen del ciclo de la guía, no de una
+                         cadena de @if que se desactualiza. Entregar y anular
+                         piden datos extra y se hacen en la pantalla de detalle. --}}
+                    @foreach ($invoice->siguientesEstados() as $estado => $etiqueta)
+                        @continue (in_array($estado, [\App\Models\Invoice::STATUS_DELIVERED, \App\Models\Invoice::STATUS_CANCELLED], true))
+                        @php
+                            $variante = $estado === \App\Models\Invoice::STATUS_RETURNED ? 'danger' : 'primary';
+                            $icono = match ($estado) {
+                                \App\Models\Invoice::STATUS_RETURNED => 'undo',
+                                \App\Models\Invoice::STATUS_IN_TRANSIT, \App\Models\Invoice::STATUS_DISPATCHED => 'truck',
+                                \App\Models\Invoice::STATUS_AT_DESTINATION => 'inbox',
+                                default => 'check-circle',
+                            };
+                        @endphp
+                        <x-action-button action="updateStatus({{ $invoice->id }}, '{{ $estado }}')"
+                            :variant="$variante" loadingText="..." class="!py-2 !px-3 text-sm">
+                            <x-icon :name="$icono" class="w-4 h-4" /> {{ $etiqueta }}
+                        </x-action-button>
+                    @endforeach
                 </div>
             </div>
         @empty

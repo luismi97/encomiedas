@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\InvoiceExportController;
 use App\Http\Controllers\RastreoController;
 use App\Http\Controllers\ElectronicInvoiceController;
@@ -8,8 +9,10 @@ use App\Livewire\ActivityLogs\ActivityLogIndex;
 use App\Livewire\Branches\BranchIndex;
 use App\Livewire\Customers\CustomerIndex;
 use App\Livewire\Caja\CajaPanel;
+use App\Livewire\Chofer\ChoferPanel;
 use App\Livewire\Credito\CreditoPanel;
 use App\Livewire\Dashboard;
+use App\Livewire\Reportes\ReportePanel;
 use App\Livewire\Dispatches\DispatchIndex;
 use App\Livewire\Hacienda\PendingQueue;
 use App\Livewire\Invoices\InvoiceForm;
@@ -40,6 +43,16 @@ Route::get('/', fn () => redirect()->route('dashboard'));
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
+
+    // Recuperación de contraseña. Con límite de intentos: el formulario dice lo
+    // mismo exista o no la cuenta, pero sin tope se podría medir el tiempo de
+    // respuesta para deducir qué correos están registrados.
+    Route::middleware('throttle:6,1')->group(function () {
+        Route::get('/olvide-contrasena', [PasswordResetController::class, 'solicitar'])->name('password.request');
+        Route::post('/olvide-contrasena', [PasswordResetController::class, 'enviarEnlace'])->name('password.email');
+        Route::get('/restablecer/{token}', [PasswordResetController::class, 'formulario'])->name('password.reset');
+        Route::post('/restablecer', [PasswordResetController::class, 'actualizar'])->name('password.update');
+    });
     Route::post('/login', [LoginController::class, 'login']);
 });
 
@@ -52,6 +65,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/invoices/export/pdf', [InvoiceExportController::class, 'pdf'])->name('invoices.export');
     Route::get('/invoices/{invoice}', InvoiceShow::class)->name('invoices.show');
     Route::get('/invoices/{invoice}/pdf', [InvoiceExportController::class, 'downloadInvoice'])->name('invoices.pdf');
+    Route::get('/invoices/{invoice}/recibo', [InvoiceExportController::class, 'reciboTermico'])->name('invoices.recibo');
+    // Vista de calle: el chofer solo ve el cierre que trae asignado.
+    Route::middleware('role:admin,repartidor')->group(function () {
+        Route::get('/mi-ruta', ChoferPanel::class)->name('chofer.index');
+    });
+
     Route::get('/electronic-invoices/{electronicInvoice}/pdf', [ElectronicInvoiceController::class, 'downloadPdf'])->name('electronic-invoices.pdf');
     Route::get('/electronic-invoices/{electronicInvoice}/respuesta.xml', [ElectronicInvoiceController::class, 'downloadResponseXml'])->name('electronic-invoices.response-xml');
 
@@ -72,6 +91,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/customers', CustomerIndex::class)->name('customers.index');
         Route::get('/credito', CreditoPanel::class)->name('credito.index');
+        Route::get('/reportes', ReportePanel::class)->name('reportes.index');
         Route::get('/credito/{statement}/pdf', [InvoiceExportController::class, 'creditStatementPdf'])->name('credito.pdf');
     });
 

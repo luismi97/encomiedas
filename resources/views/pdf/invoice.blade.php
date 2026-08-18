@@ -74,6 +74,12 @@
             </td>
             <td style="vertical-align: top; text-align: right;">
                 <span class="badge">{{ $invoice->statusLabel() }}</span>
+                @if (!empty($qr))
+                    <div style="margin-top: 6px;">
+                        <img src="{{ $qr }}" style="width: 78px; height: 78px;" alt="QR">
+                        <div style="font-size: 8px; color: #4b5563;">Seguimiento</div>
+                    </div>
+                @endif
             </td>
         </tr>
     </table>

@@ -45,7 +45,17 @@
                     </select>
                     @error('destination_branch_id') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
-                <div><label class="label">Chofer</label><input type="text" wire:model="driver_name" class="input"></div>
+                <div>
+                    <label class="label">Chofer</label>
+                    <select wire:model="driver_user_id" class="input">
+                        <option value="">— Sin asignar —</option>
+                        @foreach ($choferes as $c)
+                            <option value="{{ $c->id }}">{{ $c->name }}</option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Verá este cierre en «Mi ruta» desde su celular.</p>
+                </div>
+                <div><label class="label">Nombre en el manifiesto</label><input type="text" wire:model="driver_name" class="input"></div>
                 <div><label class="label">Placa del vehículo</label><input type="text" wire:model="vehicle_plate" maxlength="20" class="input"></div>
                 <div class="sm:col-span-2"><label class="label">Notas</label><textarea wire:model="notes" rows="2" class="input"></textarea></div>
                 <div class="sm:col-span-2 flex gap-3">

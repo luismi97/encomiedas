@@ -5,6 +5,8 @@ namespace App\Livewire\Invoices;
 use App\Models\ActivityLog;
 use App\Models\Branch;
 use App\Models\Invoice;
+use App\Services\GuideStatusService;
+use RuntimeException;
 use Illuminate\Support\Carbon;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -99,14 +101,27 @@ class InvoiceIndex extends Component
             return;
         }
 
-        $oldStatus = $invoice->status;
-        $invoice->status = $status;
-        if ($status === Invoice::STATUS_DELIVERED) {
-            $invoice->delivered_at = now();
-        } elseif ($status === Invoice::STATUS_RETURNED) {
-            $invoice->returned_at = now();
+        // Entregar y anular piden datos extra (quién retiró, motivo): se
+        // resuelven en la pantalla de la guía, no desde el listado.
+        if (in_array($status, [Invoice::STATUS_DELIVERED, Invoice::STATUS_CANCELLED], true)) {
+            session()->flash('error', 'Abrí la guía para ' .
+                ($status === Invoice::STATUS_DELIVERED ? 'registrar quién la retira.' : 'indicar el motivo de la anulación.'));
+
+            return;
         }
-        $invoice->save();
+
+        $oldStatus = $invoice->status;
+
+        // Pasa por el servicio para que valide la transición, selle las fechas
+        // y deje la bitácora. Antes se asignaba el estado a mano y el listado
+        // podía saltar pasos que la pantalla de detalle sí respetaba.
+        try {
+            $invoice = app(GuideStatusService::class)->cambiar($invoice, $status, $user);
+        } catch (RuntimeException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
 
         ActivityLog::record(
             'status_changed',

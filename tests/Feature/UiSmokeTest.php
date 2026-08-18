@@ -37,6 +37,7 @@ class UiSmokeTest extends TestCase
             'cierres'       => ['dispatches.index'],
             'caja'          => ['caja.index'],
             'credito'       => ['credito.index'],
+            'reportes'      => ['reportes.index'],
             'impuestos'     => ['taxes.index'],
             'usuarios'      => ['users.index'],
             'actividad'     => ['activity-logs.index'],

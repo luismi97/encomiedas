@@ -81,6 +81,32 @@
                     <label class="label">Teléfono</label>
                     <input type="text" wire:model="phone" class="input @error('phone') input-error @enderror">
                 </div>
+                <div>
+                    <label class="label">Ancho del rollo térmico</label>
+                    <select wire:model="receipt_paper_width" class="input @error('receipt_paper_width') input-error @enderror">
+                        @foreach (\App\Models\Branch::PAPER_WIDTHS as $ancho)
+                            <option value="{{ $ancho }}">{{ $ancho }} mm</option>
+                        @endforeach
+                    </select>
+                    @error('receipt_paper_width') <p class="error-text">{{ $message }}</p> @enderror
+                </div>
+
+                <div class="sm:col-span-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <label class="label">Horario de atención</label>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                        Un día sin hora de apertura queda cerrado. Los feriados nacionales cierran aparte.
+                    </p>
+                    <div class="space-y-2">
+                        @foreach (\App\Models\Branch::DIAS as $dia => $nombre)
+                            <div class="flex items-center gap-2">
+                                <span class="w-24 text-sm">{{ $nombre }}</span>
+                                <input type="time" wire:model="business_hours.{{ $dia }}.abre" class="input !py-1.5 w-32">
+                                <span class="text-gray-400 text-sm">a</span>
+                                <input type="time" wire:model="business_hours.{{ $dia }}.cierra" class="input !py-1.5 w-32">
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
 
                 <div class="sm:col-span-2">
                     <label class="inline-flex items-center gap-2">

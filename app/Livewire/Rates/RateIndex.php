@@ -42,7 +42,9 @@ class RateIndex extends Component
         return [
             'name' => 'nullable|string|max:100',
             'origin_branch_id' => 'nullable|exists:branches,id',
-            'destination_branch_id' => 'nullable|exists:branches,id',
+            // Nullable pero distinta: una tarifa de una sede a sí misma no
+            // aplica a ningún envío posible.
+            'destination_branch_id' => 'nullable|exists:branches,id|different:origin_branch_id',
             'shipment_type' => ['nullable', Rule::in(array_keys(Rate::SHIPMENT_TYPES))],
             'min_weight' => 'required|numeric|min:0',
             'max_weight' => 'nullable|numeric|gt:min_weight',
@@ -54,6 +56,8 @@ class RateIndex extends Component
     protected function messages(): array
     {
         return [
+            'destination_branch_id.different' => 'El destino tiene que ser una sede distinta del origen: '
+                . 'no existen envíos de una sede a sí misma.',
             'max_weight.gt' => 'El peso máximo tiene que ser mayor que el mínimo.',
             'price.required' => 'El precio es obligatorio.',
         ];

@@ -5,6 +5,7 @@ namespace App\Livewire\Invoices;
 use App\Models\ActivityLog;
 use App\Models\Invoice;
 use App\Services\GuideStatusService;
+use App\Services\QrService;
 use RuntimeException;
 use App\Services\Hacienda\ElectronicBillingService;
 use Livewire\Component;
@@ -31,6 +32,7 @@ class InvoiceShow extends Component
             'electronicInvoice', 'electronicNotes', 'activityLogs.user',
             'senderCustomer', 'recipientCustomer',
             'statusHistories.user', 'statusHistories.branch',
+            'incidents.reporter', 'incidents.resolver',
         ]);
     }
 
@@ -39,8 +41,136 @@ class InvoiceShow extends Component
      * sella las fechas y deja la bitácora. Antes se asignaba el estado a mano y
      * cada pantalla tenía que acordarse de las tres cosas.
      */
+    /** Anulación */
+    public bool $showCancelForm = false;
+    public string $cancelReason = '';
+
+    /** Entrega con evidencia */
+    public bool $showDeliveryForm = false;
+    public string $receivedByName = '';
+    public string $receivedByIdentification = '';
+    public string $deliverySignature = '';
+
+    /** Incidencias */
+    public bool $showIncidentForm = false;
+    public string $incidentType = \App\Models\GuideIncident::TYPE_ABSENT;
+    public string $incidentDescription = '';
+
+    public function openIncidentForm(): void
+    {
+        $this->incidentType = \App\Models\GuideIncident::TYPE_ABSENT;
+        $this->incidentDescription = '';
+        $this->showIncidentForm = true;
+    }
+
+    public function registrarIncidencia(): void
+    {
+        $descripcion = trim($this->incidentDescription);
+
+        if ($descripcion === '') {
+            session()->flash('error', 'Describí qué pasó: una incidencia sin detalle no sirve para dar seguimiento.');
+
+            return;
+        }
+
+        \App\Models\GuideIncident::create([
+            'invoice_id'  => $this->invoice->id,
+            'type'        => $this->incidentType,
+            'description' => $descripcion,
+            'branch_id'   => auth()->user()->branch_id,
+            'reported_by' => auth()->id(),
+            'reported_at' => now(),
+        ]);
+
+        $this->showIncidentForm = false;
+        $this->invoice->load('incidents.reporter', 'incidents.resolver');
+        session()->flash('success', 'Incidencia registrada. La guía sigue en su estado actual.');
+    }
+
+    public function resolverIncidencia(int $id): void
+    {
+        $incidencia = \App\Models\GuideIncident::where('invoice_id', $this->invoice->id)->find($id);
+
+        if (! $incidencia || $incidencia->estaResuelta()) {
+            return;
+        }
+
+        $incidencia->update([
+            'resolved_by' => auth()->id(),
+            'resolved_at' => now(),
+            'resolution'  => 'Resuelta por ' . auth()->user()->name,
+        ]);
+
+        $this->invoice->load('incidents.reporter', 'incidents.resolver');
+        session()->flash('success', 'Incidencia marcada como resuelta.');
+    }
+
+    public function openCancelForm(): void
+    {
+        $this->cancelReason = '';
+        $this->showCancelForm = true;
+    }
+
+    public function openDeliveryForm(): void
+    {
+        // Precarga el nombre del destinatario: la mayoría de las veces retira él.
+        $this->receivedByName = (string) $this->invoice->recipient_name;
+        $this->receivedByIdentification = (string) $this->invoice->recipient_identification;
+        $this->deliverySignature = '';
+        $this->showDeliveryForm = true;
+    }
+
+    public function anular(GuideStatusService $estados): void
+    {
+        try {
+            $this->invoice = $estados->anular($this->invoice, auth()->user(), $this->cancelReason);
+        } catch (RuntimeException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        $this->showCancelForm = false;
+        $this->invoice->load(['statusHistories.user', 'statusHistories.branch', 'canceller']);
+        session()->flash('success', 'Guía anulada. El motivo quedó en la bitácora.');
+    }
+
+    public function entregar(GuideStatusService $estados): void
+    {
+        try {
+            $this->invoice = $estados->entregar(
+                $this->invoice,
+                auth()->user(),
+                $this->receivedByName,
+                $this->receivedByIdentification ?: null,
+                $this->deliverySignature ?: null
+            );
+        } catch (RuntimeException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        $this->showDeliveryForm = false;
+        $this->invoice->load(['statusHistories.user', 'statusHistories.branch', 'electronicInvoice']);
+        session()->flash('success', 'Entrega registrada a nombre de ' . $this->invoice->received_by_name . '.');
+    }
+
     public function updateStatus(string $status, GuideStatusService $estados): void
     {
+        // Estos dos exigen datos extra y tienen su propio formulario.
+        if ($status === Invoice::STATUS_DELIVERED) {
+            $this->openDeliveryForm();
+
+            return;
+        }
+
+        if ($status === Invoice::STATUS_CANCELLED) {
+            $this->openCancelForm();
+
+            return;
+        }
+
         $user = auth()->user();
         $anterior = $this->invoice->status;
 
@@ -148,9 +278,9 @@ class InvoiceShow extends Component
         $this->invoice->refresh()->load(['electronicInvoice', 'electronicNotes', 'activityLogs.user']);
     }
 
-    public function render()
+    public function render(QrService $qr)
     {
-        return view('livewire.invoices.invoice-show')
+        return view('livewire.invoices.invoice-show', ['qrSvg' => $qr->svg($this->invoice->trackingUrl(), 150)])
             ->layout('layouts.app', ['title' => $this->invoice->code]);
     }
 }

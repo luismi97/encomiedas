@@ -46,7 +46,7 @@ class Dispatch extends Model
 
     protected $fillable = [
         'code', 'origin_branch_id', 'destination_branch_id',
-        'driver_name', 'vehicle_plate', 'status',
+        'driver_name', 'driver_user_id', 'vehicle_plate', 'status',
         'departed_at', 'received_at',
         'created_by', 'dispatched_by', 'received_by', 'notes',
     ];
@@ -88,6 +88,11 @@ class Dispatch extends Model
         return $this->belongsToMany(Invoice::class, 'dispatch_guides', 'dispatch_id', 'invoice_id')
             ->withPivot(['received_at', 'received_by', 'incident'])
             ->withTimestamps();
+    }
+
+    public function driver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'driver_user_id');
     }
 
     public function creator(): BelongsTo

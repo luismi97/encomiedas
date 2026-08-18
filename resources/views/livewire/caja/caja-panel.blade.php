@@ -16,12 +16,49 @@
         <p class="text-gray-500 dark:text-gray-400">
             Todo cobro de contado entra al turno abierto. Sin caja abierta, el cobro no llega al arqueo.
         </p>
-        <select wire:model.live="registerId" class="input sm:max-w-[260px]">
-            @foreach ($cajas as $c)
-                <option value="{{ $c->id }}">{{ $c->name }} — {{ $c->branch?->name }}</option>
-            @endforeach
-        </select>
+        @if ($cajas->isNotEmpty())
+            <select wire:model.live="registerId" class="input sm:max-w-[260px]">
+                @foreach ($cajas as $c)
+                    <option value="{{ $c->id }}">{{ $c->name }} — {{ $c->branch?->name }}</option>
+                @endforeach
+            </select>
+        @endif
     </div>
+
+    {{-- Sin cajas, el selector salía vacío y el botón respondía «elegí una caja»
+         señalando a una lista que no tenía nada que elegir. --}}
+    @if ($cajas->isEmpty())
+        <div class="card border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+            <div class="flex items-start gap-3">
+                <x-icon name="warning" class="w-5 h-5 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div>
+                    <h2 class="text-lg font-semibold text-amber-900 dark:text-amber-100">Todavía no hay ninguna caja</h2>
+                    <p class="mt-1 text-sm text-amber-800 dark:text-amber-200">
+                        @if ($sinSedes)
+                            Primero hay que registrar una sede: cada sede abre con su «Caja principal».
+                        @else
+                            Cada sede debería tener su «Caja principal». Creala para empezar a cobrar de contado.
+                        @endif
+                    </p>
+                    <div class="mt-3">
+                        @if ($sinSedes)
+                            <a href="{{ route('branches.index') }}" class="btn-secondary !py-2 !px-3 text-sm">
+                                <x-icon name="building" class="w-4 h-4" /> Ir a sedes
+                            </a>
+                        @elseif ($puedeCrearCajas)
+                            <x-action-button action="crearCajasFaltantes" variant="primary" loadingText="Creando...">
+                                <x-icon name="plus" class="w-4 h-4" /> Crear la caja de cada sede
+                            </x-action-button>
+                        @else
+                            <span class="text-sm text-amber-800 dark:text-amber-200">
+                                Pedile a un administrador que la cree.
+                            </span>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    @else
 
     @if (! $sesion)
         <div class="card">
@@ -226,4 +263,5 @@
             </table>
         </div>
     </div>
+    @endif
 </div>

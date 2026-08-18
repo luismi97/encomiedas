@@ -24,12 +24,12 @@ class DatabaseSeeder extends Seeder
 
         $sanJose = Branch::firstOrCreate(
             ['sucursal_code' => '001', 'terminal_code' => '00001'],
-            ['name' => 'San José Central', 'address' => 'San José, Costa Rica', 'province' => '1', 'canton' => '01', 'district' => '01', 'is_active' => true]
+            ['name' => 'San José Central', 'prefix' => 'SJ', 'address' => 'San José, Costa Rica', 'province' => '1', 'canton' => '01', 'district' => '01', 'is_active' => true]
         );
 
         $alajuela = Branch::firstOrCreate(
             ['sucursal_code' => '002', 'terminal_code' => '00001'],
-            ['name' => 'Alajuela Centro', 'address' => 'Alajuela, Costa Rica', 'province' => '2', 'canton' => '01', 'district' => '01', 'is_active' => true]
+            ['name' => 'Alajuela Centro', 'prefix' => 'ALA', 'address' => 'Alajuela, Costa Rica', 'province' => '2', 'canton' => '01', 'district' => '01', 'is_active' => true]
         );
 
         $admin = User::firstOrCreate(
@@ -54,6 +54,10 @@ class DatabaseSeeder extends Seeder
                 'is_active' => true,
             ]
         );
+
+        // Denominaciones del arqueo y la caja de cada sede: sin esto la pantalla
+        // de caja abre con el selector vacío y el turno no se puede abrir.
+        $this->call(CajaSeeder::class);
 
         $this->call(DemoDataSeeder::class);
     }

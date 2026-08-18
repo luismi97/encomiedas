@@ -22,6 +22,7 @@ class DispatchIndex extends Component
     public ?int $origin_branch_id = null;
     public ?int $destination_branch_id = null;
     public string $driver_name = '';
+    public ?int $driver_user_id = null;
     public string $vehicle_plate = '';
     public string $notes = '';
 
@@ -49,6 +50,7 @@ class DispatchIndex extends Component
             'origin_branch_id' => 'required|exists:branches,id',
             'destination_branch_id' => 'required|exists:branches,id|different:origin_branch_id',
             'driver_name' => 'nullable|string|max:150',
+            'driver_user_id' => 'nullable|exists:users,id',
             'vehicle_plate' => 'nullable|string|max:20',
             'notes' => 'nullable|string|max:1000',
         ];
@@ -66,7 +68,7 @@ class DispatchIndex extends Component
     public function create(): void
     {
         $this->feedback = null;
-        $this->reset(['origin_branch_id', 'destination_branch_id', 'driver_name', 'vehicle_plate', 'notes']);
+        $this->reset(['origin_branch_id', 'destination_branch_id', 'driver_name', 'driver_user_id', 'vehicle_plate', 'notes']);
         $this->resetErrorBag();
         $this->showForm = true;
     }
@@ -223,6 +225,7 @@ class DispatchIndex extends Component
                 ->latest()
                 ->paginate(10),
             'branches'    => Branch::where('is_active', true)->orderBy('name')->get(['id', 'name', 'prefix']),
+            'choferes'    => User::where('role', User::ROLE_REPARTIDOR)->where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ])->layout('layouts.app', ['title' => 'Cierres de envío']);
     }
 }

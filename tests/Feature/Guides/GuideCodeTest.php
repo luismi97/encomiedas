@@ -82,7 +82,7 @@ class GuideCodeTest extends TestCase
 
     public function test_una_sede_sin_prefijo_no_puede_generar_codigo(): void
     {
-        $sinPrefijo = Branch::create(['name' => 'Sin prefijo', 'prefix' => null, 'sucursal_code' => '009', 'terminal_code' => '00001', 'is_active' => true]);
+        $sinPrefijo = $this->sedeConPrefijoVacio();
 
         $this->expectExceptionMessage('no tiene prefijo configurado');
 
@@ -101,14 +101,33 @@ class GuideCodeTest extends TestCase
     /**
      * Si falta un prefijo NO se pierde la encomienda: ya se recibió físicamente
      * y no puede quedarse sin registrar por un dato de configuración.
+     *
+     * Es una red de seguridad para filas viejas, no un camino alcanzable: crear
+     * una sede sin prefijo ya no es posible (ver PrefijoDeSedeTest).
      */
     public function test_sin_prefijo_cae_al_formato_viejo_en_vez_de_reventar(): void
     {
-        $sinPrefijo = Branch::create(['name' => 'Sin prefijo', 'prefix' => null, 'sucursal_code' => '009', 'terminal_code' => '00001', 'is_active' => true]);
+        $sinPrefijo = $this->sedeConPrefijoVacio();
 
         $guia = $this->guia($sinPrefijo, $this->lim);
 
         $this->assertStringStartsWith('ENC-', $guia->fresh()->code);
+    }
+
+    /**
+     * Una sede con el prefijo vacío en base, que es como quedaron las que se
+     * crearon antes de que el modelo lo garantizara. No se puede armar con
+     * Branch::create porque el modelo ahora lo rellena solo.
+     */
+    private function sedeConPrefijoVacio(): Branch
+    {
+        $sede = Branch::create([
+            'name' => 'Sin prefijo', 'sucursal_code' => '009', 'terminal_code' => '00001', 'is_active' => true,
+        ]);
+
+        \Illuminate\Support\Facades\DB::table('branches')->where('id', $sede->id)->update(['prefix' => null]);
+
+        return $sede->fresh();
     }
 
     /**

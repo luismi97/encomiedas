@@ -55,6 +55,48 @@ class InvoiceExportController extends Controller
     }
 
     /** Descarga la factura de la encomienda con toda la información requerida. */
+    /**
+     * Etiqueta térmica de la guía, con su QR.
+     *
+     * Se imprime desde el navegador contra el driver del sistema: no hace falta
+     * WebUSB ni un puente local, y funciona igual en Windows, Mac o una tablet.
+     */
+    public function reciboTermico(Request $request, Invoice $invoice, \App\Services\QrService $qr)
+    {
+        $user = $request->user();
+
+        if ($user->isRepartidor() && $invoice->assigned_to !== $user->id) {
+            abort(403);
+        }
+
+        $invoice->load(['items', 'pickupBranch', 'deliveryBranch']);
+
+        // El ancho manda el de la sede de origen, que es donde se imprime.
+        $ancho = $request->integer('ancho')
+            ?: $invoice->pickupBranch?->receiptPaperWidthMm()
+            ?? 80;
+
+        $ancho = in_array($ancho, \App\Models\Branch::PAPER_WIDTHS, true) ? $ancho : 80;
+
+        // Reimpresión controlada: cada copia queda registrada y la etiqueta se
+        // marca. Dos rótulos iguales sin marca es el fraude que esto evita.
+        $copia = \App\Models\PrintLog::create([
+            'invoice_id'  => $invoice->id,
+            'user_id'     => $user->id,
+            'copy_number' => $invoice->printLogs()->count() + 1,
+            'paper_width' => $ancho,
+            'ip'          => $request->ip(),
+        ]);
+
+        return view('recibo.termico', [
+            'guia'    => $invoice,
+            'empresa' => CompanySetting::instance(),
+            'ancho'   => $ancho,
+            'qr'      => $qr->dataUri($invoice->trackingUrl(), 260),
+            'copia'   => $copia,
+        ]);
+    }
+
     /** Estado de cuenta consolidado de un período de crédito. */
     public function creditStatementPdf(\App\Models\CreditStatement $statement)
     {
@@ -101,6 +143,8 @@ class InvoiceExportController extends Controller
         $pdf = Pdf::loadView('pdf.invoice', [
             'invoice' => $invoice,
             'company' => CompanySetting::instance(),
+            // Data URI: DomPDF no sale a la red a buscar una imagen.
+            'qr'      => app(\App\Services\QrService::class)->dataUri($invoice->trackingUrl(), 220),
         ])->setPaper('a4');
 
         return $pdf->stream("{$invoice->code}.pdf");

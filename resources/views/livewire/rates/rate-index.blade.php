@@ -45,7 +45,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="label">Sede origen</label>
-                        <select wire:model="origin_branch_id" class="input">
+                        <select wire:model="origin_branch_id" class="input @error('origin_branch_id') input-error @enderror">
                             <option value="">Cualquiera</option>
                             @foreach ($branches as $branch)
                                 <option value="{{ $branch->id }}">{{ $branch->prefixLabel() }} — {{ $branch->name }}</option>
@@ -54,12 +54,14 @@
                     </div>
                     <div>
                         <label class="label">Sede destino</label>
-                        <select wire:model="destination_branch_id" class="input">
+                        <select wire:model="destination_branch_id"
+                                class="input @error('destination_branch_id') input-error @enderror">
                             <option value="">Cualquiera</option>
                             @foreach ($branches as $branch)
                                 <option value="{{ $branch->id }}">{{ $branch->prefixLabel() }} — {{ $branch->name }}</option>
                             @endforeach
                         </select>
+                        @error('destination_branch_id') <p class="error-text">{{ $message }}</p> @enderror
                     </div>
                 </div>
 

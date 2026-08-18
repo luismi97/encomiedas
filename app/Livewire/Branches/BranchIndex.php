@@ -25,6 +25,10 @@ class BranchIndex extends Component
     public string $canton = '';
     public string $district = '';
     public string $phone = '';
+    public int $receipt_paper_width = 80;
+
+    /** business_hours como arreglo editable: [dia => ['abre'=>..,'cierra'=>..]] */
+    public array $business_hours = [];
     public bool $is_active = true;
 
     /** Bloquea los codigos de Hacienda cuando la sucursal ya emitio comprobantes. */
@@ -60,6 +64,7 @@ class BranchIndex extends Component
             'canton' => 'nullable|regex:/^\d{2}$/',
             'district' => 'nullable|regex:/^\d{2}$/',
             'phone' => 'nullable|string|max:30',
+            'receipt_paper_width' => ['required', Rule::in(Branch::PAPER_WIDTHS)],
         ];
     }
 
@@ -121,6 +126,8 @@ class BranchIndex extends Component
         $this->canton = (string) $branch->canton;
         $this->district = (string) $branch->district;
         $this->phone = (string) $branch->phone;
+        $this->receipt_paper_width = $branch->receiptPaperWidthMm();
+        $this->business_hours = $this->horarioEditable($branch->business_hours ?? []);
         $this->is_active = $branch->is_active;
         $this->codesLocked = $branch->hasHaciendaHistory();
         $this->showForm = true;
@@ -171,6 +178,12 @@ class BranchIndex extends Component
 
         $data = $this->validate();
         $data['prefix'] = strtoupper($data['prefix']);
+
+        // Un día sin hora de apertura es un día cerrado: se guarda como null en
+        // vez de una fila vacía que después hay que interpretar.
+        $data['business_hours'] = collect($this->business_hours)
+            ->map(fn ($h) => filled($h['abre'] ?? null) ? ['abre' => $h['abre'], 'cierra' => $h['cierra'] ?: '23:59'] : null)
+            ->all();
 
         try {
             Branch::updateOrCreate(
@@ -281,11 +294,30 @@ class BranchIndex extends Component
         return null;
     }
 
+    /** Normaliza a los 7 días para que la vista no tenga que preguntar. */
+    private function horarioEditable(?array $guardado): array
+    {
+        $guardado ??= [];
+        $horario = [];
+
+        foreach (array_keys(Branch::DIAS) as $dia) {
+            $valor = $guardado[$dia] ?? $guardado[(string) $dia] ?? null;
+            $horario[$dia] = [
+                'abre'   => $valor['abre'] ?? '',
+                'cierra' => $valor['cierra'] ?? '',
+            ];
+        }
+
+        return $horario;
+    }
+
     private function resetForm(): void
     {
         $this->reset(['editingId', 'name', 'prefix', 'address', 'province', 'canton', 'district', 'phone']);
         $this->sucursal_code = '001';
         $this->terminal_code = '00001';
+        $this->receipt_paper_width = 80;
+        $this->business_hours = $this->horarioEditable([]);
         $this->is_active = true;
         $this->codesLocked = false;
         $this->resetErrorBag();

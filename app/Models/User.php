@@ -23,6 +23,13 @@ class User extends Authenticatable
         self::ROLE_REPARTIDOR => 'Repartidor',
     ];
 
+    /** Un color por rol. Con un condicional binario, todo lo que no era admin salía como repartidor. */
+    public const ROLE_BADGE_CLASSES = [
+        self::ROLE_ADMIN      => 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
+        self::ROLE_CAJERO     => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+        self::ROLE_REPARTIDOR => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
+    ];
+
     /**
      * Roles que no pueden existir sin sede.
      *
@@ -79,6 +86,12 @@ class User extends Authenticatable
     public function activityLogs()
     {
         return $this->hasMany(ActivityLog::class);
+    }
+
+    /** Usa la notificación propia, en español. */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new \App\Notifications\RestablecerContrasena($token));
     }
 
     public function roleLabel(): string

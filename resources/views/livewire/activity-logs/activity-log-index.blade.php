@@ -40,7 +40,7 @@
                             <td class="py-3 text-sm whitespace-nowrap">{{ $log->created_at->format('d/m/Y H:i') }}</td>
                             <td class="py-3">
                                 {{ $log->user?->name ?? '—' }}
-                                <div class="text-xs text-gray-500">{{ $log->user?->isAdmin() ? 'Administrador' : 'Repartidor' }}</div>
+                                <div class="text-xs text-gray-500">{{ $log->user?->roleLabel() }}</div>
                             </td>
                             <td class="py-3">
                                 @if ($log->invoice)

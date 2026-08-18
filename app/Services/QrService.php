@@ -14,6 +14,10 @@ use Endroid\QrCode\Writer\SvgWriter;
  * Se generan al vuelo y no se guardan en disco: son deterministas a partir del
  * código de guía, así que un archivo por guía sería un caché que hay que
  * invalidar sin ganar nada.
+ *
+ * Nota de versión: endroid/qr-code 6 quitó Builder::create() en favor del
+ * constructor con argumentos nombrados. Los ejemplos que circulan todavía usan
+ * la API vieja y fallan con "undefined method".
  */
 class QrService
 {
@@ -23,31 +27,28 @@ class QrService
      */
     public function dataUri(string $contenido, int $tamano = 300): string
     {
-        $resultado = Builder::create()
-            ->writer(new PngWriter())
-            ->data($contenido)
-            ->encoding(new Encoding('UTF-8'))
+        return (new Builder(
+            writer: new PngWriter(),
+            data: $contenido,
+            encoding: new Encoding('UTF-8'),
             // Alta corrección de errores: la etiqueta va pegada a un paquete y
             // termina rayada, mojada o doblada.
-            ->errorCorrectionLevel(ErrorCorrectionLevel::High)
-            ->size($tamano)
-            ->margin(8)
-            ->build();
-
-        return $resultado->getDataUri();
+            errorCorrectionLevel: ErrorCorrectionLevel::High,
+            size: $tamano,
+            margin: 8,
+        ))->build()->getDataUri();
     }
 
     /** SVG para pantalla: escala sin pixelarse y pesa menos. */
     public function svg(string $contenido, int $tamano = 200): string
     {
-        return Builder::create()
-            ->writer(new SvgWriter())
-            ->data($contenido)
-            ->encoding(new Encoding('UTF-8'))
-            ->errorCorrectionLevel(ErrorCorrectionLevel::High)
-            ->size($tamano)
-            ->margin(4)
-            ->build()
-            ->getString();
+        return (new Builder(
+            writer: new SvgWriter(),
+            data: $contenido,
+            encoding: new Encoding('UTF-8'),
+            errorCorrectionLevel: ErrorCorrectionLevel::High,
+            size: $tamano,
+            margin: 4,
+        ))->build()->getString();
     }
 }

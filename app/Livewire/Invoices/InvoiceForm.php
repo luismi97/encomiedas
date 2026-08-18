@@ -245,7 +245,10 @@ class InvoiceForm extends Component
     {
         return [
             'pickup_branch_id' => 'required|exists:branches,id',
-            'delivery_branch_id' => 'required|exists:branches,id',
+            // Una encomienda es un traslado entre sedes: origen y destino
+            // iguales no es un envío, y además rompe el código guía, que se
+            // arma con los dos prefijos (SJ-SJ-00001 no significa nada).
+            'delivery_branch_id' => 'required|exists:branches,id|different:pickup_branch_id',
             'sender_name' => 'required|string|max:150',
             'sender_phone' => 'nullable|string|max:30',
             'sender_identification' => 'nullable|string|max:20',
@@ -281,6 +284,8 @@ class InvoiceForm extends Component
             'recipient_identification.required' => 'Para emitir Factura Electrónica hace falta la identificación del receptor. '
                 . 'Sin ella el comprobante debe ser Tiquete Electrónico.',
             'recipient_identification.regex' => 'La identificación son de 9 a 12 dígitos, sin guiones ni espacios.',
+            'delivery_branch_id.different' => 'La sede de destino tiene que ser distinta de la de origen: '
+                . 'una encomienda es un traslado entre sedes.',
             'items.*.package_code.required' => 'El código del paquete es obligatorio.',
             'items.*.weight.numeric' => 'El peso debe ser un número en kilogramos (ej. 12.5).',
             'items.*.weight.min' => 'El peso no puede ser negativo.',

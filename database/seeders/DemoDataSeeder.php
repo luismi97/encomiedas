@@ -165,17 +165,19 @@ class DemoDataSeeder extends Seeder
     private function seedBranches()
     {
         $data = [
-            ['name' => 'Heredia Centro', 'sucursal_code' => '003', 'province' => '4', 'address' => 'Heredia, Costa Rica'],
-            ['name' => 'Cartago Centro', 'sucursal_code' => '004', 'province' => '3', 'address' => 'Cartago, Costa Rica'],
-            ['name' => 'Puntarenas Centro', 'sucursal_code' => '005', 'province' => '6', 'address' => 'Puntarenas, Costa Rica'],
-            ['name' => 'Limón Centro', 'sucursal_code' => '006', 'province' => '7', 'address' => 'Limón, Costa Rica'],
-            ['name' => 'Liberia Centro', 'sucursal_code' => '007', 'province' => '5', 'address' => 'Liberia, Guanacaste'],
+            // El prefijo va explícito: es lo que arma el código guía (SJ-LIM-00005)
+            // y derivarlo del nombre da LIM y LIB para Limón y Liberia.
+            ['name' => 'Heredia Centro', 'prefix' => 'HER', 'sucursal_code' => '003', 'province' => '4', 'address' => 'Heredia, Costa Rica'],
+            ['name' => 'Cartago Centro', 'prefix' => 'CAR', 'sucursal_code' => '004', 'province' => '3', 'address' => 'Cartago, Costa Rica'],
+            ['name' => 'Puntarenas Centro', 'prefix' => 'PUN', 'sucursal_code' => '005', 'province' => '6', 'address' => 'Puntarenas, Costa Rica'],
+            ['name' => 'Limón Centro', 'prefix' => 'LIM', 'sucursal_code' => '006', 'province' => '7', 'address' => 'Limón, Costa Rica'],
+            ['name' => 'Liberia Centro', 'prefix' => 'LIB', 'sucursal_code' => '007', 'province' => '5', 'address' => 'Liberia, Guanacaste'],
         ];
 
         foreach ($data as $b) {
             Branch::firstOrCreate(
                 ['sucursal_code' => $b['sucursal_code'], 'terminal_code' => '00001'],
-                ['name' => $b['name'], 'address' => $b['address'], 'province' => $b['province'], 'canton' => '01', 'district' => '01', 'is_active' => true]
+                ['name' => $b['name'], 'prefix' => $b['prefix'], 'address' => $b['address'], 'province' => $b['province'], 'canton' => '01', 'district' => '01', 'is_active' => true]
             );
         }
 

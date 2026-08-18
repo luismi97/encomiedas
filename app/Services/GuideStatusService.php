@@ -3,10 +3,13 @@
 namespace App\Services;
 
 use App\Models\Branch;
+use App\Notifications\CambioDeEstadoGuia;
 use App\Models\GuideStatusHistory;
 use App\Models\Invoice;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use RuntimeException;
 
 /**
@@ -58,7 +61,104 @@ class GuideStatusService
             ]);
         });
 
-        return $guia->fresh();
+        $guia = $guia->fresh();
+        $this->avisarAlDestinatario($guia);
+
+        return $guia;
+    }
+
+    /**
+     * Anula una guía dejando constancia de quién y por qué.
+     *
+     * El motivo es obligatorio: una anulación sin explicación es exactamente lo
+     * que después no se puede auditar.
+     */
+    public function anular(Invoice $guia, User $usuario, string $motivo): Invoice
+    {
+        if (trim($motivo) === '') {
+            throw new RuntimeException('Toda anulación necesita un motivo.');
+        }
+
+        if (! $guia->sePuedeAnular()) {
+            throw new RuntimeException(
+                "La guía {$guia->code} está en «{$guia->statusLabel()}» y ya no se puede anular. "
+                . 'Una encomienda que ya salió se devuelve, no se anula.'
+            );
+        }
+
+        $guia->forceFill([
+            'cancellation_reason' => trim($motivo),
+            'cancelled_by'        => $usuario->id,
+            'cancelled_at'        => now(),
+        ])->save();
+
+        return $this->cambiar(
+            $guia,
+            Invoice::STATUS_CANCELLED,
+            $usuario,
+            null,
+            GuideStatusHistory::SOURCE_MANUAL,
+            'Anulada: ' . trim($motivo)
+        );
+    }
+
+    /**
+     * Entrega con evidencia de quién retiró.
+     *
+     * La firma llega como data URI del canvas del navegador; se valida que sea
+     * una imagen y no cualquier cadena, porque viene del cliente.
+     */
+    public function entregar(
+        Invoice $guia,
+        User $usuario,
+        string $nombreQuienRetira,
+        ?string $identificacion = null,
+        ?string $firmaDataUri = null
+    ): Invoice {
+        if (trim($nombreQuienRetira) === '') {
+            throw new RuntimeException('Hay que registrar el nombre de quien retira la encomienda.');
+        }
+
+        $firma = null;
+
+        if ($firmaDataUri && preg_match('#^data:image/(png|jpeg);base64,[A-Za-z0-9+/=]+$#', $firmaDataUri)) {
+            $firma = $firmaDataUri;
+        }
+
+        $guia->forceFill([
+            'received_by_name'           => trim($nombreQuienRetira),
+            'received_by_identification' => $identificacion ? preg_replace('/\D/', '', $identificacion) : null,
+            'delivery_signature'         => $firma,
+        ])->save();
+
+        return $this->cambiar(
+            $guia,
+            Invoice::STATUS_DELIVERED,
+            $usuario,
+            null,
+            GuideStatusHistory::SOURCE_MANUAL,
+            'Retirada por ' . trim($nombreQuienRetira)
+        );
+    }
+
+    /**
+     * Avisa por correo cuando el cambio le pide algo al destinatario.
+     *
+     * Falla en silencio a propósito: un correo que no sale no puede impedir que
+     * el paquete cambie de estado, porque el estado ya cambió físicamente.
+     */
+    private function avisarAlDestinatario(Invoice $guia): void
+    {
+        if (! CambioDeEstadoGuia::aplicaA($guia->status) || blank($guia->recipient_email)) {
+            return;
+        }
+
+        try {
+            Notification::route('mail', $guia->recipient_email)
+                ->notify(new CambioDeEstadoGuia($guia));
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo avisar del estado de ' . $guia->code . ': ' . $e->getMessage());
+        }
     }
 
     /**

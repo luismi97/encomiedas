@@ -47,8 +47,192 @@
             @endforeach
 
             <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="download" class="w-4 h-4" /> Descargar factura</a>
+            <a href="{{ route('invoices.recibo', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="document" class="w-4 h-4" /> Etiqueta térmica</a>
+            <x-action-button action="openIncidentForm" variant="secondary" loadingText="Abriendo...">
+                <x-icon name="warning" class="w-4 h-4" /> Reportar incidencia
+            </x-action-button>
         </div>
     </div>
+
+
+    {{-- Anulación: el motivo es obligatorio y queda en la bitácora --}}
+    @if ($showCancelForm)
+        <div class="card border-red-200 dark:border-red-800">
+            <h3 class="font-semibold mb-1">Anular la guía {{ $invoice->code }}</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                Queda registrado quién anuló y por qué. No se puede deshacer.
+            </p>
+            <label class="label">Motivo</label>
+            <textarea wire:model="cancelReason" rows="2" class="input"
+                      placeholder="Cliente desistió, error de digitación, paquete no apto…"></textarea>
+            <div class="flex gap-3 mt-3">
+                <x-action-button action="anular" variant="danger" loadingText="Anulando..."
+                    confirm="¿Anular esta guía? Queda registrado y no se puede deshacer.">
+                    <x-icon name="x" class="w-4 h-4" /> Confirmar anulación
+                </x-action-button>
+                <button type="button" wire:click="$set('showCancelForm', false)" class="btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    @endif
+
+    {{-- Entrega: nombre, cédula y firma de quien retira --}}
+    @if ($showDeliveryForm)
+        <div class="card border-green-200 dark:border-green-800" wire:ignore.self>
+            <h3 class="font-semibold mb-1">Registrar la entrega</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                Constancia de quién retiró el paquete.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="label">Nombre de quien retira</label>
+                    <input type="text" wire:model="receivedByName" class="input">
+                </div>
+                <div>
+                    <label class="label">Identificación</label>
+                    <input type="text" wire:model="receivedByIdentification" inputmode="numeric" class="input">
+                </div>
+            </div>
+
+            {{-- Canvas propio, sin librería: son 30 líneas y evita una
+                 dependencia externa que el CSP de producción podría bloquear. --}}
+            <div class="mt-4" wire:ignore>
+                <label class="label">Firma</label>
+                <div class="rounded-lg border border-gray-300 dark:border-gray-600 bg-white overflow-hidden">
+                    <canvas id="firma" class="w-full touch-none" height="160" style="display:block; cursor:crosshair;"></canvas>
+                </div>
+                <button type="button" onclick="limpiarFirma()" class="btn-secondary !py-1.5 !px-3 text-sm mt-2">
+                    Borrar firma
+                </button>
+            </div>
+
+            <div class="flex gap-3 mt-4">
+                <x-action-button action="entregar" variant="success" loadingText="Registrando...">
+                    <x-icon name="check" class="w-4 h-4" /> Confirmar entrega
+                </x-action-button>
+                <button type="button" wire:click="$set('showDeliveryForm', false)" class="btn-secondary">Cancelar</button>
+            </div>
+        </div>
+
+        @script
+        <script>
+            const lienzo = document.getElementById('firma');
+            const ctx = lienzo.getContext('2d');
+            let dibujando = false;
+
+            // El canvas se dimensiona por CSS: hay que igualar su resolución
+            // interna o la firma sale desplazada respecto al puntero.
+            const ajustar = () => {
+                const ancho = lienzo.offsetWidth;
+                if (lienzo.width !== ancho) {
+                    lienzo.width = ancho;
+                    ctx.lineWidth = 2;
+                    ctx.lineCap = 'round';
+                    ctx.strokeStyle = '#111';
+                }
+            };
+            ajustar();
+            window.addEventListener('resize', ajustar);
+
+            const punto = (e) => {
+                const r = lienzo.getBoundingClientRect();
+                const t = e.touches ? e.touches[0] : e;
+                return { x: t.clientX - r.left, y: t.clientY - r.top };
+            };
+
+            const empezar = (e) => { e.preventDefault(); dibujando = true; const p = punto(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
+            const mover = (e) => { if (!dibujando) return; e.preventDefault(); const p = punto(e); ctx.lineTo(p.x, p.y); ctx.stroke(); };
+            const soltar = () => {
+                if (!dibujando) return;
+                dibujando = false;
+                // Se sube al componente al soltar, no en cada trazo.
+                $wire.set('deliverySignature', lienzo.toDataURL('image/png'), false);
+            };
+
+            ['mousedown', 'touchstart'].forEach(ev => lienzo.addEventListener(ev, empezar));
+            ['mousemove', 'touchmove'].forEach(ev => lienzo.addEventListener(ev, mover));
+            ['mouseup', 'mouseleave', 'touchend'].forEach(ev => lienzo.addEventListener(ev, soltar));
+
+            window.limpiarFirma = () => {
+                ctx.clearRect(0, 0, lienzo.width, lienzo.height);
+                $wire.set('deliverySignature', '', false);
+            };
+        </script>
+        @endscript
+    @endif
+
+
+    {{-- Incidencias: registrar un problema sin mover el estado de la guía --}}
+    @if ($showIncidentForm)
+        <div class="card border-amber-200 dark:border-amber-800">
+            <h3 class="font-semibold mb-1">Reportar una incidencia</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                Queda registrada sin cambiar el estado: un destinatario ausente deja la encomienda donde está.
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="label">Tipo</label>
+                    <select wire:model="incidentType" class="input">
+                        @foreach (\App\Models\GuideIncident::TYPES as $valor => $etiqueta)
+                            <option value="{{ $valor }}">{{ $etiqueta }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="label">Qué pasó</label>
+                    <input type="text" wire:model="incidentDescription" class="input"
+                           placeholder="Se visitó a las 10:00 y no había nadie; se dejó aviso">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-3">
+                <x-action-button action="registrarIncidencia" variant="primary" loadingText="Registrando...">Registrar</x-action-button>
+                <button type="button" wire:click="$set('showIncidentForm', false)" class="btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    @endif
+
+    @if ($invoice->incidents->isNotEmpty())
+        <div class="card">
+            <h3 class="font-semibold mb-3 flex items-center gap-2">
+                <x-icon name="warning" class="w-5 h-5 text-amber-500" /> Incidencias
+                @if ($invoice->incidents->whereNull('resolved_at')->isNotEmpty())
+                    <span class="badge bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                        {{ $invoice->incidents->whereNull('resolved_at')->count() }} abierta(s)
+                    </span>
+                @endif
+            </h3>
+            <div class="space-y-3">
+                @foreach ($invoice->incidents as $incidencia)
+                    <div class="rounded-lg border {{ $incidencia->estaResuelta()
+                        ? 'border-gray-200 dark:border-gray-700 opacity-70'
+                        : 'border-amber-200 dark:border-amber-800' }} p-3">
+                        <div class="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                                <span class="badge {{ $incidencia->badgeClasses() }}">{{ $incidencia->typeLabel() }}</span>
+                                @if ($incidencia->estaResuelta())
+                                    <span class="badge bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">Resuelta</span>
+                                @else
+                                    <span class="text-xs text-gray-500">{{ $incidencia->diasAbierta() }} día(s) abierta</span>
+                                @endif
+                            </div>
+                            @unless ($incidencia->estaResuelta())
+                                <x-action-button action="resolverIncidencia({{ $incidencia->id }})" variant="link">
+                                    Marcar resuelta
+                                </x-action-button>
+                            @endunless
+                        </div>
+                        <p class="text-sm mt-2">{{ $incidencia->description }}</p>
+                        <p class="text-xs text-gray-500 mt-1">
+                            {{ $incidencia->reporter?->name }} · {{ $incidencia->reported_at->format('d/m/Y H:i') }}
+                            @if ($incidencia->estaResuelta())
+                                · resuelta por {{ $incidencia->resolver?->name }} el {{ $incidencia->resolved_at->format('d/m/Y') }}
+                            @endif
+                        </p>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="card">
@@ -225,8 +409,40 @@
         </div>
     @endif
 
+    @if ($invoice->cancellation_reason)
+        <div class="card border-red-200 dark:border-red-800">
+            <h3 class="font-semibold mb-1 text-red-800 dark:text-red-200">Motivo de la anulación</h3>
+            <p class="text-sm">{{ $invoice->cancellation_reason }}</p>
+            <p class="text-xs text-gray-500 mt-1">
+                {{ $invoice->canceller?->name }} · {{ $invoice->cancelled_at?->format('d/m/Y H:i') }}
+            </p>
+        </div>
+    @endif
+
+    @if ($invoice->tieneEvidenciaDeEntrega())
+        <div class="card">
+            <h3 class="font-semibold mb-2 flex items-center gap-2"><x-icon name="check-circle" class="w-5 h-5 text-green-600" /> Evidencia de entrega</h3>
+            <p class="text-sm">
+                Retirada por <strong>{{ $invoice->received_by_name }}</strong>
+                @if ($invoice->received_by_identification) · {{ $invoice->received_by_identification }} @endif
+                @if ($invoice->delivered_at) · {{ $invoice->delivered_at->format('d/m/Y H:i') }} @endif
+            </p>
+            @if ($invoice->delivery_signature)
+                <div class="mt-3 inline-block rounded-lg border border-gray-200 dark:border-gray-700 bg-white p-2">
+                    <img src="{{ $invoice->delivery_signature }}" alt="Firma" style="max-width: 320px; height: auto;">
+                </div>
+            @endif
+        </div>
+    @endif
+
     <div class="card">
-        <h3 class="font-semibold mb-3 flex items-center gap-2"><x-icon name="truck" class="w-5 h-5 text-gray-400" /> Recorrido de la guía</h3>
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <h3 class="font-semibold mb-3 flex items-center gap-2"><x-icon name="truck" class="w-5 h-5 text-gray-400" /> Recorrido de la guía</h3>
+            <div class="text-center">
+                <div class="inline-block bg-white p-2 rounded-lg border border-gray-200 dark:border-gray-700">{!! $qrSvg !!}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Seguimiento público</div>
+            </div>
+        </div>
         <ol class="relative border-l border-gray-200 dark:border-gray-700 ml-2 space-y-4">
             @foreach ($invoice->statusHistories as $paso)
                 <li class="ml-5">

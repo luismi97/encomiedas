@@ -42,6 +42,12 @@
                 <x-icon name="clipboard-list" /> <span>Facturas / Encomiendas</span>
             </a>
 
+            @if (auth()->user()->isRepartidor() || auth()->user()->isAdmin())
+                <a href="{{ route('chofer.index') }}" class="nav-link {{ request()->routeIs('chofer.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="truck" /> <span>Mi ruta</span>
+                </a>
+            @endif
+
             @if (auth()->user()->puedeOperarCaja())
                 <a href="{{ route('caja.index') }}" class="nav-link {{ request()->routeIs('caja.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="banknotes" /> <span>Caja</span>
@@ -54,6 +60,9 @@
                 </a>
                 <a href="{{ route('credito.index') }}" class="nav-link {{ request()->routeIs('credito.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="receipt" /> <span>Crédito</span>
+                </a>
+                <a href="{{ route('reportes.index') }}" class="nav-link {{ request()->routeIs('reportes.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="clipboard-list" /> <span>Reportes</span>
                 </a>
             @endif
 

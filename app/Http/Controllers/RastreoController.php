@@ -52,6 +52,9 @@ class RastreoController extends Controller
             // Nombre parcial: confirma al destinatario sin exponerlo.
             'receptor'   => $this->enmascarar($guia->recipient_name),
             'porVencer'  => $guia->status === Invoice::STATUS_NEAR_DISPOSAL,
+            // Para que el portal muestre expectativas realistas de retiro.
+            'sedeAbierta'     => $guia->deliveryBranch?->estaAbierta() ?? true,
+            'proximaApertura' => $guia->deliveryBranch?->proximaApertura(),
             'fechaLimite' => $guia->disposal_warned_at
                 ? $guia->disposal_warned_at->copy()->addDays((int) config('encomiendas.disposal.dispose_after_days', 15))
                 : null,

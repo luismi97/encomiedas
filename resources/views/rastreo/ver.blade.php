@@ -41,6 +41,16 @@
             </div>
         @endif
 
+        @if (! $sedeAbierta && $proximaApertura)
+            <div class="p-4 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 flex items-start gap-3">
+                <x-icon name="clock" class="w-5 h-5 mt-0.5 text-gray-400 shrink-0" />
+                <div class="text-sm text-gray-600 dark:text-gray-300">
+                    La sucursal está cerrada en este momento.
+                    Vuelve a abrir el <strong>{{ $proximaApertura->locale('es')->isoFormat('dddd D [de] MMMM [a las] HH:mm') }}</strong>.
+                </div>
+            </div>
+        @endif
+
         <div class="p-6">
             <h2 class="font-semibold mb-4">Recorrido</h2>
             <ol class="relative border-l border-gray-200 dark:border-gray-700 ml-2 space-y-5">

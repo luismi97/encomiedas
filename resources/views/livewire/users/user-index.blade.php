@@ -95,8 +95,8 @@
                                 <div class="text-gray-500">{{ $user->email }}</div>
                             </td>
                             <td class="py-3">
-                                <span class="badge {{ $user->isAdmin() ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' }}">
-                                    {{ $user->isAdmin() ? 'Administrador' : 'Repartidor' }}
+                                <span class="badge {{ \App\Models\User::ROLE_BADGE_CLASSES[$user->role] ?? '' }}">
+                                    {{ $user->roleLabel() }}
                                 </span>
                             </td>
                             <td class="py-3 text-sm">{{ $user->branch?->name ?? '—' }}</td>
@@ -130,7 +130,7 @@
                         </x-action-button>
                     </div>
                     <div class="mt-2 space-y-1 text-sm">
-                        <div class="flex justify-between gap-3"><span class="text-gray-500">Rol</span><span>{{ $user->isAdmin() ? 'Administrador' : 'Repartidor' }}</span></div>
+                        <div class="flex justify-between gap-3"><span class="text-gray-500">Rol</span><span>{{ $user->roleLabel() }}</span></div>
                         <div class="flex justify-between gap-3"><span class="text-gray-500">Sucursal</span><span>{{ $user->branch?->name ?? '—' }}</span></div>
                     </div>
                     <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex gap-4">
