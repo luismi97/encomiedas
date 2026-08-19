@@ -89,6 +89,8 @@ class DemoDataSeeder extends Seeder
             [$senderName, $senderPhone] = $this->senders[array_rand($this->senders)];
             [$recipientName, $recipientPhone] = $this->recipients[array_rand($this->recipients)];
 
+            $tiposDeBulto ??= \App\Models\PackageType::active()->get();
+
             $itemCount = random_int(1, 3);
             $items = [];
             $subtotal = 0;
@@ -96,7 +98,7 @@ class DemoDataSeeder extends Seeder
                 $price = random_int(3, 18) * 1000;
                 $subtotal += $price;
                 $items[] = [
-                    'package_code' => 'PKG-' . str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT) . '-' . ($j + 1),
+                    'package_type_id' => $tiposDeBulto->random()->id,
                     'size' => ['S', 'M', 'L', 'XL'][array_rand(['S', 'M', 'L', 'XL'])],
                     'weight' => round(random_int(5, 150) / 10, 2),
                     'description' => $this->descriptions[array_rand($this->descriptions)],

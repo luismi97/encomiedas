@@ -50,7 +50,6 @@ class InvoiceFormTest extends TestCase
         [$a, $b] = $this->escenario();
 
         $this->formulario($a, $b)
-            ->set('items.0.package_code', 'PKG-001')
             ->set('items.0.size', 'XL')
             ->set('items.0.weight', '12.5')
             ->set('items.0.description', 'Repuestos electrónicos')
@@ -60,7 +59,10 @@ class InvoiceFormTest extends TestCase
 
         $item = Invoice::firstOrFail()->items()->firstOrFail();
 
-        $this->assertSame('PKG-001', $item->package_code);
+        // El tipo de bulto viene preseleccionado: reemplazó al código que el
+        // cajero tenía que inventar y que nada usaba como llave.
+        $this->assertNotNull($item->package_type_id);
+        $this->assertSame(\App\Models\PackageType::porDefecto()->name, $item->nombreDelBulto());
         $this->assertSame('XL', $item->size);
         $this->assertSame('12.50', (string) $item->weight);
         $this->assertSame('Repuestos electrónicos', $item->description);
@@ -71,7 +73,6 @@ class InvoiceFormTest extends TestCase
         [$a, $b] = $this->escenario();
 
         $this->formulario($a, $b)
-            ->set('items.0.package_code', 'PKG-002')
             ->set('items.0.weight', '')
             ->set('items.0.description', '')
             ->set('items.0.price', 5000)
@@ -89,7 +90,6 @@ class InvoiceFormTest extends TestCase
         [$a, $b] = $this->escenario();
 
         $this->formulario($a, $b)
-            ->set('items.0.package_code', 'PKG-003')
             ->set('items.0.weight', '-5')
             ->set('items.0.price', 5000)
             ->call('save')
@@ -101,19 +101,17 @@ class InvoiceFormTest extends TestCase
         [$a, $b] = $this->escenario();
 
         $this->formulario($a, $b)
-            ->set('items.0.package_code', 'PKG-A')
             ->set('items.0.size', 'S')
             ->set('items.0.weight', '1.25')
             ->set('items.0.price', 3000)
             ->call('addItem')
-            ->set('items.1.package_code', 'PKG-B')
             ->set('items.1.size', 'L')
             ->set('items.1.weight', '9')
             ->set('items.1.price', 7000)
             ->call('save')
             ->assertHasNoErrors();
 
-        $items = Invoice::firstOrFail()->items()->orderBy('package_code')->get();
+        $items = Invoice::firstOrFail()->items()->orderBy('id')->get();
 
         $this->assertCount(2, $items);
         $this->assertSame('S', $items[0]->size);
@@ -132,12 +130,12 @@ class InvoiceFormTest extends TestCase
         [$a, $b] = $this->escenario();
 
         $this->formulario($a, $b)
-            ->set('items.0.package_code', '')
+            ->set('items.0.package_type_id', '')
             ->set('items.0.weight', '-3')
             ->set('items.0.price', 1000)
             ->call('save')
-            ->assertHasErrors(['items.0.package_code', 'items.0.weight'])
-            ->assertSee('El código del paquete es obligatorio.')
+            ->assertHasErrors(['items.0.package_type_id', 'items.0.weight'])
+            ->assertSee('Elegí qué tipo de bulto es')
             ->assertSee('El peso no puede ser negativo.');
     }
 
@@ -146,7 +144,6 @@ class InvoiceFormTest extends TestCase
         [$a, $b] = $this->escenario();
 
         $this->formulario($a, $b)
-            ->set('items.0.package_code', 'PKG-EDIT')
             ->set('items.0.size', 'L')
             ->set('items.0.weight', '4.5')
             ->set('items.0.description', 'Libros')

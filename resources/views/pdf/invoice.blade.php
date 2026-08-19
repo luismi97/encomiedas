@@ -129,7 +129,7 @@
         <tbody>
             @foreach ($invoice->items as $item)
                 <tr>
-                    <td>{{ $item->package_code ?: '—' }}</td>
+                    <td>{{ $item->nombreDelBulto() }}</td>
                     <td>{{ $item->size ?: '—' }}</td>
                     <td>{{ $item->weight ? number_format($item->weight, 2) . ' kg' : '—' }}</td>
                     <td>{{ $item->description ?: '—' }}</td>

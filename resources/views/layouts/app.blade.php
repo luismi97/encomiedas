@@ -79,6 +79,9 @@
                 <a href="{{ route('rates.index') }}" class="nav-link {{ request()->routeIs('rates.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="banknotes" /> <span>Tarifario</span>
                 </a>
+                <a href="{{ route('package-types.index') }}" class="nav-link {{ request()->routeIs('package-types.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="box" /> <span>Tipos de bulto</span>
+                </a>
                 <a href="{{ route('taxes.index') }}" class="nav-link {{ request()->routeIs('taxes.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="receipt" /> <span>Impuestos</span>
                 </a>

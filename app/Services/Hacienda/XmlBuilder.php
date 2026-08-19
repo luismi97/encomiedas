@@ -224,7 +224,7 @@ abstract class XmlBuilder
         $out = [];
 
         foreach ($invoice->items as $item) {
-            $detalle = 'Servicio de encomienda - Paquete ' . $item->package_code;
+            $detalle = 'Servicio de encomienda - ' . $item->nombreDelBulto();
             if ($item->description) {
                 $detalle .= ' (' . $item->description . ')';
             }

@@ -280,7 +280,7 @@
                 <tbody>
                     @foreach ($invoice->items as $item)
                         <tr class="border-b border-gray-100 dark:border-gray-700/50">
-                            <td class="py-2">{{ $item->package_code }}</td>
+                            <td class="py-2">{{ $item->nombreDelBulto() }}@if ($item->esFragil()) <span class="badge bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Frágil</span>@endif</td>
                             <td class="py-2">{{ $item->size }}</td>
                             <td class="py-2">{{ $item->weight }} kg</td>
                             <td class="py-2">{{ $item->description }}</td>
@@ -294,7 +294,7 @@
         <div class="md:hidden space-y-3">
             @foreach ($invoice->items as $item)
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-                    <div class="flex justify-between font-medium"><span>{{ $item->package_code }}</span><span>₡{{ number_format($item->price, 2) }}</span></div>
+                    <div class="flex justify-between font-medium"><span>{{ $item->nombreDelBulto() }}</span><span>₡{{ number_format($item->price, 2) }}</span></div>
                     <div class="mt-1 text-sm text-gray-500 space-y-0.5">
                         <div class="flex justify-between"><span>Tamaño</span><span>{{ $item->size }}</span></div>
                         <div class="flex justify-between"><span>Peso</span><span>{{ $item->weight }} kg</span></div>

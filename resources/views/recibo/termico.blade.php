@@ -109,7 +109,7 @@
         <div class="etiqueta">Paquetes</div>
         @forelse ($guia->items as $item)
             <table class="fila"><tr>
-                <td>{{ $item->package_code }}@if ($item->size) · {{ $item->size }}@endif</td>
+                <td>{{ $item->nombreDelBulto() }}@if ($item->size) · {{ $item->size }}@endif</td>
                 <td>{{ $item->weight ? number_format((float) $item->weight, 2) . ' kg' : '' }}</td>
             </tr></table>
             @if ($item->description)

@@ -99,7 +99,20 @@
 
         <div class="centro bulto">
             BULTO {{ $indice + 1 }} DE {{ count($bultos) }}
+            @if ($bulto?->packageType)
+                <div style="font-size: {{ $ancho >= 80 ? '13px' : '11px' }}">
+                    {{ mb_strtoupper($bulto->packageType->name, "UTF-8") }}
+                </div>
+            @endif
         </div>
+
+        {{-- El aviso va grande y con marco: la etiqueta la lee quien carga el
+             camión, no quien digitó la guía. --}}
+        @if ($bulto?->esFragil())
+            <div class="centro frag">
+                FRÁGIL · MANEJAR CON CUIDADO
+            </div>
+        @endif
 
         <div class="regla"></div>
 

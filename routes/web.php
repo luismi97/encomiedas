@@ -8,6 +8,7 @@ use App\Http\Controllers\ElectronicInvoiceController;
 use App\Livewire\ActivityLogs\ActivityLogIndex;
 use App\Livewire\Branches\BranchIndex;
 use App\Livewire\CashRegisters\CashRegisterIndex;
+use App\Livewire\PackageTypes\PackageTypeIndex;
 use App\Livewire\Customers\CustomerIndex;
 use App\Livewire\Caja\CajaPanel;
 use App\Livewire\Chofer\ChoferPanel;
@@ -105,6 +106,7 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/branches', BranchIndex::class)->name('branches.index');
         Route::get('/cash-registers', CashRegisterIndex::class)->name('cash-registers.index');
+        Route::get('/package-types', PackageTypeIndex::class)->name('package-types.index');
         Route::get('/rates', RateIndex::class)->name('rates.index');
         Route::get('/taxes', TaxIndex::class)->name('taxes.index');
         Route::get('/users', UserIndex::class)->name('users.index');

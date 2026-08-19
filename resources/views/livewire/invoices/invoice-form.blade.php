@@ -153,9 +153,14 @@
                 @foreach ($items as $index => $item)
                     <div class="grid grid-cols-2 sm:grid-cols-7 gap-3 items-end border-b border-gray-100 dark:border-gray-700 pb-3">
                         <div class="col-span-2 sm:col-span-1">
-                            <label class="label">Código de paquete</label>
-                            <input type="text" wire:model="items.{{ $index }}.package_code" class="input @error('items.'.$index.'.package_code') input-error @enderror">
-                            @error('items.'.$index.'.package_code') <p class="error-text">{{ $message }}</p> @enderror
+                            <label class="label">Tipo de bulto</label>
+                            <select wire:model="items.{{ $index }}.package_type_id"
+                                    class="input @error('items.'.$index.'.package_type_id') input-error @enderror">
+                                @foreach ($tiposDeBulto as $tipo)
+                                    <option value="{{ $tipo->id }}">{{ $tipo->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('items.'.$index.'.package_type_id') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
                         <div>
                             <label class="label">Tamaño</label>

@@ -4,6 +4,7 @@ namespace App\Livewire\Invoices;
 
 use App\Models\Branch;
 use App\Models\Invoice;
+use App\Models\PackageType;
 use App\Models\Customer;
 use App\Models\Rate;
 use App\Models\Tax;
@@ -64,7 +65,7 @@ class InvoiceForm extends Component
     public function mount(?Invoice $invoice = null): void
     {
         $this->items = [
-            ['package_code' => '', 'size' => 'M', 'weight' => '', 'length_cm' => '', 'width_cm' => '', 'height_cm' => '', 'description' => '', 'price' => ''],
+            ['package_type_id' => PackageType::porDefecto()?->id, 'size' => 'M', 'weight' => '', 'length_cm' => '', 'width_cm' => '', 'height_cm' => '', 'description' => '', 'price' => ''],
         ];
 
         if ($invoice && $invoice->exists) {
@@ -89,7 +90,7 @@ class InvoiceForm extends Component
             $this->declared_value = (float) $invoice->declared_value;
             $this->assigned_to = $invoice->assigned_to;
             $this->items = $invoice->items->map(fn ($i) => [
-                'package_code' => $i->package_code,
+                'package_type_id' => $i->package_type_id,
                 'size' => $i->size,
                 'weight' => $i->weight,
                 'length_cm' => $i->length_cm,
@@ -215,7 +216,7 @@ class InvoiceForm extends Component
 
     public function addItem(): void
     {
-        $this->items[] = ['package_code' => '', 'size' => 'M', 'weight' => '', 'length_cm' => '', 'width_cm' => '', 'height_cm' => '', 'description' => '', 'price' => ''];
+        $this->items[] = ['package_type_id' => PackageType::porDefecto()?->id, 'size' => 'M', 'weight' => '', 'length_cm' => '', 'width_cm' => '', 'height_cm' => '', 'description' => '', 'price' => ''];
     }
 
     public function removeItem(int $index): void
@@ -267,7 +268,7 @@ class InvoiceForm extends Component
             'discount_amount' => 'nullable|numeric|min:0',
             'payment_method' => 'required|in:' . implode(',', array_keys(Invoice::PAYMENT_METHODS)),
             'items' => 'required|array|min:1',
-            'items.*.package_code' => 'required|string|max:100',
+            'items.*.package_type_id' => 'required|exists:package_types,id',
             'items.*.size' => 'nullable|string|max:20',
             'items.*.weight' => 'nullable|numeric|min:0|max:999999.99',
             'items.*.length_cm' => 'nullable|numeric|min:0|max:999999.99',
@@ -286,7 +287,8 @@ class InvoiceForm extends Component
             'recipient_identification.regex' => 'La identificación son de 9 a 12 dígitos, sin guiones ni espacios.',
             'delivery_branch_id.different' => 'La sede de destino tiene que ser distinta de la de origen: '
                 . 'una encomienda es un traslado entre sedes.',
-            'items.*.package_code.required' => 'El código del paquete es obligatorio.',
+            'items.*.package_type_id.required' => 'Elegí qué tipo de bulto es (paquete, caja, sobre...).',
+            'items.*.package_type_id.exists' => 'Ese tipo de bulto ya no está disponible.',
             'items.*.weight.numeric' => 'El peso debe ser un número en kilogramos (ej. 12.5).',
             'items.*.weight.min' => 'El peso no puede ser negativo.',
             'items.*.description.max' => 'La descripción del paquete no puede pasar de 255 caracteres.',
@@ -352,7 +354,7 @@ class InvoiceForm extends Component
             $invoice->items()->delete();
             foreach ($data['items'] as $item) {
                 $invoice->items()->create([
-                    'package_code' => $item['package_code'],
+                    'package_type_id' => $item['package_type_id'],
                     'size' => $item['size'],
                     'weight' => $item['weight'],
                     'length_cm' => $item['length_cm'],
@@ -399,6 +401,7 @@ class InvoiceForm extends Component
             'taxes' => Tax::where('is_active', true)->orderBy('name')->get(),
             'repartidores' => User::where('role', User::ROLE_REPARTIDOR)->where('is_active', true)->orderBy('name')->get(),
             'clientes' => Customer::active()->orderBy('name')->get(['id', 'name', 'identification']),
+            'tiposDeBulto' => PackageType::active()->get(),
         ])->layout('layouts.app', ['title' => $this->invoice ? 'Editar guía' : 'Nueva guía']);
     }
 }
