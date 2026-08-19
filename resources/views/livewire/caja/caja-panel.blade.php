@@ -17,9 +17,16 @@
             Todo cobro de contado entra al turno abierto. Sin caja abierta, el cobro no llega al arqueo.
         </p>
         @if ($cajas->isNotEmpty())
-            <select wire:model.live="registerId" class="input sm:max-w-[260px]">
-                @foreach ($cajas as $c)
-                    <option value="{{ $c->id }}">{{ $c->name }} — {{ $c->branch?->name }}</option>
+            <select wire:model.live="registerId" class="input sm:max-w-[280px]">
+                @foreach ($cajas as $nombreSede => $delaSede)
+                    <optgroup label="{{ $nombreSede }}">
+                        @foreach ($delaSede as $c)
+                            <option value="{{ $c->id }}">
+                                {{ $c->name }}
+                                @if ($c->estaAbierta()) · turno abierto @endif
+                            </option>
+                        @endforeach
+                    </optgroup>
                 @endforeach
             </select>
         @endif
@@ -62,7 +69,17 @@
 
     @if (! $sesion)
         <div class="card">
-            <h2 class="text-lg font-semibold mb-1">Abrir turno</h2>
+            {{-- El @if va en su propia línea: pegado a una letra («turno@if»)
+                 Blade no lo reconoce como directiva y el @endif queda suelto. --}}
+            <h2 class="text-lg font-semibold mb-1">
+                Abrir turno
+                @if ($caja)
+                    en <span class="text-brand-600 dark:text-brand-400">{{ $caja->name }}</span>
+                @endif
+            </h2>
+            @if ($caja)
+                <p class="text-sm text-gray-500 dark:text-gray-400">{{ $caja->branch?->name }}</p>
+            @endif
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
                 El fondo inicial es el efectivo con el que arranca la gaveta. Es la base del arqueo al cerrar.
             </p>
@@ -80,9 +97,12 @@
         <div class="card space-y-4">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                    <h2 class="text-lg font-semibold">Turno abierto</h2>
+                    <h2 class="text-lg font-semibold">
+                        Turno abierto
+                        @if ($caja) · {{ $caja->name }} @endif
+                    </h2>
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        Desde {{ $sesion->opened_at->format('d/m/Y H:i') }} · {{ $sesion->opener?->name }}
+                        {{ $caja?->branch?->name }} · desde {{ $sesion->opened_at->format('d/m/Y H:i') }} · {{ $sesion->opener?->name }}
                     </p>
                 </div>
                 <a href="{{ route('caja.pdf', $sesion) }}" target="_blank" class="btn-secondary !py-2 !px-3 text-sm">

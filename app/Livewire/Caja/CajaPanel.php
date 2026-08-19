@@ -33,17 +33,35 @@ class CajaPanel extends Component
 
     public function mount(CajaService $caja): void
     {
-        $this->seleccionarCajaPorDefecto($caja->sesionAbiertaPara(auth()->user()));
+        $this->seleccionarCajaPorDefecto($caja->sesionPropiaAbierta(auth()->user()));
     }
 
+    /**
+     * Con varias cajas por sede, cuál mostrar de entrada.
+     *
+     * El orden importa: primero el turno propio, si lo hay. Si no, una caja
+     * libre de su sede —caer en la de un compañero mostraría el turno de otro y
+     * el primer cobro entraría en la gaveta equivocada—. Recién después, la
+     * primera que haya.
+     */
     private function seleccionarCajaPorDefecto(?CashSession $sesionAbierta = null): void
     {
-        $this->registerId = $sesionAbierta?->cash_register_id
-            ?? CashRegister::active()
-                ->when(auth()->user()->branch_id, fn ($q) => $q->where('branch_id', auth()->user()->branch_id))
+        if ($sesionAbierta) {
+            $this->registerId = $sesionAbierta->cash_register_id;
+
+            return;
+        }
+
+        $deSuSede = CashRegister::active()
+            ->when(auth()->user()->branch_id, fn ($q) => $q->where('branch_id', auth()->user()->branch_id))
+            ->orderBy('name');
+
+        $this->registerId = (clone $deSuSede)
+                ->whereDoesntHave('sessions', fn ($q) => $q->where('status', CashSession::STATUS_OPEN))
                 ->value('id')
+            ?? $deSuSede->value('id')
             // Un cajero sin sede asignada no tiene caja «suya»: igual necesita una.
-            ?? CashRegister::active()->value('id');
+            ?? CashRegister::active()->orderBy('name')->value('id');
     }
 
     /**
@@ -220,7 +238,10 @@ class CajaPanel extends Component
             'esperado'      => $sesion ? $servicio->efectivoEsperado($sesion) : 0.0,
             'porMedio'      => $sesion ? $servicio->totalesPorMedio($sesion) : collect(),
             'denominaciones' => Denomination::active()->get(),
-            'cajas'         => CashRegister::active()->with('branch')->get(),
+            // Agrupadas por sede: con varias cajas por sucursal, una lista plana
+            // de «Mostrador 1» repetidos no dice en qué sede está cada una.
+            'cajas'         => CashRegister::active()->with('branch')->orderBy('name')->get()
+                ->groupBy(fn ($c) => $c->branch?->name ?? 'Sin sede'),
             'sinSedes'      => ! Branch::where('is_active', true)->exists(),
             'puedeCrearCajas' => auth()->user()->puedeConfigurar(),
             'historial'     => CashSession::with(['opener', 'closer', 'register.branch'])

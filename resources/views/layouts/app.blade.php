@@ -73,6 +73,9 @@
                 <a href="{{ route('branches.index') }}" class="nav-link {{ request()->routeIs('branches.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="building" /> <span>Sucursales</span>
                 </a>
+                <a href="{{ route('cash-registers.index') }}" class="nav-link {{ request()->routeIs('cash-registers.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="banknotes" /> <span>Cajas</span>
+                </a>
                 <a href="{{ route('rates.index') }}" class="nav-link {{ request()->routeIs('rates.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="banknotes" /> <span>Tarifario</span>
                 </a>

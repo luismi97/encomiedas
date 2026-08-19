@@ -97,6 +97,49 @@ class InvoiceExportController extends Controller
         ]);
     }
 
+    /**
+     * Etiqueta que se pega al paquete, con código de barras escaneable.
+     *
+     * Separada del recibo del cliente a propósito: son dos documentos con dos
+     * destinos distintos. El recibo lleva montos y se lo lleva quien despacha;
+     * la etiqueta queda a la vista de cualquiera que manipule el bulto, así
+     * que no lleva plata, y en cambio lleva el código de barras y la ruta en
+     * grande.
+     *
+     * Sale una etiqueta por bulto: si la guía trae tres paquetes, los tres
+     * necesitan la suya o se pierden al separarse en la bodega.
+     */
+    public function etiquetaPaquete(Request $request, Invoice $invoice, \App\Services\BarcodeService $barras)
+    {
+        $user = $request->user();
+
+        if ($user->isRepartidor() && $invoice->assigned_to !== $user->id) {
+            abort(403);
+        }
+
+        $invoice->load(['items', 'pickupBranch', 'deliveryBranch']);
+
+        $ancho = $request->integer('ancho')
+            ?: $invoice->pickupBranch?->receiptPaperWidthMm()
+            ?? 80;
+
+        $ancho = in_array($ancho, \App\Models\Branch::PAPER_WIDTHS, true) ? $ancho : 80;
+
+        // Una guía sin renglones igual se despacha: en ese caso va una sola
+        // etiqueta, sin detalle de bulto.
+        $bultos = $invoice->items->isNotEmpty() ? $invoice->items->all() : [null];
+
+        return view('recibo.etiqueta', [
+            'guia'    => $invoice,
+            'empresa' => CompanySetting::instance(),
+            'ancho'   => $ancho,
+            'bultos'  => $bultos,
+            // El alto en píxeles se traduce a milímetros al imprimir; 55 da una
+            // barra cómoda de escanear en rollo de 58 y de 80.
+            'barras'  => $barras->svg($invoice->code, alto: 55, modulo: 2),
+        ]);
+    }
+
     /** Estado de cuenta consolidado de un período de crédito. */
     public function creditStatementPdf(\App\Models\CreditStatement $statement)
     {

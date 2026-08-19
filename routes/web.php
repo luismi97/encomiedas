@@ -7,6 +7,7 @@ use App\Http\Controllers\RastreoController;
 use App\Http\Controllers\ElectronicInvoiceController;
 use App\Livewire\ActivityLogs\ActivityLogIndex;
 use App\Livewire\Branches\BranchIndex;
+use App\Livewire\CashRegisters\CashRegisterIndex;
 use App\Livewire\Customers\CustomerIndex;
 use App\Livewire\Caja\CajaPanel;
 use App\Livewire\Chofer\ChoferPanel;
@@ -66,6 +67,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/invoices/{invoice}', InvoiceShow::class)->name('invoices.show');
     Route::get('/invoices/{invoice}/pdf', [InvoiceExportController::class, 'downloadInvoice'])->name('invoices.pdf');
     Route::get('/invoices/{invoice}/recibo', [InvoiceExportController::class, 'reciboTermico'])->name('invoices.recibo');
+    Route::get('/invoices/{invoice}/etiqueta', [InvoiceExportController::class, 'etiquetaPaquete'])->name('invoices.etiqueta');
     // Vista de calle: el chofer solo ve el cierre que trae asignado.
     Route::middleware('role:admin,repartidor')->group(function () {
         Route::get('/mi-ruta', ChoferPanel::class)->name('chofer.index');
@@ -102,6 +104,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/hacienda/pending', PendingQueue::class)->name('hacienda.pending');
 
         Route::get('/branches', BranchIndex::class)->name('branches.index');
+        Route::get('/cash-registers', CashRegisterIndex::class)->name('cash-registers.index');
         Route::get('/rates', RateIndex::class)->name('rates.index');
         Route::get('/taxes', TaxIndex::class)->name('taxes.index');
         Route::get('/users', UserIndex::class)->name('users.index');

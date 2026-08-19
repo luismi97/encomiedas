@@ -47,7 +47,8 @@
             @endforeach
 
             <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="download" class="w-4 h-4" /> Descargar factura</a>
-            <a href="{{ route('invoices.recibo', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="document" class="w-4 h-4" /> Etiqueta térmica</a>
+            <a href="{{ route('invoices.recibo', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="receipt" class="w-4 h-4" /> Recibo del cliente</a>
+            <a href="{{ route('invoices.etiqueta', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="box" class="w-4 h-4" /> Etiqueta del paquete</a>
             <x-action-button action="openIncidentForm" variant="secondary" loadingText="Abriendo...">
                 <x-icon name="warning" class="w-4 h-4" /> Reportar incidencia
             </x-action-button>

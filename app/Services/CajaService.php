@@ -77,6 +77,21 @@ class CajaService
     }
 
     /**
+     * Turno que abrió este usuario, si tiene uno.
+     *
+     * Distinto de sesionAbiertaPara(), que devuelve cualquier turno de la sede:
+     * con varias cajas por sucursal, arrancar en la caja de un compañero
+     * mostraría su arqueo y mandaría el primer cobro a la gaveta equivocada.
+     */
+    public function sesionPropiaAbierta(User $usuario): ?CashSession
+    {
+        return CashSession::where('opened_by', $usuario->id)
+            ->where('status', CashSession::STATUS_OPEN)
+            ->latest('id')
+            ->first();
+    }
+
+    /**
      * Registra el cobro de una guía en el turno abierto.
      *
      * Devuelve null si no hay caja abierta: quien llama decide si eso es un

@@ -72,11 +72,16 @@
                 </div>
 
                 <div class="mt-4 flex flex-wrap gap-2">
-                    {{-- Imprimir sin entrar a la guía: es lo que más se repite
-                         en mostrador, una etiqueta por cada paquete recibido. --}}
+                    {{-- Dos impresos distintos y por eso dos botones: el recibo
+                         se lo lleva el cliente; la etiqueta se pega al bulto y
+                         es la que se escanea. --}}
                     <a href="{{ route('invoices.recibo', $invoice) }}" target="_blank"
+                       class="btn-secondary !py-2 !px-3 text-sm">
+                        <x-icon name="receipt" class="w-4 h-4" /> Recibo
+                    </a>
+                    <a href="{{ route('invoices.etiqueta', $invoice) }}" target="_blank"
                        class="btn-primary !py-2 !px-3 text-sm">
-                        <x-icon name="document" class="w-4 h-4" /> Etiqueta
+                        <x-icon name="box" class="w-4 h-4" /> Etiqueta del paquete
                     </a>
                     <a href="{{ route('invoices.show', $invoice) }}" class="btn-secondary !py-2 !px-3 text-sm">Ver detalle</a>
                     <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-secondary !py-2 !px-3 text-sm"><x-icon name="document" class="w-4 h-4" /> Factura</a>

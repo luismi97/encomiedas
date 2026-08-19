@@ -45,4 +45,16 @@ class CashRegister extends Model
     {
         return $this->sesionAbierta() !== null;
     }
+
+    /** Turnos ya cerrados: son documentos contables y no se borran. */
+    public function tieneHistorial(): bool
+    {
+        return $this->sessions()->exists();
+    }
+
+    /** «Mostrador 2 — Limón Centro», para los selectores. */
+    public function nombreCompleto(): string
+    {
+        return $this->name . ' — ' . ($this->branch?->name ?? 'sin sede');
+    }
 }
