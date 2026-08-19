@@ -60,7 +60,13 @@
     </table>
 
     <div class="totals">
-        Total del periodo: <strong>₡{{ number_format($total, 2) }}</strong> · {{ $invoices->count() }} factura(s)
+        Total facturado: <strong>₡{{ number_format($total, 2) }}</strong> · {{ $invoices->count() }} guía(s)
+        @if (($porCobrar ?? 0) > 0)
+            <div style="font-weight: normal; margin-top: 4px;">
+                De ese monto, ₡{{ number_format($porCobrar, 2) }} son fletes por cobrar todavía sin pagar:
+                no son dinero recibido.
+            </div>
+        @endif
     </div>
 </body>
 </html>

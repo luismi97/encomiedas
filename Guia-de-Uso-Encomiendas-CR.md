@@ -18,26 +18,27 @@ todos los días: cajero, repartidor y administrador.
 6. [Impresión: recibo y etiqueta](#6-impresión-recibo-y-etiqueta)
 7. [Cierres de envío](#7-cierres-de-envío)
 8. [Mi ruta (chofer)](#8-mi-ruta-chofer)
-9. [Clientes](#9-clientes)
-10. [Crédito](#10-crédito)
-11. [Reportes](#11-reportes)
+9. [Cotizaciones (proformas)](#9-cotizaciones-proformas)
+10. [Clientes](#10-clientes)
+11. [Crédito](#11-crédito)
+12. [Reportes](#12-reportes)
 
 **Administración**
-12. [Facturación electrónica](#12-facturación-electrónica)
-13. [Sucursales](#13-sucursales)
-14. [Cajas](#14-cajas)
-15. [Tarifario](#15-tarifario)
-16. [Tipos de bulto](#16-tipos-de-bulto)
-17. [Impuestos](#17-impuestos)
-18. [Usuarios](#18-usuarios)
-19. [Bitácora](#19-bitácora)
-20. [Datos de la empresa](#20-datos-de-la-empresa)
+13. [Facturación electrónica](#13-facturación-electrónica)
+14. [Sucursales](#14-sucursales)
+15. [Cajas](#15-cajas)
+16. [Tarifario](#16-tarifario)
+17. [Tipos de bulto](#17-tipos-de-bulto)
+18. [Impuestos](#18-impuestos)
+19. [Usuarios](#19-usuarios)
+20. [Bitácora](#20-bitácora)
+21. [Datos de la empresa](#21-datos-de-la-empresa)
 
 **Referencia**
-21. [Rastreo público](#21-rastreo-público)
-22. [Correos que envía el sistema](#22-correos-que-envía-el-sistema)
-23. [Tareas automáticas](#23-tareas-automáticas)
-24. [Preguntas frecuentes](#24-preguntas-frecuentes)
+22. [Rastreo público](#22-rastreo-público)
+23. [Correos que envía el sistema](#23-correos-que-envía-el-sistema)
+24. [Tareas automáticas](#24-tareas-automáticas)
+25. [Preguntas frecuentes](#25-preguntas-frecuentes)
 
 ---
 
@@ -343,7 +344,51 @@ Desde ahí puede:
 
 ---
 
-## 9. Clientes
+## 9. Cotizaciones (proformas)
+
+Un precio por escrito para pasarle a un cliente **sin facturarlo**.
+
+Una cotización no consume consecutivo de guía, no entra en los reportes de venta
+y no llega a Hacienda. No es nada hasta que el cliente acepta.
+
+### Cotizar
+
+**Cotizaciones → Nueva cotización.** Se elige la ruta, a nombre de quién va, y
+se agregan los bultos con su peso y medidas.
+
+**El precio se llena solo**, con el mismo tarifario que usan las guías — si
+fueran tablas distintas, lo cotizado y lo cobrado se separarían. Se puede pisar
+a mano cuando haga falta.
+
+Cada cotización lleva una **fecha de vencimiento** (por defecto, un mes): una
+cotización sin plazo es una promesa eterna, y el combustible y las tarifas
+cambian.
+
+### Entregársela al cliente
+
+Dos formas, desde el listado:
+
+- **Descargar el PDF** — con el detalle, los totales y un aviso destacado de que
+  no es una factura ni constituye un cobro
+- **Enviar por correo** — le llega el resumen con ese mismo PDF adjunto. Queda
+  registrado a qué correo se mandó y cuándo, para que nadie la mande dos veces
+  ni se quede sin mandar
+
+### Los cuatro estados
+
+| Estado | Significa |
+|---|---|
+| **Borrador** | Creada, todavía no se le mandó al cliente |
+| **Enviada** | Ya se le mandó por correo |
+| **Vencida** | Pasó la fecha de validez sin aceptarse |
+| **Aceptada** | Se convirtió en una guía real |
+
+Una cotización **aceptada no se edita ni se borra**: es el respaldo del precio
+que se acordó. Las demás sí.
+
+---
+
+## 10. Clientes
 
 Registro de remitentes y destinatarios frecuentes, para no volver a digitar sus
 datos en cada guía.
@@ -357,7 +402,7 @@ Los clientes con **convenio de crédito** llevan además:
 
 ---
 
-## 10. Crédito
+## 11. Crédito
 
 Para los clientes que no pagan en el momento sino contra estado de cuenta.
 
@@ -391,15 +436,16 @@ hay que cobrarle primero.
 
 ---
 
-## 11. Reportes
+## 12. Reportes
 
 Ocho reportes, todos filtrables por **período** y por **sede**:
 
 | Reporte | Responde a |
 |---|---|
-| **Guías por estado** | ¿Cuántas hay en cada estado y por cuánto monto? |
+| **Guías por estado** | ¿Cuántas hay en cada estado, por cuánto monto y cuánto de eso sigue **por cobrar**? |
 | **Próximas a desecho y desechadas** | ¿Qué lleva mucho tiempo sin retirar? |
-| **Ventas de contado** | ¿Cuánto se cobró y por qué medio de pago? |
+| **Ventas de contado** | ¿Cuánto se cobró de verdad y por qué medio de pago? |
+| **Cobrado y por cobrar** | ¿Cuánto entró y cuánto sigue prometido? |
 | **Cuentas por cobrar** | ¿Cuánto nos deben y desde cuándo? |
 | **Cierres de caja** | ¿Qué turnos descuadraron y por cuánto? |
 | **Facturación electrónica** | ¿Cuántos comprobantes aceptados, rechazados, pendientes? |
@@ -408,7 +454,7 @@ Ocho reportes, todos filtrables por **período** y por **sede**:
 
 ---
 
-## 12. Facturación electrónica
+## 13. Facturación electrónica
 
 > Solo administración.
 
@@ -444,7 +490,7 @@ Las notas se emiten desde el detalle de la guía.
 
 ---
 
-## 13. Sucursales
+## 14. Sucursales
 
 > Solo administración.
 
@@ -471,7 +517,7 @@ reasignarlas.
 
 ---
 
-## 14. Cajas
+## 15. Cajas
 
 > Solo administración.
 
@@ -494,7 +540,7 @@ repetirse.
 
 ---
 
-## 15. Tarifario
+## 16. Tarifario
 
 > Solo administración.
 
@@ -536,7 +582,7 @@ use un cajero.
 
 ---
 
-## 16. Tipos de bulto
+## 17. Tipos de bulto
 
 > Solo administración.
 
@@ -559,7 +605,7 @@ deja de ofrecerse sin borrar lo que ya se emitió. Tampoco se puede desactivar e
 
 ---
 
-## 17. Impuestos
+## 18. Impuestos
 
 > Solo administración.
 
@@ -570,7 +616,7 @@ Uno puede marcarse como **predeterminado**: es el que se aplica solo.
 
 ---
 
-## 18. Usuarios
+## 19. Usuarios
 
 > Solo administración.
 
@@ -584,7 +630,7 @@ todo lo que hizo.
 
 ---
 
-## 19. Bitácora
+## 20. Bitácora
 
 > Solo administración.
 
@@ -593,7 +639,7 @@ descuadre, una anulación o un cambio de estado que nadie recuerda haber hecho.
 
 ---
 
-## 20. Datos de la empresa
+## 21. Datos de la empresa
 
 > Solo administración.
 
@@ -610,7 +656,7 @@ electrónico.
 
 ---
 
-## 21. Rastreo público
+## 22. Rastreo público
 
 **Sin necesidad de entrar al sistema**, en `/rastreo`.
 
@@ -622,7 +668,7 @@ probar códigos, no obtiene nada aprovechable.
 
 ---
 
-## 22. Correos que envía el sistema
+## 23. Correos que envía el sistema
 
 | Cuándo | A quién | Qué lleva |
 |---|---|---|
@@ -630,6 +676,7 @@ probar códigos, no obtiene nada aprovechable.
 | La guía **llega al destino** | Al destinatario | Aviso de que puede retirarla |
 | La guía queda **próxima a desecho** | Al destinatario | Aviso de que la retire |
 | La guía se **entrega** | Al destinatario | Confirmación |
+| Se **envía una cotización** | Al cliente | El resumen y la proforma en **PDF** |
 | Se pide **restablecer contraseña** | Al usuario | Enlace para cambiarla |
 
 Los avisos al destinatario solo salen si la guía trae **correo del
@@ -637,7 +684,7 @@ destinatario**.
 
 ---
 
-## 23. Tareas automáticas
+## 24. Tareas automáticas
 
 Corren solas si el cron del servidor está configurado:
 
@@ -653,7 +700,7 @@ viene **desactivado** por defecto: se marca, pero alguien tiene que confirmarlo.
 
 ---
 
-## 24. Preguntas frecuentes
+## 25. Preguntas frecuentes
 
 **No puedo abrir la caja: el selector está vacío.**
 La sede no tiene ninguna caja. Un administrador la crea en **Cajas**.
@@ -697,3 +744,13 @@ registrados en el campo de remitente, no digitar su nombre a mano.
 Es correcto: ese flete se cobra en destino. Entra al arqueo de la caja de la
 sede que entrega, en el momento de la entrega, y solo si esa caja tiene un turno
 abierto.
+
+**«Ventas de contado» me da menos de lo que facturé.**
+También es correcto. Ese reporte cuenta **solo el dinero que entró**: deja fuera
+los fletes por cobrar que nadie ha pagado y las guías a crédito. Para ver el
+total facturado, mirá «Guías por estado»; para ver la diferencia entre lo
+recibido y lo prometido, «Cobrado y por cobrar».
+
+**¿Una cotización afecta la caja o los reportes?**
+No. Una cotización no es una venta: no toca caja, no suma a ningún reporte de
+ingresos y no genera comprobante. Solo cuando se convierte en guía.

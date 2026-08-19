@@ -33,6 +33,9 @@
             $columnas = $datos['columnas'] ?? [];
             $conExtra = $datos['conExtra'] ?? false;
             $sinMoneda = $datos['sinMoneda'] ?? false;
+            // Columna aparte para la plata que todavía no entró: mezclarla con
+            // el monto haría leer como cobrado lo que solo está prometido.
+            $conPorCobrar = $datos['conPorCobrar'] ?? false;
         @endphp
 
         <div class="data-table-wrap">
@@ -40,7 +43,7 @@
                 <thead>
                     <tr class="text-sm text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                         @foreach ($columnas as $i => $col)
-                            <th class="py-2 {{ $i >= count($columnas) - 2 ? 'text-right' : '' }}">{{ $col }}</th>
+                            <th class="py-2 {{ $i >= count($columnas) - ($conPorCobrar ? 3 : 2) ? 'text-right' : '' }}">{{ $col }}</th>
                         @endforeach
                     </tr>
                 </thead>
@@ -55,6 +58,17 @@
                             <td class="py-2 text-right tabular-nums">
                                 {{ $sinMoneda ? number_format($fila['monto'], 1) : '₡' . number_format($fila['monto'], 2) }}
                             </td>
+                            @if ($conPorCobrar)
+                                <td class="py-2 text-right tabular-nums">
+                                    @if (($fila['por_cobrar'] ?? 0) > 0)
+                                        <span class="badge bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                            ₡{{ number_format($fila['por_cobrar'], 2) }}
+                                        </span>
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
+                                </td>
+                            @endif
                         </tr>
                     @empty
                         <tr>
@@ -70,6 +84,11 @@
                             <td class="py-2" colspan="{{ $conExtra ? 2 : 1 }}">Total</td>
                             <td class="py-2 text-right tabular-nums">{{ number_format($filas->sum('cantidad')) }}</td>
                             <td class="py-2 text-right tabular-nums">₡{{ number_format($filas->sum('monto'), 2) }}</td>
+                            @if ($conPorCobrar)
+                                <td class="py-2 text-right tabular-nums text-amber-700 dark:text-amber-300">
+                                    ₡{{ number_format($filas->sum('por_cobrar'), 2) }}
+                                </td>
+                            @endif
                         </tr>
                     </tfoot>
                 @endif

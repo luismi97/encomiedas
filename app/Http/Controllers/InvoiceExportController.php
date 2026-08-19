@@ -49,6 +49,9 @@ class InvoiceExportController extends Controller
             'from' => $request->string('from'),
             'to' => $request->string('to'),
             'total' => $invoices->sum('total'),
+            // Aparte del total facturado: lo que todavía no entró no puede
+            // leerse como dinero recibido.
+            'porCobrar' => round((float) $invoices->filter->tieneCobroPendiente()->sum('total'), 2),
         ])->setPaper('a4', 'landscape');
 
         return $pdf->stream('reporte-encomiendas.pdf');
@@ -138,6 +141,17 @@ class InvoiceExportController extends Controller
             // barra cómoda de escanear en rollo de 58 y de 80.
             'barras'  => $barras->svg($invoice->code, alto: 55, modulo: 2),
         ]);
+    }
+
+    /** Proforma en PDF, para descargar o adjuntar. */
+    public function quotePdf(\App\Models\Quote $quote)
+    {
+        $quote->load(['items.packageType', 'originBranch', 'destinationBranch', 'creator']);
+
+        return Pdf::loadView('pdf.quote', [
+            'cotizacion' => $quote,
+            'empresa'    => CompanySetting::instance(),
+        ])->setPaper('letter')->stream("{$quote->code}.pdf");
     }
 
     /** Estado de cuenta consolidado de un período de crédito. */

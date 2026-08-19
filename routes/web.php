@@ -20,6 +20,7 @@ use App\Livewire\Hacienda\PendingQueue;
 use App\Livewire\Invoices\InvoiceForm;
 use App\Livewire\Invoices\InvoiceIndex;
 use App\Livewire\Invoices\InvoiceShow;
+use App\Livewire\Quotes\QuoteIndex;
 use App\Livewire\Rates\RateIndex;
 use App\Livewire\Settings\CompanySettingsForm;
 use App\Livewire\Taxes\TaxIndex;
@@ -91,6 +92,9 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/dispatches', DispatchIndex::class)->name('dispatches.index');
         Route::get('/dispatches/{dispatch}/pdf', [InvoiceExportController::class, 'dispatchPdf'])->name('dispatches.pdf');
+
+        Route::get('/cotizaciones', QuoteIndex::class)->name('quotes.index');
+        Route::get('/cotizaciones/{quote}/pdf', [InvoiceExportController::class, 'quotePdf'])->name('quotes.pdf');
 
         Route::get('/customers', CustomerIndex::class)->name('customers.index');
         Route::get('/credito', CreditoPanel::class)->name('credito.index');

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToBranch;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -279,6 +280,29 @@ class Invoice extends Model
     public function tieneCobroPendiente(): bool
     {
         return $this->esPorCobrar() && $this->collected_at === null;
+    }
+
+    /**
+     * Guías cuyo dinero de verdad se recibió.
+     *
+     * Un flete por cobrar es contado, pero mientras nadie lo pague no es un
+     * ingreso: sumarlo declara como cobrado lo que no está en ninguna gaveta.
+     * Vive como scope y no suelto en cada reporte para que el próximo que se
+     * escriba no vuelva a contarlo.
+     */
+    public function scopeCobradas(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $q) => $q
+            ->where('payment_timing', '!=', self::TIMING_COLLECT)
+            ->orWhereNotNull('collected_at'));
+    }
+
+    /** Lo contrario: plata prometida que todavía no entró. */
+    public function scopePorCobrarPendientes(Builder $query): Builder
+    {
+        return $query->where('payment_timing', self::TIMING_COLLECT)
+            ->whereNull('collected_at')
+            ->where('sale_condition', self::SALE_CASH);
     }
 
     public function timingLabel(): string

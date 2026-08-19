@@ -29,6 +29,7 @@ class ReportePanel extends Component
         'estados'    => 'Guías por estado',
         'desecho'    => 'Próximas a desecho y desechadas',
         'ventas'     => 'Ventas de contado',
+        'cobro'      => 'Cobrado y por cobrar',
         'cobrar'     => 'Cuentas por cobrar',
         'caja'       => 'Cierres de caja',
         'hacienda'   => 'Facturación electrónica',
@@ -76,6 +77,7 @@ class ReportePanel extends Component
             'estados'  => $this->porEstado(),
             'desecho'  => $this->desecho(),
             'ventas'   => $this->ventasContado(),
+            'cobro'    => $this->porCobro(),
             'cobrar'   => $this->cuentasPorCobrar($credito),
             'caja'     => $this->cierresDeCaja(),
             'hacienda' => $this->facturacionElectronica(),
@@ -85,19 +87,38 @@ class ReportePanel extends Component
         };
     }
 
+    /**
+     * Guías por estado, separando cuánto de ese monto todavía está por cobrar.
+     *
+     * Sin la separación, un estado con ₡200.000 se leía como ₡200.000 cobrados
+     * aunque la mitad fueran fletes que paga quien retira y nadie ha retirado.
+     */
     private function porEstado(): array
     {
+        // Un solo recorrido por la base: agrupa por estado y, dentro de cada
+        // uno, aparta lo que sigue sin cobrarse.
+        $pendientePorEstado = $this->guiasDelPeriodo()
+            ->porCobrarPendientes()
+            ->selectRaw('status, sum(total) as pendiente')
+            ->groupBy('status')
+            ->pluck('pendiente', 'status');
+
         $filas = $this->guiasDelPeriodo()
             ->selectRaw('status, count(*) as cantidad, sum(total) as monto')
             ->groupBy('status')
             ->get()
             ->map(fn ($f) => [
-                'etiqueta' => Invoice::STATUSES[$f->status] ?? $f->status,
-                'cantidad' => (int) $f->cantidad,
-                'monto'    => (float) $f->monto,
+                'etiqueta'   => Invoice::STATUSES[$f->status] ?? $f->status,
+                'cantidad'   => (int) $f->cantidad,
+                'monto'      => (float) $f->monto,
+                'por_cobrar' => round((float) ($pendientePorEstado[$f->status] ?? 0), 2),
             ]);
 
-        return ['columnas' => ['Estado', 'Guías', 'Monto'], 'filas' => $filas];
+        return [
+            'columnas' => ['Estado', 'Guías', 'Monto', 'Por cobrar'],
+            'filas' => $filas,
+            'conPorCobrar' => true,
+        ];
     }
 
     private function desecho(): array
@@ -116,10 +137,19 @@ class ReportePanel extends Component
         return ['columnas' => ['Guía', 'Situación', 'Días en destino', 'Monto'], 'filas' => $filas, 'conExtra' => true];
     }
 
+    /**
+     * Ventas de contado: solo lo que de verdad se cobró.
+     *
+     * Un flete por cobrar también es contado, así que entraba acá completo
+     * aunque nadie lo hubiera pagado todavía: el reporte declaraba como ingreso
+     * dinero que no estaba en ninguna gaveta. Ahora entra cuando se cobra, que
+     * es cuando queda sellado collected_at.
+     */
     private function ventasContado(): array
     {
         $filas = $this->guiasDelPeriodo()
             ->where('sale_condition', Invoice::SALE_CASH)
+            ->cobradas()
             ->selectRaw('payment_method, count(*) as cantidad, sum(total) as monto')
             ->groupBy('payment_method')
             ->get()
@@ -130,6 +160,37 @@ class ReportePanel extends Component
             ]);
 
         return ['columnas' => ['Medio de pago', 'Guías', 'Monto'], 'filas' => $filas];
+    }
+
+    /**
+     * Cómo se cobra cada guía: pagado, por cobrar pendiente, por cobrar ya
+     * cobrado y a crédito.
+     *
+     * Separa el dinero recibido del prometido, que es lo que «Guías por estado»
+     * no distinguía: mostraba el monto de todas juntas.
+     */
+    private function porCobro(): array
+    {
+        $base = fn () => $this->guiasDelPeriodo();
+
+        $resumen = fn ($consulta) => [
+            'cantidad' => (clone $consulta)->count(),
+            'monto'    => round((float) (clone $consulta)->sum('total'), 2),
+        ];
+
+        $pagadas    = $resumen($base()->where('sale_condition', Invoice::SALE_CASH)->where('payment_timing', Invoice::TIMING_PREPAID));
+        $cobradas   = $resumen($base()->where('payment_timing', Invoice::TIMING_COLLECT)->whereNotNull('collected_at'));
+        $pendientes = $resumen($base()->porCobrarPendientes());
+        $credito    = $resumen($base()->where('sale_condition', Invoice::SALE_CREDIT));
+
+        $filas = collect([
+            ['etiqueta' => 'Pagadas en origen',        'extra' => 'Dinero recibido',  ...$pagadas],
+            ['etiqueta' => 'Por cobrar · ya cobradas', 'extra' => 'Dinero recibido',  ...$cobradas],
+            ['etiqueta' => 'Por cobrar · pendientes',  'extra' => 'NO es dinero aún', ...$pendientes],
+            ['etiqueta' => 'A crédito',                'extra' => 'NO es dinero aún', ...$credito],
+        ])->filter(fn ($f) => $f['cantidad'] > 0)->values();
+
+        return ['columnas' => ['Cobro', 'Situación', 'Guías', 'Monto'], 'filas' => $filas, 'conExtra' => true];
     }
 
     private function cuentasPorCobrar(CreditoService $credito): array

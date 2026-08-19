@@ -55,6 +55,9 @@
                 <a href="{{ route('dispatches.index') }}" class="nav-link {{ request()->routeIs('dispatches.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="truck" /> <span>Cierres de envío</span>
                 </a>
+                <a href="{{ route('quotes.index') }}" class="nav-link {{ request()->routeIs('quotes.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="clipboard-list" /> <span>Cotizaciones</span>
+                </a>
                 <a href="{{ route('customers.index') }}" class="nav-link {{ request()->routeIs('customers.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="users" /> <span>Clientes</span>
                 </a>

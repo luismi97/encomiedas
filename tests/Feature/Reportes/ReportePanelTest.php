@@ -49,9 +49,16 @@ class ReportePanelTest extends TestCase
         return Livewire::actingAs($this->admin)->test(ReportePanel::class);
     }
 
-    public function test_los_ocho_reportes_del_requisito_estan_disponibles(): void
+    /** Los ocho del requisito, más «Cobrado y por cobrar». */
+    public function test_todos_los_reportes_estan_disponibles_y_abren(): void
     {
-        $this->assertCount(8, ReportePanel::REPORTES);
+        $delRequisito = ['estados', 'desecho', 'ventas', 'cobrar', 'caja', 'hacienda', 'rutas', 'entrega'];
+
+        foreach ($delRequisito as $reporte) {
+            $this->assertArrayHasKey($reporte, ReportePanel::REPORTES, "Falta el reporte «{$reporte}».");
+        }
+
+        $this->assertArrayHasKey('cobro', ReportePanel::REPORTES);
 
         foreach (array_keys(ReportePanel::REPORTES) as $reporte) {
             $this->panel()->set('reporte', $reporte)->assertOk();
