@@ -43,6 +43,19 @@
     .dark select.input {
         background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
     }
+    /* Las flechitas del input number ocupan ~20px y en un campo angosto dejan
+       los dígitos sin espacio. Se quitan donde varios campos comparten fila. */
+    .input-compacto {
+        /* Un punto menos de letra: son tres campos compartiendo el ancho de uno
+           y con el tamaño normal se corta el texto de ayuda. */
+        @apply px-1 text-sm text-center;
+        -moz-appearance: textfield;
+    }
+    .input-compacto::-webkit-outer-spin-button,
+    .input-compacto::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
     .input-error {
         @apply border-red-500 focus:border-red-500 focus:ring-red-500;
     }

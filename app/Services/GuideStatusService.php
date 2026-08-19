@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Notifications\CambioDeEstadoGuia;
 use App\Models\GuideStatusHistory;
 use App\Models\Invoice;
+use App\Services\CajaService;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -131,7 +132,7 @@ class GuideStatusService
             'delivery_signature'         => $firma,
         ])->save();
 
-        return $this->cambiar(
+        $entregada = $this->cambiar(
             $guia,
             Invoice::STATUS_DELIVERED,
             $usuario,
@@ -139,6 +140,37 @@ class GuideStatusService
             GuideStatusHistory::SOURCE_MANUAL,
             'Retirada por ' . trim($nombreQuienRetira)
         );
+
+        $this->cobrarSiEstabaPorCobrar($entregada, $usuario);
+
+        return $entregada;
+    }
+
+    /**
+     * El flete «por cobrar» se cobra al entregar, en la caja de destino.
+     *
+     * Esa plata nunca pasó por el mostrador de origen: registrarla allá habría
+     * dejado el arqueo de origen con un ingreso que no estaba en la gaveta.
+     */
+    private function cobrarSiEstabaPorCobrar(Invoice $guia, User $usuario): void
+    {
+        if (! $guia->tieneCobroPendiente()) {
+            return;
+        }
+
+        $sesion = app(CajaService::class)
+            ->sesionAbiertaPara($usuario, $guia->delivery_branch_id);
+
+        if (! $sesion) {
+            Log::warning("Entrega de {$guia->code}: sin caja abierta en destino, el cobro por cobrar "
+                . 'no quedó registrado en el arqueo.');
+
+            return;
+        }
+
+        app(CajaService::class)->registrarCobro($guia, $usuario, $sesion);
+
+        $guia->forceFill(['collected_at' => now()])->save();
     }
 
     /**

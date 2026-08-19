@@ -121,7 +121,11 @@
                     </thead>
                     <tbody>
                         @forelse ($abierto->lines as $linea)
-                            <tr class="border-b border-gray-100 dark:border-gray-700/50 {{ $linea->incident === 'faltante' ? 'bg-red-50 dark:bg-red-900/20' : '' }}">
+                            {{-- Sin wire:key Livewire reutiliza los nodos de una fila en
+                                 otra al re-renderizar, y los botones quedan pegados a la
+                                 guía equivocada o no se actualizan del todo. --}}
+                            <tr wire:key="linea-{{ $linea->id }}"
+                                class="border-b border-gray-100 dark:border-gray-700/50 {{ $linea->incident === 'faltante' ? 'bg-red-50 dark:bg-red-900/20' : '' }}">
                                 <td class="py-3 font-mono">{{ $linea->invoice?->code }}</td>
                                 <td class="py-3 text-sm">{{ $linea->invoice?->recipient_name }}</td>
                                 <td class="py-3 text-sm">{{ $linea->invoice?->items->count() }}</td>
@@ -151,11 +155,17 @@
                 </table>
             </div>
 
+            {{-- Las dos ramas son <div> idénticos y hermanos. Sin wire:key,
+                 Livewire parcha el uno sobre el otro en vez de reemplazarlo, y
+                 al despachar quedaba en pantalla el botón «Despachar cierre»
+                 aunque el cierre ya estuviera en ruta. --}}
             @if ($abierto->estaAbierto())
-                <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
+                <div wire:key="acciones-abierto-{{ $abierto->id }}"
+                     class="pt-2 border-t border-gray-200 dark:border-gray-700">
                     <h3 class="font-semibold mb-2">Guías disponibles de esta ruta</h3>
                     @forelse ($disponibles as $guia)
-                        <div class="flex items-center justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-700/50">
+                        <div wire:key="disponible-{{ $guia->id }}"
+                             class="flex items-center justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-700/50">
                             <div>
                                 <span class="font-mono">{{ $guia->code }}</span>
                                 <span class="text-sm text-gray-500"> · {{ $guia->recipient_name }} · {{ $guia->items->count() }} paquete(s)</span>
@@ -174,7 +184,8 @@
                     </div>
                 </div>
             @elseif ($abierto->enRuta())
-                <div class="pt-2 border-t border-gray-200 dark:border-gray-700">
+                <div wire:key="acciones-enruta-{{ $abierto->id }}"
+                     class="pt-2 border-t border-gray-200 dark:border-gray-700">
                     <x-action-button action="cerrarRecepcion" variant="success" loadingText="Cerrando..."
                         confirm="¿Cerrar la recepción? Lo que no esté marcado queda registrado como faltante.">
                         <x-icon name="check" class="w-4 h-4" /> Cerrar recepción

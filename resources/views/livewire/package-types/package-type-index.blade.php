@@ -80,7 +80,7 @@
                 </thead>
                 <tbody>
                     @forelse ($tipos as $tipo)
-                        <tr class="border-b border-gray-100 dark:border-gray-700/50">
+                        <tr wire:key="tipo-{{ $tipo->id }}" class="border-b border-gray-100 dark:border-gray-700/50">
                             <td class="py-3 text-sm text-gray-500 tabular-nums">{{ $tipo->sort_order }}</td>
                             <td class="py-3 font-medium">
                                 {{ $tipo->name }}
@@ -112,7 +112,7 @@
 
         <div class="md:hidden space-y-3">
             @foreach ($tipos as $tipo)
-                <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                <div wire:key="tipo-movil-{{ $tipo->id }}" class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <div class="flex items-start justify-between gap-2">
                         <div class="font-semibold">
                             {{ $tipo->name }}

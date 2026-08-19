@@ -85,7 +85,7 @@
                     </thead>
                     <tbody>
                         @forelse ($sede->cashRegisters as $caja)
-                            <tr class="border-b border-gray-100 dark:border-gray-700/50">
+                            <tr wire:key="caja-{{ $caja->id }}" class="border-b border-gray-100 dark:border-gray-700/50">
                                 <td class="py-3 font-medium">{{ $caja->name }}</td>
                                 <td class="py-3 text-sm">
                                     @if ($caja->estaAbierta())
@@ -121,7 +121,7 @@
 
             <div class="md:hidden space-y-3">
                 @foreach ($sede->cashRegisters as $caja)
-                    <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <div wire:key="caja-movil-{{ $caja->id }}" class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                         <div class="flex items-start justify-between gap-2">
                             <div class="font-semibold">{{ $caja->name }}</div>
                             <span class="badge {{ $caja->is_active

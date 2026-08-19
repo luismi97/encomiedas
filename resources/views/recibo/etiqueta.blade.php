@@ -61,6 +61,17 @@
 
     .frag { border: 2px solid #000; padding: 1mm; margin-top: 1.5mm; font-weight: bold; }
 
+    /* Invertido: en térmica el negro sólido es lo único que se ve de lejos. */
+    .cobrar {
+        background: #000;
+        color: #fff;
+        padding: 1.5mm;
+        margin-top: 1.5mm;
+        font-weight: bold;
+        font-size: {{ $ancho >= 80 ? '16px' : '13px' }};
+        letter-spacing: 1px;
+    }
+
     /* Cada etiqueta en su propia hoja de rollo: el corte va entre bultos. */
     .corte { page-break-after: always; }
     .corte:last-child { page-break-after: auto; }
@@ -105,6 +116,17 @@
                 </div>
             @endif
         </div>
+
+        {{-- Lo primero que tiene que ver quien entrega: si no cobra, la plata
+             se pierde. Va sobre el aviso de frágil a propósito. --}}
+        @if ($guia->tieneCobroPendiente())
+            <div class="centro cobrar">
+                POR COBRAR
+                <div style="font-size: {{ $ancho >= 80 ? '20px' : '16px' }}">
+                    ₡{{ number_format((float) $guia->total, 2) }}
+                </div>
+            </div>
+        @endif
 
         {{-- El aviso va grande y con marco: la etiqueta la lee quien carga el
              camión, no quien digitó la guía. --}}

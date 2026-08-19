@@ -34,11 +34,10 @@
                         \App\Models\Invoice::STATUS_CANCELLED, \App\Models\Invoice::STATUS_DISPOSED => 'x',
                         default => 'check-circle',
                     };
-                    $confirmar = in_array($estado, [
-                        \App\Models\Invoice::STATUS_RETURNED,
-                        \App\Models\Invoice::STATUS_CANCELLED,
-                        \App\Models\Invoice::STATUS_DISPOSED,
-                    ], true) ? '¿Confirmar el cambio a «' . $etiqueta . '»? Queda en la bitácora.' : null;
+                    // Todo cambio se confirma, no solo los destructivos: ninguno
+                    // se deshace y todos quedan firmados en la bitácora.
+                    $confirmar = 'Pasar la guía ' . $invoice->code . ' a «' . $etiqueta . '». '
+                        . 'El cambio queda en la bitácora y no se deshace. ¿Continuar?';
                 @endphp
                 <x-action-button action="updateStatus('{{ $estado }}')" :variant="$variante"
                     :confirm="$confirmar" loadingText="Actualizando...">

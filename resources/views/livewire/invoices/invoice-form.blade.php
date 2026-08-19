@@ -14,7 +14,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="label">Sucursal de recogida</label>
-                    <select wire:model="pickup_branch_id" class="input">
+                    <select wire:model.live="pickup_branch_id" class="input">
                         <option value="">Seleccione...</option>
                         @foreach ($branches as $branch)
                             <option value="{{ $branch->id }}">{{ $branch->name }}</option>
@@ -24,7 +24,7 @@
                 </div>
                 <div>
                     <label class="label">Sucursal de entrega</label>
-                    <select wire:model="delivery_branch_id" class="input">
+                    <select wire:model.live="delivery_branch_id" class="input">
                         <option value="">Seleccione...</option>
                         @foreach ($branches as $branch)
                             <option value="{{ $branch->id }}">{{ $branch->name }}</option>
@@ -126,7 +126,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                 <div>
                     <label class="label">Tipo de envío</label>
-                    <select wire:model="shipment_type" class="input">
+                    <select wire:model.live="shipment_type" class="input">
                         @foreach (\App\Models\Rate::SHIPMENT_TYPES as $valor => $etiqueta)
                             <option value="{{ $valor }}">{{ $etiqueta }}</option>
                         @endforeach
@@ -151,8 +151,8 @@
 
             <div class="space-y-3">
                 @foreach ($items as $index => $item)
-                    <div class="grid grid-cols-2 sm:grid-cols-7 gap-3 items-end border-b border-gray-100 dark:border-gray-700 pb-3">
-                        <div class="col-span-2 sm:col-span-1">
+                    <div class="grid grid-cols-2 lg:grid-cols-[repeat(18,minmax(0,1fr))] gap-3 items-end border-b border-gray-100 dark:border-gray-700 pb-3">
+                        <div class="col-span-2 lg:col-span-3">
                             <label class="label">Tipo de bulto</label>
                             <select wire:model="items.{{ $index }}.package_type_id"
                                     class="input @error('items.'.$index.'.package_type_id') input-error @enderror">
@@ -162,7 +162,7 @@
                             </select>
                             @error('items.'.$index.'.package_type_id') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
-                        <div>
+                        <div class="lg:col-span-3">
                             <label class="label">Tamaño</label>
                             <select wire:model="items.{{ $index }}.size" class="input @error('items.'.$index.'.size') input-error @enderror">
                                 <option value="S">Pequeño</option>
@@ -172,30 +172,32 @@
                             </select>
                             @error('items.'.$index.'.size') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
-                        <div>
+                        <div class="lg:col-span-2">
                             <label class="label">Peso (kg)</label>
-                            <input type="number" step="0.01" wire:model="items.{{ $index }}.weight" class="input @error('items.'.$index.'.weight') input-error @enderror">
+                            <input type="number" step="0.01" wire:model.blur="items.{{ $index }}.weight" class="input @error('items.'.$index.'.weight') input-error @enderror">
                             @error('items.'.$index.'.weight') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
-                        <div class="col-span-2 sm:col-span-1">
+                        {{-- Tres campos en una sola columna quedaban de unos pocos
+                             píxeles cada uno: el grupo se lleva tres columnas. --}}
+                        <div class="col-span-2 lg:col-span-4">
                             <label class="label">L × A × H (cm)</label>
-                            <div class="flex gap-1">
-                                <input type="number" step="0.1" wire:model="items.{{ $index }}.length_cm" placeholder="L" class="input !px-2">
-                                <input type="number" step="0.1" wire:model="items.{{ $index }}.width_cm" placeholder="A" class="input !px-2">
-                                <input type="number" step="0.1" wire:model="items.{{ $index }}.height_cm" placeholder="H" class="input !px-2">
+                            <div class="grid grid-cols-3 gap-1">
+                                <input type="number" step="0.1" inputmode="decimal" wire:model.blur="items.{{ $index }}.length_cm" placeholder="Largo" class="input input-compacto">
+                                <input type="number" step="0.1" inputmode="decimal" wire:model.blur="items.{{ $index }}.width_cm" placeholder="Ancho" class="input input-compacto">
+                                <input type="number" step="0.1" inputmode="decimal" wire:model.blur="items.{{ $index }}.height_cm" placeholder="Alto" class="input input-compacto">
                             </div>
                         </div>
-                        <div class="col-span-2 sm:col-span-1">
+                        <div class="col-span-2 lg:col-span-3">
                             <label class="label">Descripción</label>
                             <input type="text" wire:model="items.{{ $index }}.description" class="input @error('items.'.$index.'.description') input-error @enderror">
                             @error('items.'.$index.'.description') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
-                        <div>
+                        <div class="lg:col-span-2">
                             <label class="label">Precio (₡)</label>
                             <input type="number" step="0.01" wire:model.live="items.{{ $index }}.price" class="input @error('items.'.$index.'.price') input-error @enderror">
                             @error('items.'.$index.'.price') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
-                        <div>
+                        <div class="lg:col-span-1">
                             @if (count($items) > 1)
                                 <button type="button" wire:click="removeItem({{ $index }})" class="btn-danger !py-2 !px-3 text-sm w-full">Quitar</button>
                             @endif
@@ -234,6 +236,67 @@
                     </label>
                 @endforeach
             </div>
+            {{-- Una sola decisión, porque en el mostrador son excluyentes: o lo
+                 paga el remitente ahora, o lo paga quien retira, o va a la
+                 cuenta del cliente. De esto depende a qué caja entra la plata. --}}
+            <div>
+                <label class="label">¿Cómo se paga esta guía?</label>
+                <div class="grid gap-3 sm:grid-cols-3 max-w-3xl mt-1">
+                    <label class="flex items-start gap-2 rounded-lg border p-3 cursor-pointer transition
+                        {{ $cobro === 'prepaid'
+                            ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
+                            : 'border-gray-300 dark:border-gray-600' }}">
+                        <input type="radio" wire:model.live="cobro" value="prepaid" class="mt-1">
+                        <span>
+                            <span class="font-medium block">Pagado</span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                El remitente paga ahora. Entra al arqueo de esta caja.
+                            </span>
+                        </span>
+                    </label>
+
+                    <label class="flex items-start gap-2 rounded-lg border p-3 cursor-pointer transition
+                        {{ $cobro === 'collect'
+                            ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
+                            : 'border-gray-300 dark:border-gray-600' }}">
+                        <input type="radio" wire:model.live="cobro" value="collect" class="mt-1">
+                        <span>
+                            <span class="font-medium block">Por cobrar</span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                Paga quien la retira. Se cobra en destino, al entregar.
+                            </span>
+                        </span>
+                    </label>
+
+                    <label class="flex items-start gap-2 rounded-lg border p-3 transition
+                        {{ ! $remitenteEsDeCredito ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer' }}
+                        {{ $cobro === 'credit'
+                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                            : 'border-gray-300 dark:border-gray-600' }}">
+                        <input type="radio" wire:model.live="cobro" value="credit" class="mt-1"
+                               @disabled(! $remitenteEsDeCredito)>
+                        <span>
+                            <span class="font-medium block">A crédito</span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                @if ($remitenteEsDeCredito)
+                                    Suma al saldo del remitente. Se factura en el corte.
+                                @else
+                                    Requiere elegir un remitente con convenio.
+                                @endif
+                            </span>
+                        </span>
+                    </label>
+                </div>
+                @error('cobro') <p class="error-text mt-1">{{ $message }}</p> @enderror
+
+                @if ($creditoAviso)
+                    <p class="mt-2 text-sm rounded-lg border border-purple-200 dark:border-purple-800
+                              bg-purple-50 dark:bg-purple-900/20 text-purple-900 dark:text-purple-100 p-3">
+                        {{ $creditoAviso }}
+                    </p>
+                @endif
+            </div>
+
             <div class="grid gap-4 sm:grid-cols-2 max-w-xl">
                 <div>
                     <label class="label">Descuento (₡)</label>
@@ -241,7 +304,7 @@
                 </div>
                 <div>
                     <label class="label">Medio de pago</label>
-                    <select wire:model="payment_method" class="input">
+                    <select wire:model="payment_method" class="input" @disabled($cobro === 'credit')>
                         @foreach (\App\Models\Invoice::PAYMENT_METHODS as $value => $label)
                             <option value="{{ $value }}">{{ $label }}</option>
                         @endforeach

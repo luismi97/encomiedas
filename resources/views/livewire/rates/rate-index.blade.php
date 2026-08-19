@@ -186,7 +186,7 @@
                 </thead>
                 <tbody>
                     @forelse ($rates as $rate)
-                        <tr class="border-b border-gray-100 dark:border-gray-700/50">
+                        <tr wire:key="tarifa-{{ $rate->id }}" class="border-b border-gray-100 dark:border-gray-700/50">
                             <td class="py-3 font-medium">{{ $rate->name ?: '—' }}</td>
                             <td class="py-3 text-sm font-mono">{{ $rate->rutaLabel() }}</td>
                             <td class="py-3 text-sm">{{ $rate->shipmentTypeLabel() }}</td>
@@ -219,7 +219,7 @@
 
         <div class="md:hidden space-y-3">
             @forelse ($rates as $rate)
-                <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                <div wire:key="tarifa-movil-{{ $rate->id }}" class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <div class="flex items-start justify-between gap-2">
                         <div>
                             <div class="font-semibold">{{ $rate->name ?: $rate->rutaLabel() }}</div>

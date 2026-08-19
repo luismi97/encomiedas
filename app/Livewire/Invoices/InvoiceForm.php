@@ -9,10 +9,12 @@ use App\Models\Customer;
 use App\Models\Rate;
 use App\Models\Tax;
 use App\Services\CajaService;
+use App\Services\CreditoService;
 use App\Services\Tarifario;
 use Illuminate\Validation\Rule;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 
 class InvoiceForm extends Component
@@ -32,6 +34,15 @@ class InvoiceForm extends Component
     /** Cotización del tarifario para la ruta y el peso actuales. */
     public array $quote = [];
 
+    /**
+     * Último precio que propuso el tarifario para cada renglón.
+     *
+     * Sirve para distinguir un precio puesto por el sistema de uno digitado por
+     * el cajero: al recotizar solo se pisa el primero. Sin esto, corregir el
+     * peso borraría un acuerdo puntual sin avisar.
+     */
+    public array $preciosSugeridos = [];
+
     /** Aviso cuando se va a cobrar de contado sin caja abierta. */
     public ?string $cajaAviso = null;
 
@@ -48,6 +59,26 @@ class InvoiceForm extends Component
     public string $notes = '';
     public float $discount_amount = 0;
     public string $payment_method = 'cash';
+
+    /*
+     | Qué pasa con la plata de esta guía. Una sola decisión, porque en el
+     | mostrador son excluyentes:
+     |
+     |   prepaid  el remitente paga ahora   -> entra a la caja de origen
+     |   collect  paga quien retira         -> entra a la caja de destino
+     |   credit   va a la cuenta del cliente -> no entra a ninguna caja
+     |
+     | Antes no existía: toda guía se guardaba como contado pagado, así que un
+     | cliente con convenio enviaba y su saldo nunca se movía.
+     */
+    public const COBRO_PREPAID = 'prepaid';
+    public const COBRO_COLLECT = 'collect';
+    public const COBRO_CREDIT  = 'credit';
+
+    public string $cobro = self::COBRO_PREPAID;
+
+    /** Aviso de saldo del remitente, cuando es cliente de crédito. */
+    public ?string $creditoAviso = null;
 
     /**
      * Factura electrónica (con receptor identificado) o tiquete. Es una
@@ -83,6 +114,11 @@ class InvoiceForm extends Component
             $this->notes = (string) $invoice->notes;
             $this->discount_amount = (float) $invoice->discount_amount;
             $this->payment_method = $invoice->payment_method ?: 'cash';
+            $this->cobro = match (true) {
+                $invoice->esCredito()   => self::COBRO_CREDIT,
+                $invoice->esPorCobrar() => self::COBRO_COLLECT,
+                default                 => self::COBRO_PREPAID,
+            };
             $this->wantsInvoice = $invoice->wantsInvoice();
             $this->sender_customer_id = $invoice->sender_customer_id;
             $this->recipient_customer_id = $invoice->recipient_customer_id;
@@ -144,6 +180,67 @@ class InvoiceForm extends Component
         if ($cliente->branch_id && ! $this->pickup_branch_id) {
             $this->pickup_branch_id = $cliente->branch_id;
         }
+
+        $this->ajustarCobroAlRemitente($cliente);
+    }
+
+    /**
+     * Un cliente con convenio envía a crédito salvo que se diga lo contrario.
+     *
+     * Es el punto que faltaba: sin esto la guía salía como contado pagado y el
+     * saldo del cliente nunca se movía, por más que tuviera límite y día de
+     * corte configurados.
+     */
+    private function ajustarCobroAlRemitente(?Customer $cliente): void
+    {
+        if (! $cliente?->isCredit()) {
+            // Deja de ofrecerse el crédito: quedaría una guía a nombre de nadie.
+            if ($this->cobro === self::COBRO_CREDIT) {
+                $this->cobro = self::COBRO_PREPAID;
+            }
+
+            $this->creditoAviso = null;
+
+            return;
+        }
+
+        $this->cobro = self::COBRO_CREDIT;
+        $this->mostrarSaldoDelRemitente($cliente);
+    }
+
+    /** Cuánto debe y cuánto le queda, que es lo que el cajero necesita ver. */
+    private function mostrarSaldoDelRemitente(Customer $cliente): void
+    {
+        $credito = app(CreditoService::class);
+        $saldo = $credito->saldoTotal($cliente);
+
+        if ((float) $cliente->credit_limit <= 0) {
+            $this->creditoAviso = "{$cliente->name} tiene ₡" . number_format($saldo, 2)
+                . ' de saldo. No tiene límite configurado.';
+
+            return;
+        }
+
+        $this->creditoAviso = "{$cliente->name} debe ₡" . number_format($saldo, 2)
+            . ' de un límite de ₡' . number_format((float) $cliente->credit_limit, 2)
+            . '. Disponible: ₡' . number_format(max(0, $credito->disponible($cliente)), 2) . '.';
+    }
+
+    /** Al cambiar de modo a mano, refresca el aviso de saldo. */
+    public function updatedCobro(): void
+    {
+        $this->resetErrorBag('cobro');
+        $this->creditoAviso = null;
+
+        if ($this->cobro !== self::COBRO_CREDIT) {
+            return;
+        }
+
+        $cliente = $this->sender_customer_id ? Customer::find($this->sender_customer_id) : null;
+
+        if ($cliente?->isCredit()) {
+            $this->mostrarSaldoDelRemitente($cliente);
+        }
     }
 
     public function updatedRecipientCustomerId($value): void
@@ -161,6 +258,23 @@ class InvoiceForm extends Component
             $this->recipient_identification = (string) $cliente->identification;
             $this->recipient_identification_type = (string) $cliente->identification_type;
             $this->wantsInvoice = true;
+        }
+    }
+
+    /**
+     * Recotiza sola cuando cambia algo que afecta el precio.
+     *
+     * Antes había que presionar «Calcular con el tarifario»: quien creaba una
+     * tarifa y se iba a facturar veía el precio en blanco y concluía que el
+     * tarifario no servía.
+     */
+    public function updated(string $campo): void
+    {
+        $afectaElPrecio = in_array($campo, ['pickup_branch_id', 'delivery_branch_id', 'shipment_type'], true)
+            || preg_match('/^items\.\d+\.(weight|length_cm|width_cm|height_cm)$/', $campo);
+
+        if ($afectaElPrecio) {
+            $this->cotizar(app(Tarifario::class));
         }
     }
 
@@ -204,7 +318,18 @@ class InvoiceForm extends Component
             }
 
             $precioTotal += $cotizacion['precio'];
-            $this->items[$i]['price'] = $cotizacion['precio'];
+
+            // Solo se pisa lo que puso el propio tarifario: un precio digitado
+            // a mano manda sobre la tabla.
+            $actual = $this->items[$i]['price'] ?? '';
+            $loPusoElSistema = blank($actual)
+                || (isset($this->preciosSugeridos[$i])
+                    && abs((float) $actual - (float) $this->preciosSugeridos[$i]) < 0.01);
+
+            if ($loPusoElSistema) {
+                $this->items[$i]['price'] = $cotizacion['precio'];
+                $this->preciosSugeridos[$i] = $cotizacion['precio'];
+            }
         }
 
         $this->quote = [
@@ -267,6 +392,7 @@ class InvoiceForm extends Component
             'assigned_to' => 'nullable|exists:users,id',
             'discount_amount' => 'nullable|numeric|min:0',
             'payment_method' => 'required|in:' . implode(',', array_keys(Invoice::PAYMENT_METHODS)),
+            'cobro' => 'required|in:' . self::COBRO_PREPAID . ',' . self::COBRO_COLLECT . ',' . self::COBRO_CREDIT,
             'items' => 'required|array|min:1',
             'items.*.package_type_id' => 'required|exists:package_types,id',
             'items.*.size' => 'nullable|string|max:20',
@@ -313,11 +439,46 @@ class InvoiceForm extends Component
         }
     }
 
+    /**
+     * Una guía a crédito exige remitente con convenio y cupo disponible.
+     *
+     * El control de límite ya existía en CreditoService y nadie lo llamaba: se
+     * podía pasar del tope sin que nada avisara.
+     */
+    private function validarCredito(): void
+    {
+        if ($this->cobro !== self::COBRO_CREDIT) {
+            return;
+        }
+
+        $cliente = $this->sender_customer_id ? Customer::find($this->sender_customer_id) : null;
+
+        if (! $cliente) {
+            throw ValidationException::withMessages([
+                'cobro' => 'Para dejar la guía a crédito hay que elegir al remitente entre los clientes '
+                    . 'registrados: el saldo se le carga a alguien.',
+            ]);
+        }
+
+        $credito = app(CreditoService::class);
+
+        // Al editar, el monto viejo ya está contado en el saldo: se compara
+        // solo lo que la guía agrega.
+        $yaContado = $this->invoice?->esCredito() && ! $this->invoice->fueCortada()
+            ? (float) $this->invoice->total
+            : 0.0;
+
+        if ($motivo = $credito->bloqueoPorLimite($cliente, $this->total - $yaContado)) {
+            throw ValidationException::withMessages(['cobro' => $motivo]);
+        }
+    }
+
     public function save(): void
     {
         $this->normalizeItems();
         $this->normalizeIdentification();
         $data = $this->validate();
+        $this->validarCredito();
 
         DB::transaction(function () use ($data) {
             $invoice = $this->invoice ?: new Invoice();
@@ -345,6 +506,14 @@ class InvoiceForm extends Component
                 'tax_total' => $this->taxTotal,
                 'total' => $this->total,
             ]);
+            $invoice->sale_condition = $this->cobro === self::COBRO_CREDIT
+                ? Invoice::SALE_CREDIT
+                : Invoice::SALE_CASH;
+
+            $invoice->payment_timing = $this->cobro === self::COBRO_COLLECT
+                ? Invoice::TIMING_COLLECT
+                : Invoice::TIMING_PREPAID;
+
             if (!$invoice->exists) {
                 $invoice->created_by = auth()->id();
                 $invoice->status = Invoice::STATUS_PENDING;
@@ -377,15 +546,19 @@ class InvoiceForm extends Component
                 ]);
             }
 
-            // El cobro entra al turno abierto. Si no hay caja abierta la guía
-            // igual se guarda —ya se recibió el paquete— pero queda sin
-            // registrar en caja y el formulario lo avisa.
-            $movimiento = app(CajaService::class)->registrarCobro($invoice, auth()->user());
-
-            $this->cajaAviso = $movimiento === null
-                ? 'La guía se guardó, pero NO quedó registrada en caja porque no hay un turno abierto en esta sede. '
-                    . 'Abrí la caja y volvé a guardar para que el cobro entre al arqueo.'
-                : null;
+            // A la caja de origen solo entra lo que se paga aquí y ahora. Un
+            // «por cobrar» se cobra en destino al entregar, y una guía a
+            // crédito no se cobra: suma al saldo del cliente.
+            $this->cajaAviso = match ($this->cobro) {
+                self::COBRO_COLLECT => 'Guía POR COBRAR: no entra al arqueo de esta caja. '
+                    . 'Se cobra en destino al momento de la entrega.',
+                self::COBRO_CREDIT => 'Guía a crédito: no entra al arqueo. '
+                    . 'Suma al saldo del cliente y se factura en el próximo corte.',
+                default => app(CajaService::class)->registrarCobro($invoice, auth()->user()) === null
+                    ? 'La guía se guardó, pero NO quedó registrada en caja porque no hay un turno abierto en esta sede. '
+                        . 'Abrí la caja y volvé a guardar para que el cobro entre al arqueo.'
+                    : null,
+            };
 
             $this->invoice = $invoice;
         });
@@ -401,6 +574,9 @@ class InvoiceForm extends Component
             'taxes' => Tax::where('is_active', true)->orderBy('name')->get(),
             'repartidores' => User::where('role', User::ROLE_REPARTIDOR)->where('is_active', true)->orderBy('name')->get(),
             'clientes' => Customer::active()->orderBy('name')->get(['id', 'name', 'identification']),
+            'remitenteEsDeCredito' => $this->sender_customer_id
+                ? (bool) Customer::find($this->sender_customer_id)?->isCredit()
+                : false,
             'tiposDeBulto' => PackageType::active()->get(),
         ])->layout('layouts.app', ['title' => $this->invoice ? 'Editar guía' : 'Nueva guía']);
     }

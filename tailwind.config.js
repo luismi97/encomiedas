@@ -7,6 +7,10 @@ export default {
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './vendor/livewire/livewire/src/**/*.php',
         './storage/framework/views/*.php',
+        // Las clases de los badges viven en constantes PHP (Invoice::STATUS_BADGE_CLASSES,
+        // User::ROLE_BADGE_CLASSES, Dispatch::STATUS_BADGE_CLASSES). Sin escanear app/,
+        // Tailwind las purga y esos estados salen sin color.
+        './app/**/*.php',
         './resources/**/*.blade.php',
         './resources/**/*.js',
         './resources/**/*.vue',

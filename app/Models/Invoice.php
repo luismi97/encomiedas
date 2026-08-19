@@ -170,6 +170,8 @@ class Invoice extends Model
         'tax_total',
         'total',
         'payment_method',
+        'payment_timing',
+        'collected_at',
         'sale_condition',
         'credit_term_days',
         'credit_statement_id',
@@ -193,6 +195,7 @@ class Invoice extends Model
             'disposal_warned_at' => 'datetime',
             'disposed_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'collected_at' => 'datetime',
             'declared_value' => 'decimal:2',
         ];
     }
@@ -250,6 +253,41 @@ class Invoice extends Model
     public function esCredito(): bool
     {
         return $this->sale_condition === self::SALE_CREDIT;
+    }
+
+    /*
+     | Quién paga el flete y cuándo.
+     |
+     | Va aparte de la condición de venta: «por cobrar» sigue siendo contado
+     | —se paga en el momento del retiro—, pero el dinero no entra en la caja
+     | de origen sino en la de destino, y hasta entonces no es un ingreso.
+     */
+    public const TIMING_PREPAID = 'prepaid';
+    public const TIMING_COLLECT = 'collect';
+
+    public const PAYMENT_TIMINGS = [
+        self::TIMING_PREPAID => 'Pagado',
+        self::TIMING_COLLECT => 'Por cobrar',
+    ];
+
+    public function esPorCobrar(): bool
+    {
+        return $this->payment_timing === self::TIMING_COLLECT && ! $this->esCredito();
+    }
+
+    /** Un «por cobrar» que todavía no se cobró: es lo que debe pagar quien retira. */
+    public function tieneCobroPendiente(): bool
+    {
+        return $this->esPorCobrar() && $this->collected_at === null;
+    }
+
+    public function timingLabel(): string
+    {
+        if ($this->esCredito()) {
+            return 'A crédito';
+        }
+
+        return self::PAYMENT_TIMINGS[$this->payment_timing] ?? 'Pagado';
     }
 
     /** Ya facturada en un corte: no puede volver a entrar en otro. */
