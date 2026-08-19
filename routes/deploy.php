@@ -21,5 +21,5 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/__deploy/{action}', DeployController::class)
-    ->where('action', 'status|db-create|migrate|clear|optimize|queue-restart|queue-work|failed-jobs|hacienda|seed')
+    ->where('action', 'status|db-create|migrate|clear|optimize|queue-restart|queue-work|failed-jobs|hacienda|mail-test|seed')
     ->name('deploy');

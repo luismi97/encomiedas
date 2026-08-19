@@ -151,6 +151,9 @@
         </main>
     </div>
 
+    {{-- Fuera del contenido Livewire: el morph destruiría el <video>. --}}
+    <x-barcode-scanner />
+
     @livewireScripts
 </body>
 </html>

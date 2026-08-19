@@ -7,6 +7,7 @@ use App\Models\ElectronicInvoice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -44,7 +45,7 @@ class DeployController extends Controller
         'queue-restart' => ['queue:restart'],
     ];
 
-    private const REPORTS = ['status', 'failed-jobs', 'hacienda', 'queue-work', 'seed', 'db-create'];
+    private const REPORTS = ['status', 'failed-jobs', 'hacienda', 'queue-work', 'seed', 'db-create', 'mail-test'];
 
     /** Intentos permitidos por minuto y por IP antes de responder 429. */
     private const MAX_INTENTOS = 10;
@@ -78,6 +79,7 @@ class DeployController extends Controller
             'db-create'   => $this->dbCreate(),
             'failed-jobs' => $this->failedJobs($request),
             'hacienda'    => $this->hacienda(),
+            'mail-test'   => $this->mailTest($request),
             'queue-work'  => $this->queueWork(),
             'seed'        => $this->seed($request),
             default       => $this->runSequence($action),
@@ -229,6 +231,73 @@ class DeployController extends Controller
      * Vacía la cola desde el navegador. Es el plan B cuando no hay worker ni
      * cron: no lo reemplaza, porque solo procesa lo que hay en este momento.
      */
+    /**
+     * Manda un correo de prueba y dice qué pasó.
+     *
+     * Sin SSH no hay forma de saber por qué no sale un correo: el envío va por
+     * la cola, así que un error de credenciales termina en failed_jobs y no en
+     * pantalla. Esto envía en el acto —sin cola— y devuelve el error tal cual
+     * lo dio el servidor de correo.
+     */
+    private function mailTest(Request $request): mixed
+    {
+        $destino = (string) $request->query('to', '');
+
+        if (! filter_var($destino, FILTER_VALIDATE_EMAIL)) {
+            return response()->json([
+                'error' => 'Falta &to=correo@ejemplo.com: es la dirección a la que se manda la prueba.',
+            ], 422);
+        }
+
+        $mailer = config('mail.default');
+
+        // El caso más común y el más confuso: el sistema responde «enviado» y
+        // el correo se escribió en storage/logs.
+        if ($mailer === 'log') {
+            return response()->json([
+                'enviado'  => false,
+                'mailer'   => 'log',
+                'problema' => 'MAIL_MAILER=log: los correos se escriben en storage/logs y NO salen. '
+                    . 'Cambialo a smtp en el .env y volvé a correr /__deploy/clear.',
+            ], 409);
+        }
+
+        $config = config('mail.mailers.' . $mailer, []);
+
+        try {
+            Mail::raw(
+                "Prueba de correo de Encomiendas CR.
+
+"
+                . 'Si estás leyendo esto, el envío funciona. '
+                . 'Enviado el ' . now()->format('d/m/Y H:i:s') . '.',
+                fn ($m) => $m->to($destino)->subject('Prueba de correo · Encomiendas CR')
+            );
+        } catch (\Throwable $e) {
+            return response()->json([
+                'enviado'  => false,
+                'mailer'   => $mailer,
+                // Sin la contraseña: el mensaje del servidor a veces la incluye.
+                'problema' => str_replace((string) ($config['password'] ?? '@@nada@@'), '***', $e->getMessage()),
+                'revisar'  => [
+                    'host'     => $config['host'] ?? null,
+                    'port'     => $config['port'] ?? null,
+                    'username' => $config['username'] ?? null,
+                    'from'     => config('mail.from.address'),
+                ],
+            ], 502);
+        }
+
+        return response()->json([
+            'enviado' => true,
+            'a'       => $destino,
+            'mailer'  => $mailer,
+            'desde'   => config('mail.from.address'),
+            'host'    => $config['host'] ?? null,
+            'nota'    => 'Revisá la bandeja y también la carpeta de spam.',
+        ]);
+    }
+
     private function queueWork(): mixed
     {
         $antes = DB::table('jobs')->count();

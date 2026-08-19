@@ -101,10 +101,13 @@
                     <label class="label">Recibir por código de guía</label>
                     <div class="flex flex-wrap gap-2">
                         <input type="text" wire:model="scanCode" wire:keydown.enter.prevent="recibirPorCodigo"
-                               placeholder="Escaneá el QR o escribí el código" class="input flex-1 min-w-[220px] font-mono">
+                               placeholder="Escaneá o escribí el código" class="input flex-1 min-w-[200px] font-mono">
+                        <x-scan-button target="recibirPorCodigo" />
                         <x-action-button action="recibirPorCodigo" variant="primary" loadingText="Recibiendo...">Recibir</x-action-button>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1">El lector de QR escribe el código y da Enter: no hace falta tocar el mouse.</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Con lector físico: escribe el código y da Enter solo. Sin lector: usá la cámara.
+                    </p>
                 </div>
             @endif
 

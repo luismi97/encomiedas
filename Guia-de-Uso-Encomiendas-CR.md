@@ -314,8 +314,17 @@ Se puede imprimir el **manifiesto en PDF** para que viaje con el chofer.
 
 ### Recibir en destino
 
-En la sede destino se abre el cierre y se van marcando las guías que llegaron
-— **escaneando el código de barras de la etiqueta** o digitando el código.
+En la sede destino se abre el cierre y se van marcando las guías que llegaron.
+Hay tres formas, y las tres terminan en lo mismo:
+
+- **Lector físico** — escribe el código y da Enter solo. No hay que tocar nada.
+- **Cámara del dispositivo** — el botón de cámara junto al campo. Sirve en el
+  celular o en una laptop sin lector.
+- **A mano** — digitando el código de la guía.
+
+La cámara **se queda abierta** mientras marcás: recibir un cierre son veinte
+guías seguidas. Suena y vibra con cada lectura, y no cuenta dos veces el mismo
+código aunque siga enfrente.
 
 Al **cerrar la recepción**, el sistema informa si hubo **faltantes**: guías que
 salieron en el manifiesto y no llegaron. Eso es lo que convierte al cierre en un
@@ -338,9 +347,12 @@ que trae asignado**.
 
 Desde ahí puede:
 
-- **Escanear** guías con el código de barras de la etiqueta
+- **Escanear** guías con la **cámara del teléfono**, o con lector si lo tiene
 - **Registrar la entrega**: quién retiró, nombre e identificación
 - **Reportar una incidencia** si algo salió mal
+
+> La cámara solo funciona sobre **HTTPS**. En el dominio del sistema ya lo está;
+> si alguien entra por la IP del servidor, el botón va a fallar.
 
 ---
 
@@ -686,7 +698,18 @@ destinatario**.
 
 ## 24. Tareas automáticas
 
-Corren solas si el cron del servidor está configurado:
+> Esta sección es para quien administra el servidor. Son **dos** cosas
+> distintas, y olvidar la segunda es lo que hace que «no se envíe nada».
+
+### El programador de tareas
+
+Una sola línea de cron, cada minuto:
+
+```
+* * * * * cd /ruta/del/sitio && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Esa entrada dispara las tres tareas. No hay que configurarlas por separado:
 
 | Tarea | Cuándo | Qué hace |
 |---|---|---|
@@ -697,6 +720,55 @@ Corren solas si el cron del servidor está configurado:
 **Plazos de desecho** (configurables): se avisa a los **30 días** de llegar al
 destino, y hay **15 días** de gracia antes de desechar. El desecho automático
 viene **desactivado** por defecto: se marca, pero alguien tiene que confirmarlo.
+
+### El procesador de la cola
+
+Lo que más se olvida. Por la cola pasan **todos los envíos**:
+
+- Los comprobantes que van a Hacienda
+- El correo con el comprobante aceptado (PDF, XML y respuesta)
+- Los avisos de estado al destinatario
+- Las cotizaciones que se envían a un cliente
+- El correo de restablecer contraseña
+
+Sin alguien que la procese, todo eso se acumula en la base y **no sale nunca**,
+sin ningún error a la vista.
+
+Con acceso al servidor, un proceso permanente:
+
+```
+php artisan queue:work --tries=3 --backoff=10 --max-time=3600 --timeout=120
+```
+
+En un hosting sin acceso de consola, una segunda línea de cron:
+
+```
+* * * * * cd /ruta/del/sitio && php artisan queue:work --stop-when-empty --max-time=50 >> /dev/null 2>&1
+```
+
+El `--max-time=50` termina antes de que el cron vuelva a dispararlo, así nunca
+se solapan dos procesos.
+
+> Después de cada actualización del sistema hay que **reiniciar el proceso**: un
+> `queue:work` permanente se queda con el código viejo en memoria.
+
+### El correo
+
+Los envíos necesitan un servidor de correo configurado. La variable que decide
+si salen o no es `MAIL_MAILER`: tiene que ser `smtp`. Con cualquier otro valor
+los correos se descartan o fallan en silencio.
+
+### Verificar sin consola
+
+| Qué necesitás saber | Cómo |
+|---|---|
+| Si la cola avanza | `/__deploy/status?token=...` — cuántos esperan y cuántos fallaron |
+| Procesar la cola ahora | `/__deploy/queue-work?token=...` |
+| Por qué falló algo | `/__deploy/failed-jobs?token=...` |
+| Si el correo sale | `/__deploy/mail-test?token=...&to=vos@correo.com` |
+
+La prueba de correo envía **sin pasar por la cola**, así que el error del
+servidor de correo llega en pantalla en vez de enterrarse.
 
 ---
 
@@ -754,3 +826,13 @@ recibido y lo prometido, «Cobrado y por cobrar».
 **¿Una cotización afecta la caja o los reportes?**
 No. Una cotización no es una venta: no toca caja, no suma a ningún reporte de
 ingresos y no genera comprobante. Solo cuando se convierte en guía.
+
+**El botón de la cámara no hace nada.**
+La cámara exige **HTTPS**. Si entraste por la IP del servidor o por `http://`,
+el navegador la bloquea. Entrá por la dirección del sistema. Si el navegador
+pidió permiso y lo negaste, hay que volver a habilitarlo desde el candado de la
+barra de direcciones.
+
+**Guardé una guía y el cliente no recibió el correo.**
+Los correos salen por la cola. Revisá `/__deploy/status` — si la cola crece, el
+procesador no está corriendo (ver *Tareas automáticas*).

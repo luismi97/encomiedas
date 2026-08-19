@@ -51,8 +51,9 @@
             <label class="label">Escanear guía</label>
             <div class="flex gap-2">
                 <input type="text" wire:model="scanCode" wire:keydown.enter.prevent="escanear"
-                       placeholder="Escaneá el QR" inputmode="none"
-                       class="input flex-1 font-mono text-lg" autofocus>
+                       placeholder="Código de la guía"
+                       class="input flex-1 font-mono text-lg">
+                <x-scan-button target="escanear" />
                 <x-action-button action="escanear" variant="primary" loadingText="...">Marcar</x-action-button>
             </div>
             <p class="text-xs text-gray-500 mt-1">
