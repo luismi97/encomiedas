@@ -65,6 +65,25 @@ class DispatchIndex extends Component
         ];
     }
 
+    /**
+     * Elegir un repartidor rellena el nombre del manifiesto.
+     *
+     * Son dos campos y nadie sabía cuál mandaba: se elegía un chofer del
+     * desplegable y la columna seguía mostrando lo que hubiera en el texto
+     * libre. Ahora los dos coinciden salvo que alguien cambie el nombre a
+     * propósito, que es el caso de un transporte externo.
+     */
+    public function updatedDriverUserId($value): void
+    {
+        if (! $value) {
+            return;
+        }
+
+        if ($chofer = User::find($value)) {
+            $this->driver_name = $chofer->name;
+        }
+    }
+
     public function create(): void
     {
         $this->feedback = null;
@@ -208,7 +227,7 @@ class DispatchIndex extends Component
 
     private function manifiesto(): Dispatch
     {
-        return Dispatch::with(['lines.invoice', 'guides.items', 'originBranch', 'destinationBranch'])
+        return Dispatch::with(['lines.invoice', 'guides.items', 'originBranch', 'destinationBranch', 'driver'])
             ->findOrFail($this->openId);
     }
 
@@ -219,7 +238,7 @@ class DispatchIndex extends Component
         return view('livewire.dispatches.dispatch-index', [
             'abierto'     => $abierto,
             'disponibles' => $abierto?->estaAbierto() ? $servicio->disponiblesPara($abierto) : collect(),
-            'dispatches'  => Dispatch::with(['originBranch', 'destinationBranch'])
+            'dispatches'  => Dispatch::with(['originBranch', 'destinationBranch', 'driver'])
                 ->when($this->filterStatus !== '', fn ($q) => $q->where('status', $this->filterStatus))
                 ->withCount('lines')
                 ->latest()

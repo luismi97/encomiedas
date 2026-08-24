@@ -11,6 +11,7 @@ use App\Models\Tax;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Tests\Concerns\AbreLaCaja;
 use Tests\TestCase;
 
 /**
@@ -24,6 +25,7 @@ use Tests\TestCase;
 class TipoDeBultoTest extends TestCase
 {
     use RefreshDatabase;
+    use AbreLaCaja;
 
     private Branch $sj;
     private Branch $lim;
@@ -42,6 +44,9 @@ class TipoDeBultoTest extends TestCase
             'name' => 'Admin', 'username' => 'admin', 'email' => 'admin@t.test',
             'password' => bcrypt('x'), 'role' => User::ROLE_ADMIN, 'is_active' => true,
         ]);
+
+        // Cobrar de contado exige caja abierta.
+        $this->abrirCajaDe($this->sj, $this->admin);
     }
 
     // ── Los tipos vienen configurados de fábrica ──────────────────────

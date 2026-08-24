@@ -180,7 +180,7 @@ class InvoiceExportController extends Controller
     /** Manifiesto imprimible del cierre de envío, con espacio para firmas. */
     public function dispatchPdf(\App\Models\Dispatch $dispatch)
     {
-        $dispatch->load(['lines.invoice.items', 'lines.invoice.deliveryBranch', 'originBranch', 'destinationBranch', 'creator', 'guides.items']);
+        $dispatch->load(['lines.invoice.items', 'lines.invoice.deliveryBranch', 'originBranch', 'destinationBranch', 'driver', 'creator', 'guides.items']);
 
         return Pdf::loadView('pdf.dispatch', [
             'dispatch' => $dispatch,

@@ -8,6 +8,9 @@
 @php
     $flashSuccess = session()->pull('success');
     $flashError = session()->pull('error');
+    // «info» no es un error ni una confirmación: explica algo que el usuario
+    // tiene que saber, como que una guía no entró al arqueo y por qué.
+    $flashInfo = session()->pull('info');
 @endphp
 
 @if ($flashSuccess)
@@ -21,5 +24,12 @@
     <div class="mb-4 flex items-start gap-3 p-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/40 text-red-800 dark:text-red-200 text-base">
         <x-icon name="warning" class="w-5 h-5 mt-0.5" />
         <span>{{ $flashError }}</span>
+    </div>
+@endif
+
+@if ($flashInfo)
+    <div class="mb-4 flex items-start gap-3 p-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 text-base">
+        <x-icon name="warning" class="w-5 h-5 mt-0.5" />
+        <span>{{ $flashInfo }}</span>
     </div>
 @endif

@@ -47,7 +47,7 @@
                 </div>
                 <div>
                     <label class="label">Chofer</label>
-                    <select wire:model="driver_user_id" class="input">
+                    <select wire:model.live="driver_user_id" class="input">
                         <option value="">— Sin asignar —</option>
                         @foreach ($choferes as $c)
                             <option value="{{ $c->id }}">{{ $c->name }}</option>
@@ -55,7 +55,14 @@
                     </select>
                     <p class="text-xs text-gray-500 mt-1">Verá este cierre en «Mi ruta» desde su celular.</p>
                 </div>
-                <div><label class="label">Nombre en el manifiesto</label><input type="text" wire:model="driver_name" class="input"></div>
+                <div>
+                    <label class="label">Nombre en el manifiesto</label>
+                    <input type="text" wire:model="driver_name" class="input"
+                           placeholder="Se llena solo al elegir chofer">
+                    <p class="text-xs text-gray-500 mt-1">
+                        Solo hace falta escribirlo si el chofer es externo y no está en la lista.
+                    </p>
+                </div>
                 <div><label class="label">Placa del vehículo</label><input type="text" wire:model="vehicle_plate" maxlength="20" class="input"></div>
                 <div class="sm:col-span-2"><label class="label">Notas</label><textarea wire:model="notes" rows="2" class="input"></textarea></div>
                 <div class="sm:col-span-2 flex gap-3">
@@ -76,7 +83,7 @@
                     </h2>
                     <p class="text-sm text-gray-500 dark:text-gray-400 font-mono">{{ $abierto->rutaLabel() }}</p>
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        {{ $abierto->driver_name ?: 'Sin chofer' }}
+                        {{ $abierto->choferLabel() ?: 'Sin chofer' }}
                         @if ($abierto->vehicle_plate) · {{ $abierto->vehicle_plate }} @endif
                     </p>
                 </div>
@@ -223,7 +230,7 @@
                         <tr class="border-b border-gray-100 dark:border-gray-700/50">
                             <td class="py-3 font-mono">{{ $cierre->code }}</td>
                             <td class="py-3 font-mono text-sm">{{ $cierre->rutaLabel() }}</td>
-                            <td class="py-3 text-sm">{{ $cierre->driver_name ?: '—' }}</td>
+                            <td class="py-3 text-sm">{{ $cierre->choferLabel() ?: '—' }}</td>
                             <td class="py-3 text-sm">{{ $cierre->lines_count }}</td>
                             <td class="py-3"><span class="badge {{ $cierre->badgeClasses() }}">{{ $cierre->statusLabel() }}</span></td>
                             <td class="py-3 text-right space-x-3 whitespace-nowrap">

@@ -44,7 +44,6 @@ class InvoiceForm extends Component
     public array $preciosSugeridos = [];
 
     /** Aviso cuando se va a cobrar de contado sin caja abierta. */
-    public ?string $cajaAviso = null;
 
     public string $sender_name = '';
     public string $sender_phone = '';
@@ -473,12 +472,50 @@ class InvoiceForm extends Component
         }
     }
 
+    /**
+     * Un cobro de contado exige una caja abierta.
+     *
+     * Antes la guía se guardaba igual y solo se dejaba un aviso en una
+     * propiedad del componente —que el redirect posterior descartaba, así que
+     * nadie lo veía nunca—. El resultado era plata cobrada en el mostrador que
+     * no figuraba en ningún arqueo: exactamente lo que este módulo existe para
+     * impedir.
+     *
+     * Solo aplica al contado pagado en origen. Un «por cobrar» se cobra en
+     * destino y una guía a crédito no se cobra: ninguno mueve esta gaveta.
+     */
+    private function validarCajaAbierta(): void
+    {
+        if ($this->cobro !== self::COBRO_PREPAID) {
+            return;
+        }
+
+        // Al editar una guía ya cobrada no se vuelve a cobrar: exigir caja
+        // abierta bloquearía corregir un teléfono mal escrito.
+        if ($this->invoice?->exists && ! $this->invoice->esCredito() && ! $this->invoice->esPorCobrar()) {
+            return;
+        }
+
+        $sesion = app(CajaService::class)
+            ->sesionAbiertaPara(auth()->user(), $this->pickup_branch_id);
+
+        if ($sesion) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'cobro' => 'No hay una caja abierta en esta sede, así que el cobro no entraría a ningún arqueo. '
+                . 'Abrí la caja y volvé a guardar. Si el flete no se cobra acá, marcá «Por cobrar» o «A crédito».',
+        ]);
+    }
+
     public function save(): void
     {
         $this->normalizeItems();
         $this->normalizeIdentification();
         $data = $this->validate();
         $this->validarCredito();
+        $this->validarCajaAbierta();
 
         DB::transaction(function () use ($data) {
             $invoice = $this->invoice ?: new Invoice();
@@ -549,16 +586,24 @@ class InvoiceForm extends Component
             // A la caja de origen solo entra lo que se paga aquí y ahora. Un
             // «por cobrar» se cobra en destino al entregar, y una guía a
             // crédito no se cobra: suma al saldo del cliente.
-            $this->cajaAviso = match ($this->cobro) {
+            // El contado ya tiene caja abierta garantizada: acá solo se registra.
+            if ($this->cobro === self::COBRO_PREPAID) {
+                app(CajaService::class)->registrarCobro($invoice, auth()->user());
+            }
+
+            // Flash y no una propiedad del componente: el redirect de abajo la
+            // descartaría y el aviso no llegaría a verse nunca.
+            $aviso = match ($this->cobro) {
                 self::COBRO_COLLECT => 'Guía POR COBRAR: no entra al arqueo de esta caja. '
                     . 'Se cobra en destino al momento de la entrega.',
                 self::COBRO_CREDIT => 'Guía a crédito: no entra al arqueo. '
                     . 'Suma al saldo del cliente y se factura en el próximo corte.',
-                default => app(CajaService::class)->registrarCobro($invoice, auth()->user()) === null
-                    ? 'La guía se guardó, pero NO quedó registrada en caja porque no hay un turno abierto en esta sede. '
-                        . 'Abrí la caja y volvé a guardar para que el cobro entre al arqueo.'
-                    : null,
+                default => null,
             };
+
+            if ($aviso) {
+                session()->flash('info', $aviso);
+            }
 
             $this->invoice = $invoice;
         });

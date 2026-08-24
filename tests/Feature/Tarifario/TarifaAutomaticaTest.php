@@ -9,6 +9,7 @@ use App\Models\Tax;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Tests\Concerns\AbreLaCaja;
 use Tests\TestCase;
 
 /**
@@ -19,6 +20,7 @@ use Tests\TestCase;
 class TarifaAutomaticaTest extends TestCase
 {
     use RefreshDatabase;
+    use AbreLaCaja;
 
     private Branch $sj;
     private Branch $lim;
@@ -37,6 +39,9 @@ class TarifaAutomaticaTest extends TestCase
             'min_weight'=>0,'max_weight'=>5,'price'=>3500,'price_per_extra_kg'=>0,'is_active'=>true]);
         Rate::create(['name'=>'Metro pesada','origin_branch_id'=>$this->sj->id,'destination_branch_id'=>$this->lim->id,
             'min_weight'=>5,'max_weight'=>20,'price'=>8000,'price_per_extra_kg'=>0,'is_active'=>true]);
+
+        // Cobrar de contado exige caja abierta.
+        $this->abrirCajaDe($this->sj, $this->admin);
     }
 
     private function form()

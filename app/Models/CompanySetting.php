@@ -115,11 +115,29 @@ class CompanySetting extends Model
     /** ¿Hay lo mínimo para firmar y transmitir un comprobante? */
     public function isReady(): bool
     {
-        return $this->enabled
-            && $this->identification_number
-            && $this->certificate_path
-            && $this->decryptedOrNull('certificate_pin')
-            && $this->decryptedOrNull('atv_username')
-            && $this->decryptedOrNull('atv_password');
+        return $this->faltantesParaFacturar() === [];
+    }
+
+    /**
+     * Qué falta para poder emitir, en palabras.
+     *
+     * Devolver la lista y no un booleano permite que la pantalla diga el
+     * motivo: sin esto, una guía entregada aparecía sin comprobante y el
+     * mensaje culpaba a la entrega, que no tenía nada que ver.
+     *
+     * @return array<int,string>
+     */
+    public function faltantesParaFacturar(): array
+    {
+        $requisitos = [
+            'Activar la facturación electrónica'   => (bool) $this->enabled,
+            'La cédula del emisor'                 => (bool) $this->identification_number,
+            'El certificado digital (.p12)'        => (bool) $this->certificate_path,
+            'El PIN del certificado'               => (bool) $this->decryptedOrNull('certificate_pin'),
+            'El usuario de ATV'                    => (bool) $this->decryptedOrNull('atv_username'),
+            'La contraseña de ATV'                 => (bool) $this->decryptedOrNull('atv_password'),
+        ];
+
+        return array_keys(array_filter($requisitos, fn ($cumple) => ! $cumple));
     }
 }

@@ -94,16 +94,8 @@
                 </div>
             </div>
 
-            {{-- Canvas propio, sin librería: son 30 líneas y evita una
-                 dependencia externa que el CSP de producción podría bloquear. --}}
-            <div class="mt-4" wire:ignore>
-                <label class="label">Firma</label>
-                <div class="rounded-lg border border-gray-300 dark:border-gray-600 bg-white overflow-hidden">
-                    <canvas id="firma" class="w-full touch-none" height="160" style="display:block; cursor:crosshair;"></canvas>
-                </div>
-                <button type="button" onclick="limpiarFirma()" class="btn-secondary !py-1.5 !px-3 text-sm mt-2">
-                    Borrar firma
-                </button>
+            <div class="mt-4">
+                <x-signature-pad model="deliverySignature" />
             </div>
 
             <div class="flex gap-3 mt-4">
@@ -114,51 +106,6 @@
             </div>
         </div>
 
-        @script
-        <script>
-            const lienzo = document.getElementById('firma');
-            const ctx = lienzo.getContext('2d');
-            let dibujando = false;
-
-            // El canvas se dimensiona por CSS: hay que igualar su resolución
-            // interna o la firma sale desplazada respecto al puntero.
-            const ajustar = () => {
-                const ancho = lienzo.offsetWidth;
-                if (lienzo.width !== ancho) {
-                    lienzo.width = ancho;
-                    ctx.lineWidth = 2;
-                    ctx.lineCap = 'round';
-                    ctx.strokeStyle = '#111';
-                }
-            };
-            ajustar();
-            window.addEventListener('resize', ajustar);
-
-            const punto = (e) => {
-                const r = lienzo.getBoundingClientRect();
-                const t = e.touches ? e.touches[0] : e;
-                return { x: t.clientX - r.left, y: t.clientY - r.top };
-            };
-
-            const empezar = (e) => { e.preventDefault(); dibujando = true; const p = punto(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
-            const mover = (e) => { if (!dibujando) return; e.preventDefault(); const p = punto(e); ctx.lineTo(p.x, p.y); ctx.stroke(); };
-            const soltar = () => {
-                if (!dibujando) return;
-                dibujando = false;
-                // Se sube al componente al soltar, no en cada trazo.
-                $wire.set('deliverySignature', lienzo.toDataURL('image/png'), false);
-            };
-
-            ['mousedown', 'touchstart'].forEach(ev => lienzo.addEventListener(ev, empezar));
-            ['mousemove', 'touchmove'].forEach(ev => lienzo.addEventListener(ev, mover));
-            ['mouseup', 'mouseleave', 'touchend'].forEach(ev => lienzo.addEventListener(ev, soltar));
-
-            window.limpiarFirma = () => {
-                ctx.clearRect(0, 0, lienzo.width, lienzo.height);
-                $wire.set('deliverySignature', '', false);
-            };
-        </script>
-        @endscript
     @endif
 
 
@@ -321,7 +268,38 @@
         <div class="card">
             <h3 class="font-semibold mb-3 flex items-center gap-2"><x-icon name="receipt" class="w-5 h-5 text-gray-400" /> Facturación electrónica (Hacienda)</h3>
             @if (!$invoice->electronicInvoice)
-                <p class="text-gray-500">La encomienda debe estar <strong>entregada</strong> para reservar el comprobante.</p>
+                @php $faltantes = \App\Models\CompanySetting::instance()->faltantesParaFacturar(); @endphp
+
+                @if ($faltantes)
+                    {{-- El motivo real. Antes decía que faltaba entregar la guía,
+                         que no tenía nada que ver con esto. --}}
+                    <div class="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
+                        <p class="text-sm font-medium text-amber-900 dark:text-amber-100">
+                            No se puede emitir todavía: la facturación electrónica está incompleta.
+                        </p>
+                        <ul class="mt-2 text-sm text-amber-800 dark:text-amber-200 list-disc list-inside">
+                            @foreach ($faltantes as $falta)
+                                <li>{{ $falta }}</li>
+                            @endforeach
+                        </ul>
+                        <a href="{{ route('settings.company') }}" class="btn-secondary !py-1.5 !px-3 text-sm mt-3">
+                            <x-icon name="cog" class="w-4 h-4" /> Ir a la configuración
+                        </a>
+                    </div>
+                @else
+                <p class="text-gray-500 mb-3">
+                    Todavía no se ha emitido comprobante para esta guía. Al entregarla se reserva solo;
+                    también podés emitirlo ahora.
+                </p>
+                @unless ($invoice->status === \App\Models\Invoice::STATUS_CANCELLED)
+                    <x-action-button action="sendToHacienda" variant="primary" loadingText="Emitiendo..."
+                        confirm="Se emitirá el comprobante de {{ $invoice->code }} y se enviará a Hacienda. El consecutivo se consume y no se reutiliza. ¿Continuar?">
+                        <x-icon name="send" class="w-4 h-4" /> Emitir y enviar a Hacienda
+                    </x-action-button>
+                @else
+                    <p class="text-sm text-gray-500">La guía está anulada: no se emite comprobante.</p>
+                @endunless
+                @endif
             @else
                 @php $ei = $invoice->electronicInvoice; @endphp
                 <div class="space-y-2 text-sm">
@@ -419,6 +397,25 @@
         </div>
     @endif
 
+    {{-- Un flete por cobrar es plata que todavía no entró: se avisa desde que
+         se crea la guía, no solo al entregarla. --}}
+    @if ($invoice->tieneCobroPendiente())
+        <div class="card border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+            <div class="flex items-start gap-3">
+                <x-icon name="banknotes" class="w-5 h-5 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div>
+                    <h3 class="font-semibold text-amber-900 dark:text-amber-100">
+                        Pendiente de cobro · ₡{{ number_format((float) $invoice->total, 2) }}
+                    </h3>
+                    <p class="text-sm text-amber-800 dark:text-amber-200 mt-1">
+                        Se cobra al entregar, en la caja de {{ $invoice->deliveryBranch?->name ?? 'destino' }}.
+                        Hace falta un turno abierto ahí para poder entregarla.
+                    </p>
+                </div>
+            </div>
+        </div>
+    @endif
+
     @if ($invoice->tieneEvidenciaDeEntrega())
         <div class="card">
             <h3 class="font-semibold mb-2 flex items-center gap-2"><x-icon name="check-circle" class="w-5 h-5 text-green-600" /> Evidencia de entrega</h3>
@@ -427,6 +424,30 @@
                 @if ($invoice->received_by_identification) · {{ $invoice->received_by_identification }} @endif
                 @if ($invoice->delivered_at) · {{ $invoice->delivered_at->format('d/m/Y H:i') }} @endif
             </p>
+            {{-- Dónde entró la plata de un flete por cobrar: la pregunta que la
+                 guía no sabía responder. --}}
+            @php $movimiento = $invoice->movimientoDeCaja; @endphp
+
+            @if ($invoice->collected_at && $movimiento)
+                <div class="mt-3 rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-3 text-sm">
+                    <div class="font-medium text-green-900 dark:text-green-100">
+                        Cobrado al entregar · ₡{{ number_format((float) $movimiento->amount, 2) }}
+                    </div>
+                    <div class="text-green-800 dark:text-green-200 mt-1">
+                        Entró a <strong>{{ $movimiento->session?->register?->name ?? 'la caja' }}</strong>
+                        de {{ $movimiento->session?->register?->branch?->name ?? 'destino' }},
+                        en el turno de {{ $movimiento->session?->opener?->name ?? '—' }}
+                        · {{ $invoice->collected_at->format('d/m/Y H:i') }}
+                    </div>
+                    @if ($movimiento->session && auth()->user()->puedeOperarCaja())
+                        <a href="{{ route('caja.pdf', $movimiento->session) }}" target="_blank"
+                           class="btn-secondary !py-1.5 !px-3 text-sm mt-2">
+                            <x-icon name="document" class="w-4 h-4" /> Ver ese arqueo
+                        </a>
+                    @endif
+                </div>
+            @endif
+
             @if ($invoice->delivery_signature)
                 <div class="mt-3 inline-block rounded-lg border border-gray-200 dark:border-gray-700 bg-white p-2">
                     <img src="{{ $invoice->delivery_signature }}" alt="Firma" style="max-width: 320px; height: auto;">

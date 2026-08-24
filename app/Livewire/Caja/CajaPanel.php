@@ -122,6 +122,41 @@ class CajaPanel extends Component
         return $this->caja()?->sesionAbierta();
     }
 
+    /**
+     * El turno de otro cajero no se toca.
+     *
+     * Un arqueo responde por quien lo abrió: si un compañero le registra
+     * salidas o se lo cierra, el faltante aparece a nombre de quien no manejó
+     * ese dinero. El selector listaba todas las cajas de la sede, así que
+     * bastaba con elegir la de al lado.
+     *
+     * El administrador sí puede: alguien tiene que poder cerrar el turno de un
+     * cajero que se fue sin hacerlo.
+     */
+    private function turnoAjeno(): ?CashSession
+    {
+        $sesion = $this->sesion();
+
+        if (! $sesion || auth()->user()->puedeConfigurar()) {
+            return null;
+        }
+
+        return $sesion->opened_by === auth()->id() ? null : $sesion;
+    }
+
+    /** Devuelve false y avisa cuando el turno es de otro. */
+    private function bloqueadoPorTurnoAjeno(): bool
+    {
+        if (! $ajeno = $this->turnoAjeno()) {
+            return false;
+        }
+
+        $this->notify('error', "Ese turno lo abrió {$ajeno->opener?->name} y responde por su arqueo. "
+            . 'Solo esa persona o un administrador pueden operarlo.');
+
+        return true;
+    }
+
     public function abrir(CajaService $servicio): void
     {
         $this->feedback = null;
@@ -150,6 +185,10 @@ class CajaPanel extends Component
     {
         $this->feedback = null;
 
+        if ($this->bloqueadoPorTurnoAjeno()) {
+            return;
+        }
+
         if (! $sesion = $this->sesion()) {
             $this->notify('error', 'No hay un turno abierto.');
 
@@ -177,6 +216,11 @@ class CajaPanel extends Component
     public function abrirArqueo(): void
     {
         $this->feedback = null;
+
+        if ($this->bloqueadoPorTurnoAjeno()) {
+            return;
+        }
+
         $this->counts = Denomination::active()->pluck('id')->mapWithKeys(fn ($id) => [$id => 0])->all();
         $this->showArqueo = true;
     }
@@ -197,6 +241,10 @@ class CajaPanel extends Component
     public function cerrar(CajaService $servicio): void
     {
         $this->feedback = null;
+
+        if ($this->bloqueadoPorTurnoAjeno()) {
+            return;
+        }
 
         if (! $sesion = $this->sesion()) {
             $this->notify('error', 'No hay un turno abierto.');
@@ -242,6 +290,8 @@ class CajaPanel extends Component
             // de «Mostrador 1» repetidos no dice en qué sede está cada una.
             'cajas'         => CashRegister::active()->with('branch')->orderBy('name')->get()
                 ->groupBy(fn ($c) => $c->branch?->name ?? 'Sin sede'),
+            // La vista necesita saberlo para no ofrecer botones que van a fallar.
+            'turnoAjeno'    => $this->turnoAjeno(),
             'sinSedes'      => ! Branch::where('is_active', true)->exists(),
             'puedeCrearCajas' => auth()->user()->puedeConfigurar(),
             'historial'     => CashSession::with(['opener', 'closer', 'register.branch'])

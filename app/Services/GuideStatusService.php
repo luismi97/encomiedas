@@ -120,6 +120,16 @@ class GuideStatusService
             throw new RuntimeException('Hay que registrar el nombre de quien retira la encomienda.');
         }
 
+        // Antes de mover nada: si el flete se cobra aquí y no hay caja abierta,
+        // el dinero no entraría a ningún arqueo. Se registraba solo un aviso en
+        // el log y la plata desaparecía sin dejar rastro.
+        if ($guia->tieneCobroPendiente() && ! $this->cajaDeDestino($guia, $usuario)) {
+            throw new RuntimeException(
+                'Esta guía es POR COBRAR (₡' . number_format((float) $guia->total, 2) . ') y no hay una caja '
+                . 'abierta en esta sede: el cobro no entraría a ningún arqueo. Abrí la caja y volvé a entregar.'
+            );
+        }
+
         $firma = null;
 
         if ($firmaDataUri && preg_match('#^data:image/(png|jpeg);base64,[A-Za-z0-9+/=]+$#', $firmaDataUri)) {
@@ -152,18 +162,23 @@ class GuideStatusService
      * Esa plata nunca pasó por el mostrador de origen: registrarla allá habría
      * dejado el arqueo de origen con un ingreso que no estaba en la gaveta.
      */
+    /** Turno abierto en la sede que entrega, que es donde entra este dinero. */
+    private function cajaDeDestino(Invoice $guia, User $usuario)
+    {
+        return app(CajaService::class)->sesionAbiertaPara($usuario, $guia->delivery_branch_id);
+    }
+
     private function cobrarSiEstabaPorCobrar(Invoice $guia, User $usuario): void
     {
         if (! $guia->tieneCobroPendiente()) {
             return;
         }
 
-        $sesion = app(CajaService::class)
-            ->sesionAbiertaPara($usuario, $guia->delivery_branch_id);
-
-        if (! $sesion) {
-            Log::warning("Entrega de {$guia->code}: sin caja abierta en destino, el cobro por cobrar "
-                . 'no quedó registrado en el arqueo.');
+        // La caja se comprobó antes de entregar: si faltara acá, algo cambió
+        // entre medio y es preferible saberlo que perder el cobro.
+        if (! $sesion = $this->cajaDeDestino($guia, $usuario)) {
+            Log::error("Entrega de {$guia->code}: la caja de destino se cerró durante la entrega "
+                . 'y el cobro por cobrar quedó sin registrar.');
 
             return;
         }

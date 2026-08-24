@@ -11,6 +11,7 @@ use App\Models\Tax;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Tests\Concerns\AbreLaCaja;
 use Tests\TestCase;
 
 /**
@@ -20,6 +21,7 @@ use Tests\TestCase;
 class GuiaConClienteYTarifaTest extends TestCase
 {
     use RefreshDatabase;
+    use AbreLaCaja;
 
     private Branch $sj;
     private Branch $lim;
@@ -45,6 +47,11 @@ class GuiaConClienteYTarifaTest extends TestCase
 
     private function formulario()
     {
+        // Cobrar de contado exige caja abierta en la sede de origen.
+        if (! $this->sj->cashRegisters()->firstOrFail()->estaAbierta()) {
+            $this->abrirCajaDe($this->sj, $this->admin());
+        }
+
         return Livewire::actingAs($this->admin())
             ->test(InvoiceForm::class)
             ->set('pickup_branch_id', $this->sj->id)

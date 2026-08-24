@@ -95,6 +95,19 @@ class Dispatch extends Model
         return $this->belongsTo(User::class, 'driver_user_id');
     }
 
+    /**
+     * Quién lleva el cierre, venga del desplegable o escrito a mano.
+     *
+     * Son dos campos porque el chofer puede ser un repartidor del sistema —y
+     * entonces ve el cierre en «Mi ruta»— o alguien externo del que solo se
+     * anota el nombre. Las pantallas mostraban únicamente el texto libre, así
+     * que elegir un repartidor del desplegable se veía como «Sin chofer».
+     */
+    public function choferLabel(): ?string
+    {
+        return $this->driver?->name ?: ($this->driver_name ?: null);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

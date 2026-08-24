@@ -1,11 +1,5 @@
 <div class="max-w-4xl space-y-6">
-    @if ($cajaAviso)
-        <div class="flex items-start gap-3 p-4 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">
-            <x-icon name="warning" class="w-5 h-5 mt-0.5" />
-            <span>{{ $cajaAviso }}</span>
-        </div>
-    @endif
-
+    
     <x-flash />
 
     <form wire:submit="save" class="space-y-6">

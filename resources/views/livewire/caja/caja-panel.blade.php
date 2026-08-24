@@ -67,7 +67,25 @@
         </div>
     @else
 
-    @if (! $sesion)
+    {{-- Un arqueo responde por quien lo abrió: operar el de otro haría que su
+         faltante apareciera a nombre de quien no manejó ese dinero. --}}
+    @if ($turnoAjeno)
+        <div class="card border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+            <div class="flex items-start gap-3">
+                <x-icon name="warning" class="w-5 h-5 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div>
+                    <h2 class="text-lg font-semibold text-amber-900 dark:text-amber-100">
+                        Turno de {{ $turnoAjeno->opener?->name }}
+                    </h2>
+                    <p class="mt-1 text-sm text-amber-800 dark:text-amber-200">
+                        Esta caja tiene un turno abierto desde
+                        {{ $turnoAjeno->opened_at->format('d/m/Y H:i') }}, y su arqueo responde a
+                        quien lo abrió. Elegí otra caja para abrir el tuyo.
+                    </p>
+                </div>
+            </div>
+        </div>
+    @elseif (! $sesion)
         <div class="card">
             {{-- El @if va en su propia línea: pegado a una letra («turno@if»)
                  Blade no lo reconoce como directiva y el @endif queda suelto. --}}

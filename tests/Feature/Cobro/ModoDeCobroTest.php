@@ -134,6 +134,8 @@ class ModoDeCobroTest extends TestCase
 
     public function test_una_guia_pagada_no_dice_por_cobrar(): void
     {
+        $this->abrirCaja($this->sj);
+
         $this->formulario()->set('cobro', 'prepaid')->call('save');
 
         $this->actingAs($this->cajero)

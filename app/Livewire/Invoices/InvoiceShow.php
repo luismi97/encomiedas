@@ -198,11 +198,31 @@ class InvoiceShow extends Component
         session()->flash('success', 'Estado actualizado a "' . $this->invoice->statusLabel() . '".');
     }
 
+    /**
+     * Emite y encola el comprobante cuando el administrador lo decide.
+     *
+     * Antes solo existía comprobante si la guía llegaba a «entregada», porque
+     * el observer lo reservaba en ese momento y esta pantalla se limitaba a
+     * enviarlo. Facturar antes —al recibir el paquete, por ejemplo— era
+     * imposible aunque el cobro ya se hubiera hecho.
+     */
     public function sendToHacienda(ElectronicBillingService $service): void
     {
-        $electronicInvoice = $this->invoice->electronicInvoice;
+        // Una guía anulada no se factura: el comprobante quedaría emitido
+        // contra algo que no existe, y anularlo después exige una nota.
+        if ($this->invoice->status === Invoice::STATUS_CANCELLED) {
+            session()->flash('error', 'La guía está anulada: no se puede emitir un comprobante para ella.');
+
+            return;
+        }
+
+        $electronicInvoice = $this->invoice->electronicInvoice
+            ?? $service->queueForInvoice($this->invoice);
+
         if (!$electronicInvoice) {
-            session()->flash('error', 'Esta factura todavía no tiene un comprobante en espera de envío.');
+            session()->flash('error', 'La facturación electrónica no está configurada: '
+                . 'faltan los datos del emisor o el certificado. Revisá Configuración de la empresa.');
+
             return;
         }
 

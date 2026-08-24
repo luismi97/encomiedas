@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -45,7 +46,7 @@ class DeployController extends Controller
         'queue-restart' => ['queue:restart'],
     ];
 
-    private const REPORTS = ['status', 'failed-jobs', 'hacienda', 'queue-work', 'seed', 'db-create', 'mail-test'];
+    private const REPORTS = ['status', 'failed-jobs', 'hacienda', 'queue-work', 'seed', 'db-create', 'mail-test', 'db-status', 'migrate-fresh', 'migrate-repair', 'setup'];
 
     /** Intentos permitidos por minuto y por IP antes de responder 429. */
     private const MAX_INTENTOS = 10;
@@ -79,6 +80,10 @@ class DeployController extends Controller
             'db-create'   => $this->dbCreate(),
             'failed-jobs' => $this->failedJobs($request),
             'hacienda'    => $this->hacienda(),
+            'db-status'    => $this->dbStatus(),
+            'migrate-fresh' => $this->migrateFresh($request),
+            'migrate-repair' => $this->migrateRepair($request),
+            'setup'        => $this->setup($request),
             'mail-test'   => $this->mailTest($request),
             'queue-work'  => $this->queueWork(),
             'seed'        => $this->seed($request),
@@ -176,6 +181,257 @@ class DeployController extends Controller
             'comprobantes' => ElectronicInvoice::selectRaw('status, count(*) c')
                 ->groupBy('status')->pluck('c', 'status'),
             'detalle_migraciones' => $migraciones,
+        ]);
+    }
+
+    /**
+     * Qué hay realmente en la base, sin pasar por ningún modelo.
+     *
+     * `migrate` falla con «Table users already exists» cuando el esquema y la
+     * tabla `migrations` no coinciden: las tablas están, pero Laravel no tiene
+     * registro de haberlas creado. Para decidir qué hacer hace falta ver las
+     * dos listas, y ningún comando de Artisan las muestra juntas.
+     */
+    private function dbStatus(): mixed
+    {
+        $base = DB::connection()->getDatabaseName();
+
+        try {
+            // getTableListing() y no «SHOW TABLES»: ese es de MySQL y el mismo
+            // endpoint tiene que responder con cualquier motor.
+            $tablas = collect(Schema::getTableListing())
+                ->map(fn ($t) => is_array($t) ? ($t['name'] ?? '') : $t)
+                ->filter()
+                ->sort()
+                ->values();
+        } catch (\Throwable $e) {
+            return response()->json([
+                'base'  => $base,
+                'error' => 'No se pudo leer el esquema: ' . $e->getMessage(),
+            ], 500);
+        }
+
+        $tieneMigrations = $tablas->contains('migrations');
+
+        $aplicadas = $tieneMigrations
+            ? collect(DB::table('migrations')->orderBy('id')->pluck('migration'))
+            : collect();
+
+        $archivos = collect(glob(database_path('migrations/*.php')))
+            ->map(fn ($ruta) => basename($ruta, '.php'))
+            ->sort()
+            ->values();
+
+        $pendientes = $archivos->diff($aplicadas)->values();
+
+        return response()->json([
+            'base' => $base,
+            'tablas' => [
+                'cantidad' => $tablas->count(),
+                'lista'    => $tablas,
+            ],
+            'migraciones' => [
+                'tabla_existe' => $tieneMigrations,
+                'registradas'  => $aplicadas->count(),
+                'archivos'     => $archivos->count(),
+                'pendientes'   => $pendientes->count(),
+                'lista_pendientes' => $pendientes,
+            ],
+            // El caso que produce «Table users already exists».
+            'diagnostico' => $this->diagnosticar($tablas, $aplicadas, $pendientes),
+        ]);
+    }
+
+    private function diagnosticar($tablas, $aplicadas, $pendientes): string
+    {
+        if ($tablas->isEmpty()) {
+            return 'La base está vacía: corré /__deploy/migrate.';
+        }
+
+        if ($aplicadas->isEmpty()) {
+            return 'Hay ' . $tablas->count() . ' tablas pero NINGUNA migración registrada: '
+                . 'el esquema viene de otra instalación. `migrate` va a chocar con las tablas que ya existen. '
+                . 'Si no hay datos que conservar, usá /__deploy/migrate-fresh (BORRA TODO). '
+                . 'Si hay datos, hay que registrar a mano las migraciones ya aplicadas.';
+        }
+
+        if ($pendientes->isEmpty()) {
+            return 'Todo al día: no hay migraciones pendientes.';
+        }
+
+        return $pendientes->count() . ' migraciones pendientes. Corré /__deploy/migrate.';
+    }
+
+    /**
+     * Prepara una instalación nueva: configuración, IVA y un administrador.
+     *
+     * Aparte de `seed` a propósito: aquel corre DemoDataSeeder, que inventa
+     * sucursales y guías y consume consecutivos reales de Hacienda. Este solo
+     * deja lo imprescindible para poder entrar por primera vez.
+     *
+     * Sin consola no hay otra forma de crear el primer usuario, y sin usuario
+     * el sistema recién migrado no se puede abrir.
+     */
+    private function setup(Request $request): mixed
+    {
+        if (! $request->boolean('confirm')) {
+            return response()->json([
+                'error' => 'Crea la configuración inicial, el IVA y un usuario administrador. '
+                    . 'No crea datos de demostración ni toca lo que ya exista. '
+                    . 'Agregá &confirm=1 para ejecutarlo.',
+            ], 428);
+        }
+
+        Artisan::call('db:seed', [
+            '--class' => \Database\Seeders\ProduccionSeeder::class,
+            '--force' => true,
+        ]);
+
+        $contrasena = \Database\Seeders\ProduccionSeeder::$contrasenaGenerada;
+        $correo = \Database\Seeders\ProduccionSeeder::$correoCreado;
+
+        return response()->json(array_filter([
+            'listo'   => true,
+            'admin_creado' => $correo,
+            // Se muestra una sola vez: no queda guardada en ningún lado.
+            'contrasena_generada' => $contrasena,
+            'aviso' => $contrasena
+                ? 'ANOTÁ LA CONTRASEÑA: no se vuelve a mostrar. Cambiala al entrar.'
+                : ($correo
+                    ? 'La contraseña es la de ADMIN_PASSWORD en el .env.'
+                    : 'Ya había un administrador activo: no se creó ninguno.'),
+            'siguiente' => 'Entrá al sistema y cargá tus sucursales con sus códigos de Hacienda.',
+        ], fn ($v) => $v !== null));
+    }
+
+    /**
+     * Reconcilia la tabla `migrations` con el esquema que ya existe.
+     *
+     * Laravel decide qué correr comparando NOMBRES DE ARCHIVO contra la tabla
+     * `migrations`; nunca mira el esquema. Cuando quedan archivos de una
+     * instalación anterior —las migraciones por defecto de Laravel 10, que la
+     * 11 consolidó en 0001_01_01_*— aparecen como pendientes y al ejecutarse
+     * chocan con tablas que ya están, y `migrate` no avanza más.
+     *
+     * La reparación registra como aplicadas SOLO las migraciones cuyas tablas
+     * ya existen todas. No borra archivos ni toca datos, y una migración que
+     * de verdad falte queda intacta para correr normalmente.
+     */
+    private function migrateRepair(Request $request): mixed
+    {
+        $aplicadas = collect(DB::table('migrations')->pluck('migration'));
+
+        $pendientes = collect(glob(database_path('migrations/*.php')))
+            ->map(fn ($ruta) => ['archivo' => $ruta, 'nombre' => basename($ruta, '.php')])
+            ->reject(fn ($m) => $aplicadas->contains($m['nombre']))
+            ->values();
+
+        if ($pendientes->isEmpty()) {
+            return response()->json([
+                'reparado' => false,
+                'mensaje'  => 'No hay migraciones pendientes: no hay nada que reconciliar.',
+            ]);
+        }
+
+        $yaSatisfechas = [];
+        $porCorrer = [];
+
+        foreach ($pendientes as $m) {
+            $tablas = $this->tablasQueCrea($m['archivo']);
+
+            // Solo se da por aplicada si crea tablas y TODAS existen ya. Una
+            // migración que altera o que crea algo ausente se deja correr.
+            $satisfecha = $tablas !== [] && collect($tablas)->every(fn ($t) => Schema::hasTable($t));
+
+            if ($satisfecha) {
+                $yaSatisfechas[] = ['migracion' => $m['nombre'], 'tablas' => $tablas];
+            } else {
+                $porCorrer[] = ['migracion' => $m['nombre'], 'tablas' => $tablas];
+            }
+        }
+
+        if (! $request->boolean('confirm')) {
+            return response()->json([
+                'reparado' => false,
+                'se_marcarian_como_aplicadas' => $yaSatisfechas,
+                'se_dejarian_para_correr'     => $porCorrer,
+                'siguiente' => $yaSatisfechas === []
+                    ? 'Ninguna migración pendiente crea tablas que ya existan: corré /__deploy/migrate.'
+                    : 'Revisá la lista y agregá &confirm=1 para registrarlas. No se borra nada.',
+            ], 428);
+        }
+
+        if ($yaSatisfechas !== []) {
+            $lote = (int) DB::table('migrations')->max('batch') + 1;
+
+            DB::table('migrations')->insert(
+                collect($yaSatisfechas)
+                    ->map(fn ($m) => ['migration' => $m['migracion'], 'batch' => $lote])
+                    ->all()
+            );
+        }
+
+        return response()->json([
+            'reparado'  => true,
+            'marcadas'  => collect($yaSatisfechas)->pluck('migracion'),
+            'pendientes_reales' => collect($porCorrer)->pluck('migracion'),
+            'siguiente' => $porCorrer === []
+                ? 'Listo. Verificá con /__deploy/db-status.'
+                : 'Ahora corré /__deploy/migrate para las que sí faltan.',
+        ]);
+    }
+
+    /**
+     * Qué tablas crea una migración, leyendo el archivo.
+     *
+     * Se mira el texto y no se ejecuta nada: ejecutarla para averiguarlo es
+     * justo lo que revienta.
+     *
+     * @return array<int,string>
+     */
+    private function tablasQueCrea(string $archivo): array
+    {
+        $codigo = @file_get_contents($archivo);
+
+        if ($codigo === false) {
+            return [];
+        }
+
+        preg_match_all(
+            '/Schema::(?:connection\([^)]*\)->)?create\(\s*[\'"]([^\'"]+)[\'"]/',
+            $codigo,
+            $coincidencias
+        );
+
+        return array_values(array_unique($coincidencias[1] ?? []));
+    }
+
+    /**
+     * Reconstruye el esquema desde cero. BORRA TODAS LAS TABLAS.
+     *
+     * Existe porque una base con el esquema desalineado no se arregla con
+     * `migrate`, y sin consola no hay otra forma de salir. Pide una
+     * confirmación que no se teclea por accidente, y no siembra datos: eso es
+     * decisión aparte.
+     */
+    private function migrateFresh(Request $request): mixed
+    {
+        if ($request->query('confirm') !== 'BORRAR-TODO') {
+            return response()->json([
+                'error' => 'Esto BORRA TODAS LAS TABLAS y las vuelve a crear vacías. '
+                    . 'Se pierden guías, clientes, cajas y comprobantes. '
+                    . 'Si estás seguro, agregá &confirm=BORRAR-TODO a la dirección.',
+                'antes_de_seguir' => 'Consultá /__deploy/db-status para ver qué hay en la base.',
+            ], 428);
+        }
+
+        Artisan::call('migrate:fresh', ['--force' => true]);
+
+        return response()->json([
+            'accion' => 'migrate-fresh',
+            'aviso'  => 'Esquema reconstruido. La base quedó VACÍA: no hay usuarios. '
+                . 'Creá el primero antes de poder entrar.',
+            'salida' => trim(Artisan::output()),
         ]);
     }
 

@@ -94,10 +94,7 @@
                             <label class="label">Identificación</label>
                             <input type="text" wire:model="receivedByIdentification" inputmode="numeric" class="input mb-2">
 
-                            <label class="label">Firma</label>
-                            <div wire:ignore class="rounded-lg border border-gray-300 dark:border-gray-600 bg-white overflow-hidden">
-                                <canvas id="firma-chofer" class="w-full touch-none" height="150" style="display:block;"></canvas>
-                            </div>
+                            <x-signature-pad model="deliverySignature" :alto="150" />
 
                             <div class="flex gap-2 mt-3">
                                 <x-action-button action="entregar" variant="success" loadingText="Guardando...">
@@ -107,26 +104,6 @@
                             </div>
                         </div>
 
-                        @script
-                        <script>
-                            const c = document.getElementById('firma-chofer');
-                            if (c) {
-                                const ctx = c.getContext('2d');
-                                let trazando = false;
-                                c.width = c.offsetWidth;
-                                ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#111';
-                                const p = e => { const r = c.getBoundingClientRect(), t = e.touches ? e.touches[0] : e;
-                                                 return { x: t.clientX - r.left, y: t.clientY - r.top }; };
-                                ['mousedown','touchstart'].forEach(ev => c.addEventListener(ev, e => {
-                                    e.preventDefault(); trazando = true; const q = p(e); ctx.beginPath(); ctx.moveTo(q.x, q.y); }));
-                                ['mousemove','touchmove'].forEach(ev => c.addEventListener(ev, e => {
-                                    if (!trazando) return; e.preventDefault(); const q = p(e); ctx.lineTo(q.x, q.y); ctx.stroke(); }));
-                                ['mouseup','mouseleave','touchend'].forEach(ev => c.addEventListener(ev, () => {
-                                    if (!trazando) return; trazando = false;
-                                    $wire.set('deliverySignature', c.toDataURL('image/png'), false); }));
-                            }
-                        </script>
-                        @endscript
 
                     {{-- Incidencia --}}
                     @elseif ($incidentInvoiceId === $guia->id)

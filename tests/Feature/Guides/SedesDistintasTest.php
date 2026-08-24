@@ -12,6 +12,7 @@ use App\Models\Tax;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Tests\Concerns\AbreLaCaja;
 use Tests\TestCase;
 
 /**
@@ -23,6 +24,7 @@ use Tests\TestCase;
 class SedesDistintasTest extends TestCase
 {
     use RefreshDatabase;
+    use AbreLaCaja;
 
     private Branch $sj;
     private Branch $lim;
@@ -41,6 +43,9 @@ class SedesDistintasTest extends TestCase
             'name' => 'Admin', 'username' => 'admin', 'email' => 'admin@t.test',
             'password' => bcrypt('x'), 'role' => User::ROLE_ADMIN, 'is_active' => true,
         ]);
+
+        // Cobrar de contado exige caja abierta.
+        $this->abrirCajaDe($this->sj, $this->admin);
     }
 
     private function formularioGuia()
@@ -122,6 +127,9 @@ class SedesDistintasTest extends TestCase
     /** El código guía se arma con los dos prefijos: iguales no distingue nada. */
     public function test_el_codigo_guia_siempre_lleva_dos_prefijos_distintos(): void
     {
+        // Esta guía sale DESDE Limón: la caja que cuenta es la de esa sede.
+        $this->abrirCajaDe($this->lim, $this->admin);
+
         $this->formularioGuia()
             ->set('pickup_branch_id', $this->lim->id)
             ->set('delivery_branch_id', $this->sj->id)

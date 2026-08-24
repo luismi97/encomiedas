@@ -9,11 +9,13 @@ use App\Models\Tax;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Tests\Concerns\AbreLaCaja;
 use Tests\TestCase;
 
 class InvoiceFormTest extends TestCase
 {
     use RefreshDatabase;
+    use AbreLaCaja;
 
     private function admin(): User
     {
@@ -31,6 +33,9 @@ class InvoiceFormTest extends TestCase
         $a = Branch::create(['name' => 'San José', 'sucursal_code' => '001', 'terminal_code' => '00001', 'is_active' => true]);
         $b = Branch::create(['name' => 'Alajuela', 'sucursal_code' => '002', 'terminal_code' => '00001', 'is_active' => true]);
         Tax::create(['name' => 'IVA general', 'percent' => 13, 'hacienda_code' => '08', 'is_default' => true, 'is_active' => true]);
+
+        // Cobrar de contado exige caja abierta en la sede de origen.
+        $this->abrirCajaDe($a, $this->admin());
 
         return [$a, $b];
     }

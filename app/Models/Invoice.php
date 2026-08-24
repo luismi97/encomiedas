@@ -305,6 +305,19 @@ class Invoice extends Model
             ->where('sale_condition', self::SALE_CASH);
     }
 
+    /**
+     * El movimiento de caja donde entró el cobro de esta guía.
+     *
+     * Sirve para poder responder «¿dónde fue a parar esa plata?» desde la guía
+     * misma, sin tener que ir a buscarla en el arqueo de la sede que entregó.
+     */
+    public function movimientoDeCaja(): HasOne
+    {
+        return $this->hasOne(CashMovement::class)
+            ->where('type', CashMovement::TYPE_SALE)
+            ->latestOfMany();
+    }
+
     public function timingLabel(): string
     {
         if ($this->esCredito()) {

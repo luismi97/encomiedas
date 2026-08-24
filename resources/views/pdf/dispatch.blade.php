@@ -31,7 +31,7 @@
     <table class="meta">
         <tr>
             <td><span class="label">Ruta</span>{{ $dispatch->originBranch?->name }}<br>→ {{ $dispatch->destinationBranch?->name }}</td>
-            <td><span class="label">Chofer</span>{{ $dispatch->driver_name ?: '—' }}<br>{{ $dispatch->vehicle_plate ?: '' }}</td>
+            <td><span class="label">Chofer</span>{{ $dispatch->choferLabel() ?: '—' }}<br>{{ $dispatch->vehicle_plate ?: '' }}</td>
             <td><span class="label">Salida</span>{{ $dispatch->departed_at?->format('d/m/Y H:i') ?: 'Sin despachar' }}</td>
             <td><span class="label">Generado</span>{{ now()->format('d/m/Y H:i') }}<br>{{ $dispatch->creator?->name }}</td>
         </tr>
@@ -76,7 +76,7 @@
 
     <table class="firmas">
         <tr>
-            <td>Firma del chofer<br>{{ $dispatch->driver_name ?: '' }}</td>
+            <td>Firma del chofer<br>{{ $dispatch->choferLabel() ?: '' }}</td>
             <td>Recibido en sede destino<br>Nombre, cédula y fecha</td>
         </tr>
     </table>
