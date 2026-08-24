@@ -32,6 +32,9 @@ class QuoteIndex extends Component
     public ?int $origin_branch_id = null;
     public ?int $destination_branch_id = null;
     public ?int $customer_id = null;
+
+    /** Búsqueda de cliente: listar la tabla entera no escala. */
+    public string $customerSearch = '';
     public string $customer_name = '';
     public string $customer_email = '';
     public string $customer_phone = '';
@@ -404,6 +407,24 @@ class QuoteIndex extends Component
         $this->resetErrorBag();
     }
 
+    /** Con tope y desde dos caracteres: la primera tecla traería media tabla. */
+    private function buscarClientes(string $termino)
+    {
+        $termino = trim($termino);
+
+        if (mb_strlen($termino) < 2) {
+            return null;
+        }
+
+        return Customer::active()
+            ->where(fn ($q) => $q
+                ->where('name', 'like', "%{$termino}%")
+                ->orWhere('identification', 'like', "{$termino}%"))
+            ->orderBy('name')
+            ->limit(15)
+            ->get(['id', 'name', 'identification']);
+    }
+
     public function render()
     {
         return view('livewire.quotes.quote-index', [
@@ -411,7 +432,8 @@ class QuoteIndex extends Component
                 ->latest('id')
                 ->paginate(15),
             'branches' => Branch::where('is_active', true)->orderBy('name')->get(['id', 'name', 'prefix']),
-            'clientes' => Customer::active()->orderBy('name')->get(['id', 'name', 'identification']),
+            'clienteElegido' => $this->customer_id ? Customer::find($this->customer_id) : null,
+            'resultadosCliente' => $this->customer_id ? null : $this->buscarClientes($this->customerSearch),
             'tiposDeBulto' => PackageType::active()->get(),
         ])->layout('layouts.app', ['title' => 'Cotizaciones']);
     }

@@ -27,6 +27,14 @@ class InvoiceForm extends Component
 
     /** Cliente registrado. Al elegirlo se precargan sus datos de contacto. */
     public ?int $sender_customer_id = null;
+
+    /*
+     | Búsqueda de clientes. Antes se listaba la tabla entera en dos <select>:
+     | con 5.000 clientes eran 10.000 <option> y 1,2 MB de HTML que Livewire
+     | reenvía en cada interacción.
+     */
+    public string $senderSearch = '';
+    public string $recipientSearch = '';
     public ?int $recipient_customer_id = null;
 
     public string $shipment_type = 'package';
@@ -706,13 +714,39 @@ class InvoiceForm extends Component
         $this->redirect(route('invoices.show', $this->invoice), navigate: false);
     }
 
+    /**
+     * Clientes que coinciden con lo escrito.
+     *
+     * Con tope y a partir de dos caracteres: sin eso, la primera tecla traería
+     * media tabla y el buscador sería tan pesado como el select que reemplaza.
+     */
+    private function buscarClientes(string $termino)
+    {
+        $termino = trim($termino);
+
+        if (mb_strlen($termino) < 2) {
+            return null;
+        }
+
+        return Customer::active()
+            ->where(fn ($q) => $q
+                ->where('name', 'like', "%{$termino}%")
+                ->orWhere('identification', 'like', "{$termino}%"))
+            ->orderBy('name')
+            ->limit(15)
+            ->get(['id', 'name', 'identification']);
+    }
+
     public function render()
     {
         return view('livewire.invoices.invoice-form', [
             'branches' => Branch::where('is_active', true)->orderBy('name')->get(),
             'taxes' => Tax::where('is_active', true)->orderBy('name')->get(),
             'repartidores' => User::where('role', User::ROLE_REPARTIDOR)->where('is_active', true)->orderBy('name')->get(),
-            'clientes' => Customer::active()->orderBy('name')->get(['id', 'name', 'identification']),
+            'remitenteElegido' => $this->sender_customer_id ? Customer::find($this->sender_customer_id) : null,
+            'destinatarioElegido' => $this->recipient_customer_id ? Customer::find($this->recipient_customer_id) : null,
+            'resultadosRemitente' => $this->sender_customer_id ? null : $this->buscarClientes($this->senderSearch),
+            'resultadosDestinatario' => $this->recipient_customer_id ? null : $this->buscarClientes($this->recipientSearch),
             'remitenteEsDeCredito' => $this->sender_customer_id
                 ? (bool) Customer::find($this->sender_customer_id)?->isCredit()
                 : false,

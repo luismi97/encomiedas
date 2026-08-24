@@ -66,10 +66,12 @@ class InvoiceIndex extends Component
         }
 
         if ($this->from) {
-            $query->whereDate('created_at', '>=', $this->from);
+            // Rango sobre la columna cruda: whereDate() la envuelve en DATE()
+            // y anula el índice, obligando a recorrer la tabla entera.
+            $query->where('created_at', '>=', Carbon::parse($this->from)->startOfDay());
         }
         if ($this->to) {
-            $query->whereDate('created_at', '<=', $this->to);
+            $query->where('created_at', '<=', Carbon::parse($this->to)->endOfDay());
         }
         if ($this->status) {
             $query->where('status', $this->status);

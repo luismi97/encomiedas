@@ -30,7 +30,8 @@ class CreditoService
             ->where('sale_condition', Invoice::SALE_CREDIT)
             ->whereNull('credit_statement_id')
             ->whereNotIn('status', [Invoice::STATUS_CANCELLED])
-            ->when($hasta, fn ($q) => $q->whereDate('created_at', '<=', $hasta))
+            // Sobre la columna cruda para que el índice sirva.
+            ->when($hasta, fn ($q) => $q->where('created_at', '<=', Carbon::parse($hasta)->endOfDay()))
             ->orderBy('created_at')
             ->get();
     }

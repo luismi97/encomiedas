@@ -49,14 +49,12 @@
                         @error('destination_branch_id') <p class="error-text">{{ $message }}</p> @enderror
                     </div>
                     <div>
-                        <label class="label">Cliente registrado</label>
-                        <select wire:model.live="customer_id" class="input">
-                            <option value="">Ninguno</option>
-                            @foreach ($clientes as $c)
-                                <option value="{{ $c->id }}">{{ $c->name }}</option>
-                            @endforeach
-                        </select>
-                        <p class="text-xs text-gray-500 mt-1">Opcional: rellena los datos</p>
+                        <x-customer-picker
+                            model="customer_id"
+                            search="customerSearch"
+                            label="Cliente registrado (opcional)"
+                            :elegido="$clienteElegido"
+                            :resultados="$resultadosCliente" />
                     </div>
                     <div>
                         <label class="label">Válida hasta</label>

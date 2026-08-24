@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Carbon;
 use App\Models\CompanySetting;
 use App\Models\Invoice;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -19,10 +20,11 @@ class InvoiceExportController extends Controller
         }
 
         if ($request->filled('from')) {
-            $query->whereDate('created_at', '>=', $request->string('from'));
+            // Rango sobre la columna cruda: whereDate() anula el índice.
+            $query->where('created_at', '>=', Carbon::parse((string) $request->string('from'))->startOfDay());
         }
         if ($request->filled('to')) {
-            $query->whereDate('created_at', '<=', $request->string('to'));
+            $query->where('created_at', '<=', Carbon::parse((string) $request->string('to'))->endOfDay());
         }
         if ($request->filled('status')) {
             $query->where('status', $request->string('status'));

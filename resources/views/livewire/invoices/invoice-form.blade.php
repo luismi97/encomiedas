@@ -41,14 +41,13 @@
         <div class="card space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-lg font-semibold">Remitente</h2>
-                <div class="flex items-center gap-2">
-                    <label class="text-sm text-gray-500 dark:text-gray-400">Cliente registrado</label>
-                    <select wire:model.live="sender_customer_id" class="input !py-1.5 text-sm min-w-[220px]">
-                        <option value="">— De mostrador —</option>
-                        @foreach ($clientes as $cliente)
-                            <option value="{{ $cliente->id }}">{{ $cliente->displayName() }}</option>
-                        @endforeach
-                    </select>
+                <div class="min-w-[280px]">
+                    <x-customer-picker
+                        model="sender_customer_id"
+                        search="senderSearch"
+                        label="Cliente registrado (opcional)"
+                        :elegido="$remitenteElegido"
+                        :resultados="$resultadosRemitente" />
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -62,14 +61,13 @@
         <div class="card space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-lg font-semibold">Receptor</h2>
-                <div class="flex items-center gap-2">
-                    <label class="text-sm text-gray-500 dark:text-gray-400">Cliente registrado</label>
-                    <select wire:model.live="recipient_customer_id" class="input !py-1.5 text-sm min-w-[220px]">
-                        <option value="">— De mostrador —</option>
-                        @foreach ($clientes as $cliente)
-                            <option value="{{ $cliente->id }}">{{ $cliente->displayName() }}</option>
-                        @endforeach
-                    </select>
+                <div class="min-w-[280px]">
+                    <x-customer-picker
+                        model="recipient_customer_id"
+                        search="recipientSearch"
+                        label="Cliente registrado (opcional)"
+                        :elegido="$destinatarioElegido"
+                        :resultados="$resultadosDestinatario" />
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
