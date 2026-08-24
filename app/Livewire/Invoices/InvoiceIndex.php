@@ -19,7 +19,7 @@ class InvoiceIndex extends Component
     public string $from = '';
     public string $to = '';
     public string $status = '';
-    public ?int $branchId = null;
+    public $branchId = null;
     public string $search = '';
 
     public function mount(): void

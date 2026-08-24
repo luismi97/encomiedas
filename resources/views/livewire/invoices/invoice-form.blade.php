@@ -379,7 +379,7 @@
                             <span>₡{{ number_format($this->homeDeliveryFeeAmount, 2) }}</span>
                         </div>
                     @endif
-                    <div class="flex justify-between"><span>Descuento</span><span>-₡{{ number_format($discount_amount, 2) }}</span></div>
+                    <div class="flex justify-between"><span>Descuento</span><span>-₡{{ number_format((float) $discount_amount, 2) }}</span></div>
                     <div class="flex justify-between"><span>Impuestos</span><span>₡{{ number_format($this->taxTotal, 2) }}</span></div>
                     <div class="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-700 pt-2">
                         <span>Total</span><span>₡{{ number_format($this->total, 2) }}</span>

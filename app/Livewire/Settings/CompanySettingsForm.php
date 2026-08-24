@@ -40,7 +40,7 @@ class CompanySettingsForm extends Component
      | clave habilita a un cajero a descontar. Van en configuración porque
      | cambian sin que deba tocarse el código.
      */
-    public ?float $insurance_percent = 7;
+    public $insurance_percent = 7;
     public string $discount_authorization_code = '';
 
     /** @var mixed */

@@ -12,7 +12,7 @@ class ActivityLogIndex extends Component
 {
     use WithPagination;
 
-    public ?int $userId = null;
+    public $userId = null;
     public string $from = '';
     public string $to = '';
 

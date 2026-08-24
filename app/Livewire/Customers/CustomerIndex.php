@@ -18,7 +18,7 @@ class CustomerIndex extends Component
     public string $filterCondition = '';
 
     public bool $showForm = false;
-    public ?int $editingId = null;
+    public $editingId = null;
 
     public string $name = '';
     public string $commercial_name = '';
@@ -28,10 +28,10 @@ class CustomerIndex extends Component
     public string $email = '';
     public string $phone = '';
     public string $address = '';
-    public ?int $branch_id = null;
+    public $branch_id = null;
     public string $payment_condition = Customer::PAYMENT_CASH;
-    public ?float $credit_limit = 0;
-    public ?int $credit_cutoff_day = null;
+    public $credit_limit = 0;
+    public $credit_cutoff_day = null;
     public string $notes = '';
     public bool $is_active = true;
 

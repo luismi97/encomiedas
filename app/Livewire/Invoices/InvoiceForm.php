@@ -22,11 +22,11 @@ class InvoiceForm extends Component
 {
     public ?Invoice $invoice = null;
 
-    public ?int $pickup_branch_id = null;
-    public ?int $delivery_branch_id = null;
+    public $pickup_branch_id = null;
+    public $delivery_branch_id = null;
 
     /** Cliente registrado. Al elegirlo se precargan sus datos de contacto. */
-    public ?int $sender_customer_id = null;
+    public $sender_customer_id = null;
 
     /*
      | Búsqueda de clientes. Antes se listaba la tabla entera en dos <select>:
@@ -35,10 +35,10 @@ class InvoiceForm extends Component
      */
     public string $senderSearch = '';
     public string $recipientSearch = '';
-    public ?int $recipient_customer_id = null;
+    public $recipient_customer_id = null;
 
     public string $shipment_type = 'package';
-    public ?float $declared_value = 0;
+    public $declared_value = 0;
 
     /*
      | Entrega a domicilio: se cobra aparte y necesita dirección exacta, porque
@@ -46,7 +46,7 @@ class InvoiceForm extends Component
      */
     public bool $home_delivery = false;
     public string $delivery_address = '';
-    public ?float $home_delivery_fee = 0;
+    public $home_delivery_fee = 0;
 
     /**
      * Clave que autoriza el descuento.
@@ -81,7 +81,7 @@ class InvoiceForm extends Component
     public string $recipient_email = '';
 
     public string $notes = '';
-    public ?float $discount_amount = 0;
+    public $discount_amount = 0;
     public string $payment_method = 'cash';
 
     /*
@@ -109,7 +109,7 @@ class InvoiceForm extends Component
      * elección explícita: deducirla de si venía la cédula emitía FE sin querer.
      */
     public bool $wantsInvoice = false;
-    public ?int $assigned_to = null;
+    public $assigned_to = null;
 
     /** @var array<int,array<string,mixed>> */
     public array $items = [];

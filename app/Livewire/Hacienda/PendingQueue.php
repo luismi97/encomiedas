@@ -18,7 +18,7 @@ class PendingQueue extends Component
     public string $tab = 'pending'; // pending|sent|rejected
 
     /** Comprobante cuyo detalle de rechazo se esta mostrando. */
-    public ?int $rejectionId = null;
+    public $rejectionId = null;
 
     public function updatedSelectAll(bool $value): void
     {

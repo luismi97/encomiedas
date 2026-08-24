@@ -19,15 +19,15 @@ class DispatchIndex extends Component
     public string $filterStatus = '';
 
     public bool $showForm = false;
-    public ?int $origin_branch_id = null;
-    public ?int $destination_branch_id = null;
+    public $origin_branch_id = null;
+    public $destination_branch_id = null;
     public string $driver_name = '';
-    public ?int $driver_user_id = null;
+    public $driver_user_id = null;
     public string $vehicle_plate = '';
     public string $notes = '';
 
     /** Manifiesto abierto en el panel de detalle. */
-    public ?int $openId = null;
+    public $openId = null;
     public string $scanCode = '';
 
     public ?string $feedback = null;

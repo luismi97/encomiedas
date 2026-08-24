@@ -13,25 +13,25 @@ use Livewire\Component;
 class RateIndex extends Component
 {
     public bool $showForm = false;
-    public ?int $editingId = null;
+    public $editingId = null;
 
     public string $name = '';
-    public ?int $origin_branch_id = null;
-    public ?int $destination_branch_id = null;
+    public $origin_branch_id = null;
+    public $destination_branch_id = null;
     public string $shipment_type = '';
-    public ?float $min_weight = 0;
-    public ?float $max_weight = null;
-    public ?float $price = 0;
-    public ?float $price_per_extra_kg = 0;
+    public $min_weight = 0;
+    public $max_weight = null;
+    public $price = 0;
+    public $price_per_extra_kg = 0;
     public bool $is_active = true;
 
     /** Cotizador: sirve para verificar qué tarifa gana antes de guardar. */
-    public ?int $probe_origin = null;
-    public ?int $probe_destination = null;
-    public ?float $probe_weight = 1;
-    public ?float $probe_length = null;
-    public ?float $probe_width = null;
-    public ?float $probe_height = null;
+    public $probe_origin = null;
+    public $probe_destination = null;
+    public $probe_weight = 1;
+    public $probe_length = null;
+    public $probe_width = null;
+    public $probe_height = null;
     public array $probeResult = [];
 
     public ?string $feedback = null;

@@ -8,10 +8,10 @@ use Livewire\Component;
 class TaxIndex extends Component
 {
     public bool $showForm = false;
-    public ?int $editingId = null;
+    public $editingId = null;
 
     public string $name = '';
-    public ?float $percent = 13.0;
+    public $percent = 13.0;
     public string $hacienda_code = '08';
     public bool $is_default = false;
     public bool $is_active = true;

@@ -23,7 +23,7 @@ class ReportePanel extends Component
     public string $reporte = 'estados';
     public string $from = '';
     public string $to = '';
-    public ?int $branchId = null;
+    public $branchId = null;
 
     public const REPORTES = [
         'estados'    => 'Guías por estado',

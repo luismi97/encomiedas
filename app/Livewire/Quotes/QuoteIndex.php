@@ -27,11 +27,11 @@ class QuoteIndex extends Component
     use WithPagination;
 
     public bool $showForm = false;
-    public ?int $editingId = null;
+    public $editingId = null;
 
-    public ?int $origin_branch_id = null;
-    public ?int $destination_branch_id = null;
-    public ?int $customer_id = null;
+    public $origin_branch_id = null;
+    public $destination_branch_id = null;
+    public $customer_id = null;
 
     /** Búsqueda de cliente: listar la tabla entera no escala. */
     public string $customerSearch = '';
@@ -48,7 +48,7 @@ class QuoteIndex extends Component
     public array $preciosSugeridos = [];
 
     /** Correo al que se envía, cuando se pide enviar una proforma. */
-    public ?int $enviandoId = null;
+    public $enviandoId = null;
     public string $enviarA = '';
 
     public ?string $feedback = null;

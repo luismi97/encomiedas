@@ -12,14 +12,14 @@ use Livewire\Component;
 class UserIndex extends Component
 {
     public bool $showForm = false;
-    public ?int $editingId = null;
+    public $editingId = null;
 
     public string $name = '';
     public string $username = '';
     public string $email = '';
     public string $password = '';
     public string $role = 'repartidor';
-    public ?int $branch_id = null;
+    public $branch_id = null;
     public string $phone = '';
     public bool $is_active = true;
 

@@ -19,19 +19,19 @@ use RuntimeException;
  */
 class ChoferPanel extends Component
 {
-    public ?int $dispatchId = null;
+    public $dispatchId = null;
 
     /** Lo que escribe el lector de QR. */
     public string $scanCode = '';
 
     /** Entrega */
-    public ?int $deliveringId = null;
+    public $deliveringId = null;
     public string $receivedByName = '';
     public string $receivedByIdentification = '';
     public string $deliverySignature = '';
 
     /** Incidencia */
-    public ?int $incidentInvoiceId = null;
+    public $incidentInvoiceId = null;
     public string $incidentType = GuideIncident::TYPE_ABSENT;
     public string $incidentDescription = '';
 

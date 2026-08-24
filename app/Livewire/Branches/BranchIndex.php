@@ -14,7 +14,7 @@ class BranchIndex extends Component
     use WithPagination;
 
     public bool $showForm = false;
-    public ?int $editingId = null;
+    public $editingId = null;
 
     public string $name = '';
     public string $prefix = '';
@@ -25,7 +25,7 @@ class BranchIndex extends Component
     public string $canton = '';
     public string $district = '';
     public string $phone = '';
-    public ?int $receipt_paper_width = 80;
+    public $receipt_paper_width = 80;
 
     /** business_hours como arreglo editable: [dia => ['abre'=>..,'cierra'=>..]] */
     public array $business_hours = [];

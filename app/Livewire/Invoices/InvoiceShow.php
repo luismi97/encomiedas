@@ -18,7 +18,7 @@ class InvoiceShow extends Component
     public bool $showNoteForm = false;
     public string $noteType = 'NC';
     public string $noteReason = '';
-    public ?float $noteAmount = null;
+    public $noteAmount = null;
 
     public function mount(Invoice $invoice): void
     {

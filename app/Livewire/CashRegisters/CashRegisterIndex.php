@@ -19,9 +19,9 @@ use Livewire\Component;
 class CashRegisterIndex extends Component
 {
     public bool $showForm = false;
-    public ?int $editingId = null;
+    public $editingId = null;
 
-    public ?int $branch_id = null;
+    public $branch_id = null;
     public string $name = '';
     public bool $is_active = true;
 

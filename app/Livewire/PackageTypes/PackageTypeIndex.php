@@ -17,11 +17,11 @@ use Livewire\Component;
 class PackageTypeIndex extends Component
 {
     public bool $showForm = false;
-    public ?int $editingId = null;
+    public $editingId = null;
 
     public string $name = '';
     public bool $is_fragile = false;
-    public ?int $sort_order = 0;
+    public $sort_order = 0;
     public bool $is_active = true;
 
     public ?string $feedback = null;

@@ -10,16 +10,16 @@ use RuntimeException;
 
 class CreditoPanel extends Component
 {
-    public ?int $customerId = null;
+    public $customerId = null;
 
     /** Corte */
-    public ?int $creditTermDays = 30;
+    public $creditTermDays = 30;
 
     /** Abono */
-    public ?float $paymentAmount = 0;
+    public $paymentAmount = 0;
     public string $paymentMethod = 'cash';
     public string $paymentReference = '';
-    public ?int $paymentStatementId = null;
+    public $paymentStatementId = null;
 
     public ?string $feedback = null;
     public string $feedbackType = 'success';
