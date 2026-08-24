@@ -132,7 +132,7 @@ class TipoDeBultoTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('invoices.etiqueta', Invoice::firstOrFail()))
             ->assertOk()
-            ->assertSee('CAJA');
+            ->assertSee('Caja');
     }
 
     /** strtoupper() va por bytes: «Electrodoméstico» salía como ELECTRODOMéSTICO. */
@@ -142,8 +142,14 @@ class TipoDeBultoTest extends TestCase
 
         $this->formulario()->set('items.0.package_type_id', $tipo->id)->call('save');
 
+        // En el tiquete consolidado el tipo va tal cual; la versión por bulto
+        // lo pone en mayúsculas, que es donde strtoupper rompía la tilde.
         $this->actingAs($this->admin)
             ->get(route('invoices.etiqueta', Invoice::firstOrFail()))
+            ->assertSee('Electrodoméstico grande');
+
+        $this->actingAs($this->admin)
+            ->get(route('invoices.etiqueta', Invoice::firstOrFail()) . '?porBulto=1')
             ->assertSee('ELECTRODOMÉSTICO GRANDE')
             ->assertDontSee('ELECTRODOMéSTICO');
     }

@@ -61,6 +61,22 @@
 
     .frag { border: 2px solid #000; padding: 1mm; margin-top: 1.5mm; font-weight: bold; }
 
+    /* Una línea por bulto. Tabla y no flex: DomPDF ignora flexbox y en algunos
+       flujos esta vista también se renderiza a PDF. */
+    .bultos { width: 100%; border-collapse: collapse; margin-top: 1.5mm; }
+    .bultos td { padding: 0.6mm 0; vertical-align: top; border-bottom: 1px dotted #999; }
+    .bultos tr:last-child td { border-bottom: none; }
+    .bultos .n { width: 5mm; font-weight: bold; }
+    .bultos .der { text-align: right; white-space: nowrap; }
+
+    .domicilio {
+        border: 2px solid #000;
+        padding: 1mm;
+        margin-top: 1.5mm;
+        font-weight: bold;
+        font-size: {{ $ancho >= 80 ? '14px' : '12px' }};
+    }
+
     /* Invertido: en térmica el negro sólido es lo único que se ve de lejos. */
     .cobrar {
         background: #000;
@@ -87,7 +103,17 @@
 </head>
 <body onload="window.print()">
 
-@foreach ($bultos as $indice => $bulto)
+{{-- Un solo tiquete con los bultos como líneas.
+
+     Antes se repetía la etiqueta entera por bulto —encabezado, destino, código
+     de barras, remitente, todo— y una guía de cinco paquetes salía en metro y
+     medio de papel. Lo que cambia entre bultos es una línea; el resto es igual.
+
+     Con ?porBulto=1 se vuelve a una etiqueta por paquete, para cuando de verdad
+     hace falta pegarle una a cada caja. --}}
+@php $porBulto = request()->boolean('porBulto'); @endphp
+
+@foreach ($porBulto ? $bultos : [null] as $indice => $soloEste)
     <div class="corte">
         <div class="centro etiqueta">{{ $empresa->commercial_name ?: $empresa->name }}</div>
 
@@ -97,28 +123,53 @@
             <div class="etiqueta">Destino</div>
             <div class="ruta">{{ $guia->deliveryBranch?->prefix }}</div>
             <div class="destino-sede">{{ $guia->deliveryBranch?->name }}</div>
+            @if ($guia->esADomicilio())
+                <div class="domicilio">A DOMICILIO</div>
+                <div style="font-size: {{ $ancho >= 80 ? '11px' : '10px' }}">{{ $guia->delivery_address }}</div>
+            @endif
         </div>
 
         <div class="regla"></div>
 
-        {{-- El código de barras es el motivo de esta etiqueta: se escanea en
+        {{-- El código de barras es el motivo del tiquete: se escanea en
              recepción, en el despacho y en la entrega. --}}
         <div class="centro barras">{!! $barras !!}</div>
         <div class="centro codigo">{{ $guia->code }}</div>
 
         <div class="regla"></div>
 
-        <div class="centro bulto">
-            BULTO {{ $indice + 1 }} DE {{ count($bultos) }}
-            @if ($bulto?->packageType)
-                <div style="font-size: {{ $ancho >= 80 ? '13px' : '11px' }}">
-                    {{ mb_strtoupper($bulto->packageType->name, "UTF-8") }}
-                </div>
-            @endif
-        </div>
+        @if ($porBulto)
+            <div class="centro bulto">
+                BULTO {{ $indice + 1 }} DE {{ count($bultos) }}
+                @if ($soloEste?->packageType)
+                    <div style="font-size: {{ $ancho >= 80 ? '13px' : '11px' }}">
+                        {{ mb_strtoupper($soloEste->packageType->name, 'UTF-8') }}
+                    </div>
+                @endif
+            </div>
+        @else
+            <div class="centro bulto">
+                {{ count($bultos) }} {{ count($bultos) === 1 ? 'BULTO' : 'BULTOS' }}
+            </div>
+
+            {{-- Una línea por paquete: es lo único que cambia entre ellos. --}}
+            <table class="bultos">
+                @foreach ($bultos as $i => $b)
+                    <tr>
+                        <td class="n">{{ $i + 1 }}</td>
+                        <td>
+                            {{ $b?->nombreDelBulto() ?? 'Bulto' }}
+                            @if ($b?->description) · {{ $b->description }} @endif
+                            @if ($b?->esFragil()) <strong>· FRÁGIL</strong> @endif
+                        </td>
+                        <td class="der">{{ $b?->weight ? number_format((float) $b->weight, 2) . ' kg' : '' }}</td>
+                    </tr>
+                @endforeach
+            </table>
+        @endif
 
         {{-- Lo primero que tiene que ver quien entrega: si no cobra, la plata
-             se pierde. Va sobre el aviso de frágil a propósito. --}}
+             se pierde. --}}
         @if ($guia->tieneCobroPendiente())
             <div class="centro cobrar">
                 POR COBRAR
@@ -128,12 +179,12 @@
             </div>
         @endif
 
-        {{-- El aviso va grande y con marco: la etiqueta la lee quien carga el
-             camión, no quien digitó la guía. --}}
-        @if ($bulto?->esFragil())
-            <div class="centro frag">
-                FRÁGIL · MANEJAR CON CUIDADO
-            </div>
+        @php
+            $hayFragil = $porBulto ? $soloEste?->esFragil() : collect($bultos)->contains(fn ($b) => $b?->esFragil());
+        @endphp
+
+        @if ($hayFragil)
+            <div class="centro frag">FRÁGIL · MANEJAR CON CUIDADO</div>
         @endif
 
         <div class="regla"></div>
@@ -154,13 +205,13 @@
         <div class="etiqueta" style="margin-top:1mm">Origen</div>
         <div>{{ $guia->pickupBranch?->prefixLabel() }} · {{ $guia->pickupBranch?->name }}</div>
 
-        @if ($bulto?->weight || $bulto?->description)
+        @if ($porBulto && ($soloEste?->weight || $soloEste?->description))
             <div class="regla"></div>
-            @if ($bulto->weight)
-                <div><span class="etiqueta">Peso</span> {{ number_format((float) $bulto->weight, 2) }} kg</div>
+            @if ($soloEste->weight)
+                <div><span class="etiqueta">Peso</span> {{ number_format((float) $soloEste->weight, 2) }} kg</div>
             @endif
-            @if ($bulto->description)
-                <div><span class="etiqueta">Contenido</span> {{ $bulto->description }}</div>
+            @if ($soloEste->description)
+                <div><span class="etiqueta">Contenido</span> {{ $soloEste->description }}</div>
             @endif
         @endif
 

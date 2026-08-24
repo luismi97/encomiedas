@@ -35,6 +35,14 @@ class CompanySettingsForm extends Component
     public string $certificate_pin = '';
     public string $default_cabys_code = '';
 
+    /*
+     | Política comercial: cuánto se cobra por asegurar el valor declarado y qué
+     | clave habilita a un cajero a descontar. Van en configuración porque
+     | cambian sin que deba tocarse el código.
+     */
+    public float $insurance_percent = 7;
+    public string $discount_authorization_code = '';
+
     /** @var mixed */
     public $certificate;
 
@@ -87,6 +95,8 @@ class CompanySettingsForm extends Component
         $this->email = (string) $settings->email;
         $this->atv_username = (string) $settings->atv_username;
         $this->default_cabys_code = (string) $settings->default_cabys_code;
+        $this->insurance_percent = (float) $settings->porcentajeDeSeguro();
+        // La clave no se precarga: se muestra si ya hay una, no cuál es.
         $this->hasCertificate = filled($settings->certificate_path);
         $this->unreadableFields = $settings->undecryptableFields();
         $this->loadBranches();
@@ -130,6 +140,8 @@ class CompanySettingsForm extends Component
             'certificate' => 'nullable|file|max:2048',
             'certificate_pin' => 'nullable|string|max:50',
             'default_cabys_code' => 'nullable|string|max:13',
+            'insurance_percent' => 'required|numeric|min:0|max:100',
+            'discount_authorization_code' => 'nullable|string|min:4|max:60',
             'branches.*.sucursal_code' => ['required', 'regex:/^\d{3}$/'],
             'branches.*.terminal_code' => ['required', 'regex:/^\d{5}$/'],
         ];
@@ -245,7 +257,14 @@ class CompanySettingsForm extends Component
             'phone' => $data['phone'],
             'email' => $data['email'],
             'default_cabys_code' => $data['default_cabys_code'],
+            'insurance_percent' => $data['insurance_percent'],
         ]);
+
+        // Solo se reescribe si se digitó algo: dejarla en blanco no debe
+        // borrar la clave que ya estaba.
+        if (filled($this->discount_authorization_code)) {
+            $settings->discount_authorization_code = $this->discount_authorization_code;
+        }
 
         if (filled($this->atv_username)) {
             $settings->atv_username = $this->atv_username;
@@ -329,7 +348,9 @@ class CompanySettingsForm extends Component
 
     public function render()
     {
-        return view('livewire.settings.company-settings-form')
-            ->layout('layouts.app', ['title' => 'Configuración de la empresa']);
+        return view('livewire.settings.company-settings-form', [
+            // Se dice SI hay clave configurada, nunca cuál es.
+            'hasDiscountCode' => CompanySetting::instance()->exigeClaveParaDescuento(),
+        ])->layout('layouts.app', ['title' => 'Configuración de la empresa']);
     }
 }

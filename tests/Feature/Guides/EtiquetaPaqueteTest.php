@@ -99,17 +99,50 @@ class EtiquetaPaqueteTest extends TestCase
         $this->assertStringNotContainsString('Total', $html);
     }
 
-    /** Tres paquetes se separan en bodega: cada uno necesita su etiqueta. */
-    public function test_sale_una_etiqueta_por_bulto(): void
+    /**
+     * Varios bultos van en UN tiquete, como líneas.
+     *
+     * Repetir la etiqueta entera por bulto —encabezado, destino, código de
+     * barras, remitente— hacía que una guía de cinco paquetes saliera en metro
+     * y medio de papel.
+     */
+    public function test_varios_bultos_van_en_un_solo_tiquete(): void
     {
         $guia = $this->guia(bultos: 3);
 
         $html = $this->actingAs($this->admin)->get(route('invoices.etiqueta', $guia))->getContent();
 
-        $this->assertSame(3, substr_count($html, 'BULTO'));
+        $this->assertSame(1, substr_count($html, '<svg'), 'Un solo código de barras.');
+        $this->assertStringContainsString('3 BULTOS', $html);
+
+        // Y cada bulto con su línea.
+        foreach (['Caja 1', 'Caja 2', 'Caja 3'] as $descripcion) {
+            $this->assertStringContainsString($descripcion, $html);
+        }
+    }
+
+    public function test_un_solo_bulto_se_dice_en_singular(): void
+    {
+        $guia = $this->guia(bultos: 1);
+
+        $this->actingAs($this->admin)
+            ->get(route('invoices.etiqueta', $guia))
+            ->assertSee('1 BULTO')
+            ->assertDontSee('BULTOS');
+    }
+
+    /** Cuando sí hace falta pegar una a cada caja, sigue disponible. */
+    public function test_se_puede_pedir_una_etiqueta_por_bulto(): void
+    {
+        $guia = $this->guia(bultos: 3);
+
+        $html = $this->actingAs($this->admin)
+            ->get(route('invoices.etiqueta', $guia) . '?porBulto=1')
+            ->getContent();
+
+        $this->assertSame(3, substr_count($html, '<svg'));
         $this->assertStringContainsString('BULTO 1 DE 3', $html);
         $this->assertStringContainsString('BULTO 3 DE 3', $html);
-        $this->assertSame(3, substr_count($html, '<svg'), 'Cada bulto lleva su código de barras.');
     }
 
     public function test_una_guia_sin_renglones_igual_imprime_una_etiqueta(): void
@@ -125,7 +158,7 @@ class EtiquetaPaqueteTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('invoices.etiqueta', $guia))
             ->assertOk()
-            ->assertSee('BULTO 1 DE 1');
+            ->assertSee('1 BULTO');
     }
 
     /** El ancho sale de la sede que imprime, igual que el recibo. */

@@ -48,12 +48,16 @@
                 </a>
             @endif
 
+            {{-- Los cierres los ve también el despachador, que no opera caja. --}}
+            @if (auth()->user()->puedeDespachar())
+                <a href="{{ route('dispatches.index') }}" class="nav-link {{ request()->routeIs('dispatches.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="truck" /> <span>Cierres de envío</span>
+                </a>
+            @endif
+
             @if (auth()->user()->puedeOperarCaja())
                 <a href="{{ route('caja.index') }}" class="nav-link {{ request()->routeIs('caja.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="banknotes" /> <span>Caja</span>
-                </a>
-                <a href="{{ route('dispatches.index') }}" class="nav-link {{ request()->routeIs('dispatches.*') ? 'nav-link-active' : '' }}">
-                    <x-icon name="truck" /> <span>Cierres de envío</span>
                 </a>
                 <a href="{{ route('quotes.index') }}" class="nav-link {{ request()->routeIs('quotes.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="clipboard-list" /> <span>Cotizaciones</span>

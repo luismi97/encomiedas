@@ -28,6 +28,8 @@ class CompanySetting extends Model
         'certificate_path',
         'certificate_pin',
         'default_cabys_code',
+        'insurance_percent',
+        'discount_authorization_code',
     ];
 
     protected function casts(): array
@@ -37,6 +39,8 @@ class CompanySetting extends Model
             'atv_username' => 'encrypted',
             'atv_password' => 'encrypted',
             'certificate_pin' => 'encrypted',
+            'discount_authorization_code' => 'encrypted',
+            'insurance_percent' => 'decimal:2',
         ];
     }
 
@@ -113,6 +117,40 @@ class CompanySetting extends Model
     }
 
     /** ¿Hay lo mínimo para firmar y transmitir un comprobante? */
+    /**
+     * Porcentaje del valor declarado que se cobra como seguro.
+     *
+     * Vive en configuración y no como constante: es una política comercial que
+     * cambia, y tocarla no debería requerir un despliegue.
+     */
+    public function porcentajeDeSeguro(): float
+    {
+        return max(0.0, (float) ($this->insurance_percent ?? 0));
+    }
+
+    /** ¿Hace falta una clave para que un cajero descuente? */
+    public function exigeClaveParaDescuento(): bool
+    {
+        return filled($this->decryptedOrNull('discount_authorization_code'));
+    }
+
+    /**
+     * Comprueba la clave de autorización de descuentos.
+     *
+     * hash_equals y no ==: comparar cadenas de largo variable filtra el tamaño
+     * de la clave por el tiempo de respuesta.
+     */
+    public function claveDeDescuentoValida(?string $clave): bool
+    {
+        $esperada = (string) $this->decryptedOrNull('discount_authorization_code');
+
+        if ($esperada === '') {
+            return true; // sin clave configurada, no se exige nada
+        }
+
+        return is_string($clave) && $clave !== '' && hash_equals($esperada, $clave);
+    }
+
     public function isReady(): bool
     {
         return $this->faltantesParaFacturar() === [];

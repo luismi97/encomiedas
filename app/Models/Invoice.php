@@ -145,6 +145,11 @@ class Invoice extends Model
         'recipient_customer_id',
         'shipment_type',
         'declared_value',
+        'insurance_fee',
+        'home_delivery',
+        'delivery_address',
+        'home_delivery_fee',
+        'discount_authorized_by',
         'arrived_at',
         'disposal_warned_at',
         'disposed_at',
@@ -198,6 +203,9 @@ class Invoice extends Model
             'cancelled_at' => 'datetime',
             'collected_at' => 'datetime',
             'declared_value' => 'decimal:2',
+            'insurance_fee' => 'decimal:2',
+            'home_delivery_fee' => 'decimal:2',
+            'home_delivery' => 'boolean',
         ];
     }
 
@@ -316,6 +324,44 @@ class Invoice extends Model
         return $this->hasOne(CashMovement::class)
             ->where('type', CashMovement::TYPE_SALE)
             ->latestOfMany();
+    }
+
+    /** Quién autorizó el descuento, cuando lo hubo. */
+    public function discountAuthorizer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'discount_authorized_by');
+    }
+
+    /**
+     * Cargo por asegurar la mercancía declarada.
+     *
+     * Se calcula sobre el valor que declara el cliente, con el porcentaje que
+     * fije la empresa. Se guarda ya calculado en la guía y no se recalcula al
+     * leerla: si mañana cambia el porcentaje, las guías viejas tienen que
+     * seguir diciendo lo que se cobró.
+     */
+    public static function calcularSeguro(float $valorDeclarado, ?float $porcentaje = null): float
+    {
+        $porcentaje ??= CompanySetting::instance()->porcentajeDeSeguro();
+
+        if ($valorDeclarado <= 0 || $porcentaje <= 0) {
+            return 0.0;
+        }
+
+        return round($valorDeclarado * $porcentaje / 100, 2);
+    }
+
+    public function esADomicilio(): bool
+    {
+        return (bool) $this->home_delivery;
+    }
+
+    /** Dónde se entrega: la dirección del cliente o la sucursal de destino. */
+    public function destinoLabel(): string
+    {
+        return $this->esADomicilio() && $this->delivery_address
+            ? $this->delivery_address
+            : ($this->deliveryBranch?->name ?? '—');
     }
 
     public function timingLabel(): string

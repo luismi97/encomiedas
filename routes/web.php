@@ -90,8 +90,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/caja', CajaPanel::class)->name('caja.index');
         Route::get('/caja/{session}/pdf', [InvoiceExportController::class, 'cashSessionPdf'])->name('caja.pdf');
 
-        Route::get('/dispatches', DispatchIndex::class)->name('dispatches.index');
-        Route::get('/dispatches/{dispatch}/pdf', [InvoiceExportController::class, 'dispatchPdf'])->name('dispatches.pdf');
 
         Route::get('/cotizaciones', QuoteIndex::class)->name('quotes.index');
         Route::get('/cotizaciones/{quote}/pdf', [InvoiceExportController::class, 'quotePdf'])->name('quotes.pdf');
@@ -100,6 +98,15 @@ Route::middleware('auth')->group(function () {
         Route::get('/credito', CreditoPanel::class)->name('credito.index');
         Route::get('/reportes', ReportePanel::class)->name('reportes.index');
         Route::get('/credito/{statement}/pdf', [InvoiceExportController::class, 'creditStatementPdf'])->name('credito.pdf');
+    });
+
+    /*
+     | Cierres de envío. El despachador entra SOLO acá: arma el camión, lo
+     | despacha y recibe lo que llega. No cobra ni crea guías.
+     */
+    Route::middleware('role:admin,cajero,despachador')->group(function () {
+        Route::get('/dispatches', DispatchIndex::class)->name('dispatches.index');
+        Route::get('/dispatches/{dispatch}/pdf', [InvoiceExportController::class, 'dispatchPdf'])->name('dispatches.pdf');
     });
 
     /*

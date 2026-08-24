@@ -33,6 +33,27 @@
                 </div>
                 <div><label class="label">Número de identificación</label><input type="text" wire:model="identification_number" class="input"></div>
                 <div><label class="label">Código de actividad económica</label><input type="text" wire:model="activity_code" class="input" placeholder="6120.0"></div>
+                <div>
+                    <label class="label">Seguro sobre el valor declarado (%)</label>
+                    <input type="number" step="0.01" min="0" max="100" wire:model="insurance_percent"
+                           class="input @error('insurance_percent') input-error @enderror">
+                    @error('insurance_percent') <p class="error-text">{{ $message }}</p> @enderror
+                    <p class="text-xs text-gray-500 mt-1">
+                        Se suma al cobro de toda guía con valor declarado.
+                    </p>
+                </div>
+
+                <div>
+                    <label class="label">Clave para autorizar descuentos</label>
+                    <input type="password" wire:model="discount_authorization_code" autocomplete="new-password"
+                           placeholder="{{ $hasDiscountCode ?? false ? 'Configurada — escribí para cambiarla' : 'Sin clave: cualquiera puede descontar' }}"
+                           class="input @error('discount_authorization_code') input-error @enderror">
+                    @error('discount_authorization_code') <p class="error-text">{{ $message }}</p> @enderror
+                    <p class="text-xs text-gray-500 mt-1">
+                        Sin clave, cualquier cajero puede aplicar descuentos.
+                    </p>
+                </div>
+
                 <div class="sm:col-span-2">
                     <label class="label">Código CABYS por defecto (servicio de encomienda)</label>
                     <input type="text" wire:model="default_cabys_code" maxlength="13" inputmode="numeric" class="input">

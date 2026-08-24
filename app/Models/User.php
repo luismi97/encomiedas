@@ -16,11 +16,13 @@ class User extends Authenticatable
     public const ROLE_ADMIN = 'admin';
     public const ROLE_CAJERO = 'cajero';
     public const ROLE_REPARTIDOR = 'repartidor';
+    public const ROLE_DESPACHADOR = 'despachador';
 
     public const ROLES = [
         self::ROLE_ADMIN      => 'Administrador',
         self::ROLE_CAJERO     => 'Cajero',
         self::ROLE_REPARTIDOR => 'Repartidor',
+        self::ROLE_DESPACHADOR => 'Despachador',
     ];
 
     /** Un color por rol. Con un condicional binario, todo lo que no era admin salía como repartidor. */
@@ -28,6 +30,7 @@ class User extends Authenticatable
         self::ROLE_ADMIN      => 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
         self::ROLE_CAJERO     => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
         self::ROLE_REPARTIDOR => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
+        self::ROLE_DESPACHADOR => 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
     ];
 
     /**
@@ -36,7 +39,7 @@ class User extends Authenticatable
      * Un cajero opera la caja de SU sede: sin sede asignada no habría contra
      * cuál validar, y terminaría viendo la caja de cualquiera.
      */
-    public const ROLES_CON_SEDE = [self::ROLE_CAJERO];
+    public const ROLES_CON_SEDE = [self::ROLE_CAJERO, self::ROLE_DESPACHADOR];
 
     /**
      * The attributes that are mass assignable.
@@ -114,7 +117,7 @@ class User extends Authenticatable
     /** Un cajero solo ve lo de su sede; el administrador ve todo. */
     public function limitadoASuSede(): bool
     {
-        return $this->isCajero();
+        return $this->isCajero() || $this->isDespachador();
     }
 
     public function isAdmin(): bool
@@ -130,5 +133,21 @@ class User extends Authenticatable
     public function isRepartidor(): bool
     {
         return $this->role === self::ROLE_REPARTIDOR;
+    }
+
+    public function isDespachador(): bool
+    {
+        return $this->role === self::ROLE_DESPACHADOR;
+    }
+
+    /**
+     * Arma y despacha cierres de envío, y recibe los que llegan.
+     *
+     * Es todo lo que hace: no cobra, no crea guías y no toca la configuración.
+     * El rol existe para la persona de bodega que carga el camión.
+     */
+    public function puedeDespachar(): bool
+    {
+        return $this->isAdmin() || $this->isCajero() || $this->isDespachador();
     }
 }

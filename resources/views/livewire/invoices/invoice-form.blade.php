@@ -128,9 +128,51 @@
                 </div>
                 <div>
                     <label class="label">Valor declarado (₡)</label>
-                    <input type="number" step="0.01" wire:model="declared_value" class="input">
-                    <p class="text-xs text-gray-500 mt-1">Para efectos de seguro; no entra en el cobro.</p>
+                    <input type="number" step="0.01" wire:model.live="declared_value" class="input">
+                    @if ($this->insuranceFee > 0)
+                        <p class="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                            Seguro del {{ rtrim(rtrim(number_format($empresa->porcentajeDeSeguro(), 2), '0'), '.') }}%:
+                            <strong>₡{{ number_format($this->insuranceFee, 2) }}</strong> se suman al cobro.
+                        </p>
+                    @else
+                        <p class="text-xs text-gray-500 mt-1">
+                            Se cobra un {{ rtrim(rtrim(number_format($empresa->porcentajeDeSeguro(), 2), '0'), '.') }}%
+                            de este valor como seguro.
+                        </p>
+                    @endif
                 </div>
+            </div>
+
+            {{-- Entrega a domicilio: el destino deja de ser una sucursal donde el
+                 cliente pasa a retirar, así que hace falta dirección y un cargo. --}}
+            <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                <label class="inline-flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" wire:model.live="home_delivery" class="checkbox mt-0.5">
+                    <span>
+                        <span class="font-medium">Entrega a domicilio</span>
+                        <span class="block text-xs text-gray-500 dark:text-gray-400">
+                            En vez de que el destinatario la retire en la sucursal de destino.
+                        </span>
+                    </span>
+                </label>
+
+                @if ($home_delivery)
+                    <div class="grid gap-4 sm:grid-cols-3 mt-4">
+                        <div class="sm:col-span-2">
+                            <label class="label">Dirección exacta</label>
+                            <input type="text" wire:model="delivery_address"
+                                   placeholder="Provincia, cantón, distrito y señas exactas"
+                                   class="input @error('delivery_address') input-error @enderror">
+                            @error('delivery_address') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="label">Cargo por domicilio (₡)</label>
+                            <input type="number" step="0.01" wire:model.live="home_delivery_fee"
+                                   class="input @error('home_delivery_fee') input-error @enderror">
+                            @error('home_delivery_fee') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                @endif
             </div>
 
             <div class="flex items-center justify-between">
@@ -295,6 +337,20 @@
                 <div>
                     <label class="label">Descuento (₡)</label>
                     <input type="number" step="0.01" wire:model.live="discount_amount" class="input">
+
+                    {{-- La clave solo aparece cuando de verdad hace falta: si no
+                         hay descuento, pedirla sería ruido. --}}
+                    @if ((float) $discount_amount > 0 && $empresa->exigeClaveParaDescuento())
+                        <div class="mt-2">
+                            <label class="label">Clave de autorización</label>
+                            <input type="password" wire:model="discountCode" autocomplete="off"
+                                   class="input @error('discountCode') input-error @enderror">
+                            @error('discountCode') <p class="error-text">{{ $message }}</p> @enderror
+                            <p class="text-xs text-gray-500 mt-1">
+                                Queda registrado que vos autorizaste este descuento.
+                            </p>
+                        </div>
+                    @endif
                 </div>
                 <div>
                     <label class="label">Medio de pago</label>
@@ -312,7 +368,19 @@
         <div class="card">
             <div class="flex justify-end">
                 <div class="w-full sm:w-72 space-y-1 text-base">
-                    <div class="flex justify-between"><span>Subtotal</span><span>₡{{ number_format($this->subtotal, 2) }}</span></div>
+                    <div class="flex justify-between"><span>Bultos</span><span>₡{{ number_format($this->subtotal, 2) }}</span></div>
+                    @if ($this->insuranceFee > 0)
+                        <div class="flex justify-between">
+                            <span>Seguro ({{ rtrim(rtrim(number_format($empresa->porcentajeDeSeguro(), 2), '0'), '.') }}% declarado)</span>
+                            <span>₡{{ number_format($this->insuranceFee, 2) }}</span>
+                        </div>
+                    @endif
+                    @if ($this->homeDeliveryFeeAmount > 0)
+                        <div class="flex justify-between">
+                            <span>Entrega a domicilio</span>
+                            <span>₡{{ number_format($this->homeDeliveryFeeAmount, 2) }}</span>
+                        </div>
+                    @endif
                     <div class="flex justify-between"><span>Descuento</span><span>-₡{{ number_format($discount_amount, 2) }}</span></div>
                     <div class="flex justify-between"><span>Impuestos</span><span>₡{{ number_format($this->taxTotal, 2) }}</span></div>
                     <div class="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-700 pt-2">

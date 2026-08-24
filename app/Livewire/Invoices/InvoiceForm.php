@@ -5,6 +5,7 @@ namespace App\Livewire\Invoices;
 use App\Models\Branch;
 use App\Models\Invoice;
 use App\Models\PackageType;
+use App\Models\CompanySetting;
 use App\Models\Customer;
 use App\Models\Rate;
 use App\Models\Tax;
@@ -30,6 +31,22 @@ class InvoiceForm extends Component
 
     public string $shipment_type = 'package';
     public float $declared_value = 0;
+
+    /*
+     | Entrega a domicilio: se cobra aparte y necesita dirección exacta, porque
+     | el destino ya no es una sucursal donde el cliente pasa a retirar.
+     */
+    public bool $home_delivery = false;
+    public string $delivery_address = '';
+    public float $home_delivery_fee = 0;
+
+    /**
+     * Clave que autoriza el descuento.
+     *
+     * No se guarda con la guía: solo se comprueba al validar. Lo que queda
+     * registrado es QUIÉN autorizó, que es lo que sirve para auditar.
+     */
+    public string $discountCode = '';
 
     /** Cotización del tarifario para la ruta y el peso actuales. */
     public array $quote = [];
@@ -123,6 +140,9 @@ class InvoiceForm extends Component
             $this->recipient_customer_id = $invoice->recipient_customer_id;
             $this->shipment_type = (string) ($invoice->shipment_type ?: 'package');
             $this->declared_value = (float) $invoice->declared_value;
+            $this->home_delivery = (bool) $invoice->home_delivery;
+            $this->delivery_address = (string) $invoice->delivery_address;
+            $this->home_delivery_fee = (float) $invoice->home_delivery_fee;
             $this->assigned_to = $invoice->assigned_to;
             $this->items = $invoice->items->map(fn ($i) => [
                 'package_type_id' => $i->package_type_id,
@@ -354,16 +374,47 @@ class InvoiceForm extends Component
         return collect($this->items)->sum(fn ($i) => (float) ($i['price'] ?? 0));
     }
 
+    /**
+     * Seguro sobre el valor declarado.
+     *
+     * El cliente declara cuánto vale lo que manda y se le cobra un porcentaje
+     * por responder de ello. Antes ese riesgo se asumía gratis.
+     */
+    public function getInsuranceFeeProperty(): float
+    {
+        return Invoice::calcularSeguro((float) $this->declared_value);
+    }
+
+    /** Lo que se cobra por llevarlo a la puerta, si aplica. */
+    public function getHomeDeliveryFeeAmountProperty(): float
+    {
+        return $this->home_delivery ? max(0.0, (float) $this->home_delivery_fee) : 0.0;
+    }
+
+    /**
+     * Base gravable: los bultos más los cargos, menos el descuento.
+     *
+     * El seguro y el domicilio entran ANTES del impuesto: son parte del
+     * servicio que se factura, no un agregado posterior.
+     */
+    public function getTaxableBaseProperty(): float
+    {
+        return round(
+            $this->subtotal + $this->insuranceFee + $this->homeDeliveryFeeAmount - (float) $this->discount_amount,
+            2
+        );
+    }
+
     public function getTaxTotalProperty(): float
     {
-        $base = $this->subtotal - (float) $this->discount_amount;
         $percent = Tax::whereIn('id', $this->selectedTaxes)->sum('percent');
-        return round($base * $percent / 100, 2);
+
+        return round($this->taxableBase * $percent / 100, 2);
     }
 
     public function getTotalProperty(): float
     {
-        return round($this->subtotal - (float) $this->discount_amount + $this->taxTotal, 2);
+        return round($this->taxableBase + $this->taxTotal, 2);
     }
 
     protected function rules(): array
@@ -390,6 +441,9 @@ class InvoiceForm extends Component
             'recipient_email' => 'nullable|email',
             'assigned_to' => 'nullable|exists:users,id',
             'discount_amount' => 'nullable|numeric|min:0',
+            'home_delivery_fee' => 'nullable|numeric|min:0',
+            // Sin dirección exacta, «a domicilio» es una promesa sin destino.
+            'delivery_address' => $this->home_delivery ? 'required|string|max:255' : 'nullable|string|max:255',
             'payment_method' => 'required|in:' . implode(',', array_keys(Invoice::PAYMENT_METHODS)),
             'cobro' => 'required|in:' . self::COBRO_PREPAID . ',' . self::COBRO_COLLECT . ',' . self::COBRO_CREDIT,
             'items' => 'required|array|min:1',
@@ -420,6 +474,7 @@ class InvoiceForm extends Component
             'items.*.price.required' => 'El precio del paquete es obligatorio.',
             'items.*.price.numeric' => 'El precio debe ser un número.',
             'items.*.price.min' => 'El precio no puede ser negativo.',
+            'delivery_address.required' => 'Para entregar a domicilio hace falta la dirección exacta.',
         ];
     }
 
@@ -473,6 +528,35 @@ class InvoiceForm extends Component
     }
 
     /**
+     * Un descuento necesita autorización.
+     *
+     * Sin esto cualquier cajero rebajaba lo que quisiera sin dejar rastro. Con
+     * la clave configurada hay que digitarla, y la guía guarda quién autorizó
+     * —que es lo que sirve para auditar después—.
+     */
+    private function validarDescuento(): void
+    {
+        $descuento = (float) $this->discount_amount;
+
+        if ($descuento <= 0) {
+            return;
+        }
+
+        $empresa = CompanySetting::instance();
+
+        if (! $empresa->exigeClaveParaDescuento()) {
+            return;
+        }
+
+        if (! $empresa->claveDeDescuentoValida($this->discountCode)) {
+            throw ValidationException::withMessages([
+                'discountCode' => 'La clave de autorización no es correcta. '
+                    . 'Sin ella no se puede aplicar un descuento.',
+            ]);
+        }
+    }
+
+    /**
      * Un cobro de contado exige una caja abierta.
      *
      * Antes la guía se guardaba igual y solo se dejaba un aviso en una
@@ -517,6 +601,7 @@ class InvoiceForm extends Component
         $this->normalizeIdentification();
         $data = $this->validate();
         $this->validarCredito();
+        $this->validarDescuento();
         $this->validarCajaAbierta();
 
         DB::transaction(function () use ($data) {
@@ -534,6 +619,13 @@ class InvoiceForm extends Component
                 'recipient_customer_id' => $data['recipient_customer_id'],
                 'shipment_type' => $data['shipment_type'] ?: null,
                 'declared_value' => $data['declared_value'] ?: 0,
+                // Ya calculado: si mañana cambia el porcentaje, esta guía debe
+                // seguir diciendo lo que se cobró.
+                'insurance_fee' => $this->insuranceFee,
+                'home_delivery' => $this->home_delivery,
+                'delivery_address' => $this->home_delivery ? ($data['delivery_address'] ?: null) : null,
+                'home_delivery_fee' => $this->homeDeliveryFeeAmount,
+                'discount_authorized_by' => (float) $this->discount_amount > 0 ? auth()->id() : null,
                 'recipient_identification_type' => $this->wantsInvoice ? $this->recipient_identification_type : null,
                 'recipient_identification' => $this->wantsInvoice ? $data['recipient_identification'] : null,
                 'recipient_email' => $data['recipient_email'],
@@ -625,6 +717,7 @@ class InvoiceForm extends Component
                 ? (bool) Customer::find($this->sender_customer_id)?->isCredit()
                 : false,
             'tiposDeBulto' => PackageType::active()->get(),
+            'empresa' => CompanySetting::instance(),
         ])->layout('layouts.app', ['title' => $this->invoice ? 'Editar guía' : 'Nueva guía']);
     }
 }
