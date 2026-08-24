@@ -16,11 +16,11 @@ class CajaPanel extends Component
     public ?int $registerId = null;
 
     // Apertura
-    public float $openingFloat = 0;
+    public ?float $openingFloat = 0;
 
     // Entrada / salida de efectivo
     public string $movementType = CashMovement::TYPE_OUT;
-    public float $movementAmount = 0;
+    public ?float $movementAmount = 0;
     public string $movementReason = '';
 
     /** Arqueo: denomination_id => cantidad contada. */

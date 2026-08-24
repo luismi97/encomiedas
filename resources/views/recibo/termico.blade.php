@@ -117,6 +117,12 @@
     @endif
 
     <div>
+    @if ($guia->esADomicilio())
+        <div class="regla"></div>
+        <div class="etiqueta">Entrega a domicilio</div>
+        <div>{{ $guia->delivery_address }}</div>
+    @endif
+
         <div class="etiqueta">Paquetes</div>
         @forelse ($guia->items as $item)
             <table class="fila"><tr>
@@ -134,7 +140,18 @@
     <div class="regla"></div>
 
     <table class="fila">
-        <tr><td>Subtotal</td><td>{{ number_format((float) $guia->subtotal, 2) }}</td></tr>
+        <tr><td>Bultos</td><td>{{ number_format((float) $guia->subtotal, 2) }}</td></tr>
+        {{-- Desglosado: el cliente tiene derecho a ver por qué paga cada cosa,
+             y un cargo sin explicar es la primera fuente de reclamos. --}}
+        @if ((float) $guia->insurance_fee > 0)
+            <tr>
+                <td>Seguro (declarado {{ number_format((float) $guia->declared_value, 2) }})</td>
+                <td>{{ number_format((float) $guia->insurance_fee, 2) }}</td>
+            </tr>
+        @endif
+        @if ((float) $guia->home_delivery_fee > 0)
+            <tr><td>Entrega a domicilio</td><td>{{ number_format((float) $guia->home_delivery_fee, 2) }}</td></tr>
+        @endif
         @if ((float) $guia->discount_amount > 0)
             <tr><td>Descuento</td><td>-{{ number_format((float) $guia->discount_amount, 2) }}</td></tr>
         @endif

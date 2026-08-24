@@ -235,6 +235,29 @@ abstract class XmlBuilder
             ];
         }
 
+        /*
+         | El seguro y el domicilio son parte de lo que se cobra, así que tienen
+         | que ser líneas del comprobante. Sin ellas el total del XML no cuadra
+         | con el de la guía y Hacienda lo rechaza por descuadre —o peor, se
+         | acepta un comprobante por menos de lo que el cliente pagó—.
+         */
+        if (($seguro = (float) $invoice->insurance_fee) > 0) {
+            $out[] = [
+                'price'   => $seguro,
+                'cabys'   => $defaultCabys,
+                'detalle' => 'Seguro sobre valor declarado de ₡'
+                    . number_format((float) $invoice->declared_value, 2),
+            ];
+        }
+
+        if (($domicilio = (float) $invoice->home_delivery_fee) > 0) {
+            $out[] = [
+                'price'   => $domicilio,
+                'cabys'   => $defaultCabys,
+                'detalle' => 'Entrega a domicilio',
+            ];
+        }
+
         return $out;
     }
 

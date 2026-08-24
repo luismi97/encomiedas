@@ -30,7 +30,7 @@ class CustomerIndex extends Component
     public string $address = '';
     public ?int $branch_id = null;
     public string $payment_condition = Customer::PAYMENT_CASH;
-    public float $credit_limit = 0;
+    public ?float $credit_limit = 0;
     public ?int $credit_cutoff_day = null;
     public string $notes = '';
     public bool $is_active = true;

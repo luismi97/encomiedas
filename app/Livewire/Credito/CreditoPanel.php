@@ -13,10 +13,10 @@ class CreditoPanel extends Component
     public ?int $customerId = null;
 
     /** Corte */
-    public int $creditTermDays = 30;
+    public ?int $creditTermDays = 30;
 
     /** Abono */
-    public float $paymentAmount = 0;
+    public ?float $paymentAmount = 0;
     public string $paymentMethod = 'cash';
     public string $paymentReference = '';
     public ?int $paymentStatementId = null;

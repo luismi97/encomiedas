@@ -19,16 +19,16 @@ class RateIndex extends Component
     public ?int $origin_branch_id = null;
     public ?int $destination_branch_id = null;
     public string $shipment_type = '';
-    public float $min_weight = 0;
+    public ?float $min_weight = 0;
     public ?float $max_weight = null;
-    public float $price = 0;
-    public float $price_per_extra_kg = 0;
+    public ?float $price = 0;
+    public ?float $price_per_extra_kg = 0;
     public bool $is_active = true;
 
     /** Cotizador: sirve para verificar qué tarifa gana antes de guardar. */
     public ?int $probe_origin = null;
     public ?int $probe_destination = null;
-    public float $probe_weight = 1;
+    public ?float $probe_weight = 1;
     public ?float $probe_length = null;
     public ?float $probe_width = null;
     public ?float $probe_height = null;

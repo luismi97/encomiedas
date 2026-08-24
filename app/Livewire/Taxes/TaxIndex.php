@@ -11,7 +11,7 @@ class TaxIndex extends Component
     public ?int $editingId = null;
 
     public string $name = '';
-    public float $percent = 13.0;
+    public ?float $percent = 13.0;
     public string $hacienda_code = '08';
     public bool $is_default = false;
     public bool $is_active = true;

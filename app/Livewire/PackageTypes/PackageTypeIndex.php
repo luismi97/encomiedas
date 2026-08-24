@@ -21,7 +21,7 @@ class PackageTypeIndex extends Component
 
     public string $name = '';
     public bool $is_fragile = false;
-    public int $sort_order = 0;
+    public ?int $sort_order = 0;
     public bool $is_active = true;
 
     public ?string $feedback = null;

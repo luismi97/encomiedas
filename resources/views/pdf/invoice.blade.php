@@ -141,9 +141,23 @@
 
     <table class="totals">
         <tr>
-            <td class="label">Subtotal</td>
+            <td class="label">Bultos</td>
             <td class="value">₡{{ number_format($invoice->subtotal, 2) }}</td>
         </tr>
+        {{-- Cada cargo con su nombre: un total sin desglosar es lo que genera
+             el reclamo de «¿por qué me cobraron esto?». --}}
+        @if ($invoice->insurance_fee > 0)
+            <tr>
+                <td class="label">Seguro sobre valor declarado (₡{{ number_format($invoice->declared_value, 2) }})</td>
+                <td class="value">₡{{ number_format($invoice->insurance_fee, 2) }}</td>
+            </tr>
+        @endif
+        @if ($invoice->home_delivery_fee > 0)
+            <tr>
+                <td class="label">Entrega a domicilio</td>
+                <td class="value">₡{{ number_format($invoice->home_delivery_fee, 2) }}</td>
+            </tr>
+        @endif
         @if ($invoice->discount_amount > 0)
             <tr>
                 <td class="label">Descuento</td>

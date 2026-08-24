@@ -38,7 +38,7 @@ class InvoiceForm extends Component
     public ?int $recipient_customer_id = null;
 
     public string $shipment_type = 'package';
-    public float $declared_value = 0;
+    public ?float $declared_value = 0;
 
     /*
      | Entrega a domicilio: se cobra aparte y necesita dirección exacta, porque
@@ -46,7 +46,7 @@ class InvoiceForm extends Component
      */
     public bool $home_delivery = false;
     public string $delivery_address = '';
-    public float $home_delivery_fee = 0;
+    public ?float $home_delivery_fee = 0;
 
     /**
      * Clave que autoriza el descuento.
@@ -81,7 +81,7 @@ class InvoiceForm extends Component
     public string $recipient_email = '';
 
     public string $notes = '';
-    public float $discount_amount = 0;
+    public ?float $discount_amount = 0;
     public string $payment_method = 'cash';
 
     /*
