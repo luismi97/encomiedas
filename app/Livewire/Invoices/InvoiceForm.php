@@ -496,16 +496,18 @@ class InvoiceForm extends Component
             return;
         }
 
+        // Propio y no cualquiera de la sede: cobrar contra el turno de un
+        // compañero le deja a él un faltante por dinero que nunca manejó.
         $sesion = app(CajaService::class)
-            ->sesionAbiertaPara(auth()->user(), $this->pickup_branch_id);
+            ->sesionPropiaAbierta(auth()->user(), $this->pickup_branch_id);
 
         if ($sesion) {
             return;
         }
 
         throw ValidationException::withMessages([
-            'cobro' => 'No hay una caja abierta en esta sede, así que el cobro no entraría a ningún arqueo. '
-                . 'Abrí la caja y volvé a guardar. Si el flete no se cobra acá, marcá «Por cobrar» o «A crédito».',
+            'cobro' => 'No tenés una caja abierta en esta sede, así que el cobro no entraría a ningún arqueo. '
+                . 'Abrí tu caja y volvé a guardar. Si el flete no se cobra acá, marcá «Por cobrar» o «A crédito».',
         ]);
     }
 

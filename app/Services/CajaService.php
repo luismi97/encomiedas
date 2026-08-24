@@ -83,10 +83,13 @@ class CajaService
      * con varias cajas por sucursal, arrancar en la caja de un compañero
      * mostraría su arqueo y mandaría el primer cobro a la gaveta equivocada.
      */
-    public function sesionPropiaAbierta(User $usuario): ?CashSession
+    public function sesionPropiaAbierta(User $usuario, ?int $branchId = null): ?CashSession
     {
         return CashSession::where('opened_by', $usuario->id)
             ->where('status', CashSession::STATUS_OPEN)
+            // Acotado a la sede cuando se pide: el turno que un cajero tenga
+            // abierto en otra sucursal no sirve para cobrar acá.
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->latest('id')
             ->first();
     }
@@ -99,7 +102,10 @@ class CajaService
      */
     public function registrarCobro(Invoice $guia, User $usuario, ?CashSession $sesion = null): ?CashMovement
     {
-        $sesion ??= $this->sesionAbiertaPara($usuario, $guia->pickup_branch_id);
+        // El turno PROPIO y no cualquiera de la sede: si cae en el de un
+        // compañero, ese arqueo termina con dinero que su dueño nunca vio y
+        // responde por un faltante que no es suyo.
+        $sesion ??= $this->sesionPropiaAbierta($usuario, $guia->pickup_branch_id);
 
         if (! $sesion || ! $sesion->estaAbierta()) {
             return null;

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ElectronicInvoice;
 use App\Services\Hacienda\PdfGenerator;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -39,7 +40,31 @@ class ElectronicInvoiceController extends Controller
             }
         }
 
-        return $disco->response($electronicInvoice->pdf_path, "{$electronicInvoice->clave}.pdf");
+        // Se lee y se devuelve, en vez de delegar en response(): el disco está
+        // configurado con throw=false, así que un fallo de lectura —permisos,
+        // típicamente— devolvía null en silencio y el navegador mostraba un
+        // error sin causa. Así el motivo queda en el log y en la respuesta.
+        $contenido = $disco->get($electronicInvoice->pdf_path);
+
+        if ($contenido === null || $contenido === '') {
+            $ruta = config('filesystems.disks.' . config('hacienda.disk') . '.root')
+                . '/' . $electronicInvoice->pdf_path;
+
+            Log::error('No se pudo leer el PDF del comprobante ' . $electronicInvoice->id, [
+                'ruta'     => $ruta,
+                'existe'   => file_exists($ruta),
+                'legible'  => is_readable($ruta),
+                'usuario'  => get_current_user(),
+            ]);
+
+            abort(500, 'El PDF existe pero no se puede leer. Suele ser un problema de permisos: '
+                . 'revisá con «php artisan hacienda:revisar».');
+        }
+
+        return response($contenido, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $electronicInvoice->clave . '.pdf"',
+        ]);
     }
 
     /**

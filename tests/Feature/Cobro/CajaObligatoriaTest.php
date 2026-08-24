@@ -66,7 +66,7 @@ class CajaObligatoriaTest extends TestCase
             ->set('cobro', 'prepaid')
             ->call('save')
             ->assertHasErrors('cobro')
-            ->assertSee('No hay una caja abierta');
+            ->assertSee('No tenés una caja abierta');
 
         $this->assertSame(0, Invoice::count(), 'La guía no puede quedar registrada.');
     }
@@ -76,7 +76,7 @@ class CajaObligatoriaTest extends TestCase
         $this->formulario()
             ->set('cobro', 'prepaid')
             ->call('save')
-            ->assertSee('Abrí la caja')
+            ->assertSee('Abrí tu caja')
             ->assertSee('Por cobrar');
     }
 

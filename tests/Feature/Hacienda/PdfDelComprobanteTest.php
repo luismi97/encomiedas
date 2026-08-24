@@ -152,6 +152,19 @@ class PdfDelComprobanteTest extends TestCase
             ->assertNotFound();
     }
 
+    /** El PDF se sirve inline, para que el navegador lo muestre. */
+    public function test_se_muestra_en_el_navegador_y_no_se_descarga(): void
+    {
+        $c = $this->comprobante(['pdf_path' => 'pdf/2026-08/x.pdf']);
+        Storage::disk('hacienda')->put('pdf/2026-08/x.pdf', '%PDF-1.4 contenido');
+
+        $r = $this->actingAs($this->admin)->get(route('electronic-invoices.pdf', $c))->assertOk();
+
+        $this->assertSame('application/pdf', $r->headers->get('content-type'));
+        $this->assertStringStartsWith('inline', (string) $r->headers->get('content-disposition'));
+        $this->assertStringContainsString($c->clave, (string) $r->headers->get('content-disposition'));
+    }
+
     public function test_hace_falta_iniciar_sesion(): void
     {
         $c = $this->comprobante(['pdf_path' => 'pdf/2026-08/x.pdf']);

@@ -125,8 +125,8 @@ class GuideStatusService
         // el log y la plata desaparecía sin dejar rastro.
         if ($guia->tieneCobroPendiente() && ! $this->cajaDeDestino($guia, $usuario)) {
             throw new RuntimeException(
-                'Esta guía es POR COBRAR (₡' . number_format((float) $guia->total, 2) . ') y no hay una caja '
-                . 'abierta en esta sede: el cobro no entraría a ningún arqueo. Abrí la caja y volvé a entregar.'
+                'Esta guía es POR COBRAR (₡' . number_format((float) $guia->total, 2) . ') y no tenés una caja '
+                . 'abierta en esta sede: el cobro no entraría a ningún arqueo. Abrí tu caja y volvé a entregar.'
             );
         }
 
@@ -165,7 +165,8 @@ class GuideStatusService
     /** Turno abierto en la sede que entrega, que es donde entra este dinero. */
     private function cajaDeDestino(Invoice $guia, User $usuario)
     {
-        return app(CajaService::class)->sesionAbiertaPara($usuario, $guia->delivery_branch_id);
+        // Propio: el cobro es de quien entrega y responde por su arqueo.
+        return app(CajaService::class)->sesionPropiaAbierta($usuario, $guia->delivery_branch_id);
     }
 
     private function cobrarSiEstabaPorCobrar(Invoice $guia, User $usuario): void

@@ -26,6 +26,57 @@ class RevisarComprobantes extends Command
 
     protected $description = 'Revisa qué comprobantes tienen su PDF y su XML en disco';
 
+    /**
+     * Quién puede leer los archivos.
+     *
+     * La consola corre como el usuario de SSH y el sitio como el de PHP-FPM. Un
+     * archivo creado por uno que el otro no puede leer da «completo» acá y un
+     * error en el navegador —el síntoma más desconcertante de todos, porque el
+     * archivo está ahí y se ve con ls—.
+     */
+    private function revisarPermisos($comprobantes, $disco): void
+    {
+        $muestra = $comprobantes->first(fn ($c) => $c->pdf_path && $disco->exists($c->pdf_path));
+
+        if (! $muestra) {
+            return;
+        }
+
+        $raiz = config('filesystems.disks.' . config('hacienda.disk') . '.root');
+        $ruta = rtrim($raiz, '/') . '/' . $muestra->pdf_path;
+
+        $this->newLine();
+        $this->components->info('Permisos (la consola y el sitio web pueden correr como usuarios distintos)');
+
+        $this->components->twoColumnDetail('Usuario de esta consola', get_current_user());
+
+        if (! file_exists($ruta)) {
+            return;
+        }
+
+        $duenoDelArchivo = function_exists('posix_getpwuid')
+            ? (posix_getpwuid(fileowner($ruta))['name'] ?? (string) fileowner($ruta))
+            : (string) fileowner($ruta);
+
+        $this->components->twoColumnDetail('Dueño de los archivos', $duenoDelArchivo);
+        $this->components->twoColumnDetail('Permisos del archivo', substr(sprintf('%o', fileperms($ruta)), -4));
+        $this->components->twoColumnDetail('Permisos de la carpeta', substr(sprintf('%o', fileperms(dirname($ruta))), -4));
+        $this->components->twoColumnDetail('¿Legible desde acá?', is_readable($ruta) ? '<fg=green>sí</>' : '<fg=red>NO</>');
+
+        // Otros = el resto del mundo. Si no puede leer y FPM corre como otro
+        // usuario, la descarga por web falla aunque acá se vea bien.
+        $otrosPuedenLeer = (fileperms($ruta) & 0004) !== 0;
+
+        if (! $otrosPuedenLeer) {
+            $this->newLine();
+            $this->components->warn('Solo el dueño puede leer estos archivos.');
+            $this->components->bulletList([
+                'Si el sitio corre como otro usuario, la descarga por web falla aunque acá se vean.',
+                'Se corrige con:  chmod -R u+rwX,go+rX ' . rtrim($raiz, '/'),
+            ]);
+        }
+    }
+
     public function handle(PdfGenerator $generador): int
     {
         $disco = Storage::disk(config('hacienda.disk'));
@@ -69,6 +120,8 @@ class RevisarComprobantes extends Command
 
         $this->newLine();
         $this->table(['#', 'Consecutivo', 'Estado', 'Archivos'], $filas);
+
+        $this->revisarPermisos($comprobantes, $disco);
 
         if ($perdidos > 0) {
             $this->components->error("{$perdidos} comprobante(s) sin PDF ni XML: no se pueden rehacer.");

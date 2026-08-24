@@ -108,7 +108,7 @@ class CobroEnDestinoTest extends TestCase
             ->set('receivedByName', 'José')
             ->call('entregar')
             ->assertSee('11,300.00')
-            ->assertSee('Abrí la caja');
+            ->assertSee('Abrí tu caja');
     }
 
     // ── Con la caja abierta ───────────────────────────────────────────
