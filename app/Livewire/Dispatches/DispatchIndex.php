@@ -39,6 +39,18 @@ class DispatchIndex extends Component
         $this->feedback = $message;
     }
 
+    /**
+     * Avisa al navegador cómo salió el escaneo, para que suene.
+     *
+     * Se emite desde acá y no al detectar el código: un pitido tiene que
+     * significar «la guía quedó marcada». Si sonara con cada lectura, un
+     * código de otra ruta también pitaría y el operario dejaría de fiarse.
+     */
+    private function sonarEscaneo(bool $ok): void
+    {
+        $this->dispatch('scan-resultado', ok: $ok);
+    }
+
     public function dismissFeedback(): void
     {
         $this->feedback = null;
@@ -176,6 +188,22 @@ class DispatchIndex extends Component
 
         if (! $guia) {
             $this->notify('error', "No existe ninguna guía con el código «{$codigo}».");
+            $this->sonarEscaneo(false);
+            $this->scanCode = '';
+
+            return;
+        }
+
+        // Ya marcada: el servicio la ignora en silencio, pero sonar a éxito
+        // haría creer al operario que marcó una caja distinta.
+        $yaRecibida = \App\Models\DispatchGuide::where('dispatch_id', $this->openId)
+            ->where('invoice_id', $guia->id)
+            ->whereNotNull('received_at')
+            ->exists();
+
+        if ($yaRecibida) {
+            $this->notify('error', "La guía {$guia->code} ya estaba marcada como recibida.");
+            $this->sonarEscaneo(false);
             $this->scanCode = '';
 
             return;
@@ -184,8 +212,10 @@ class DispatchIndex extends Component
         try {
             $servicio->recibirGuia($this->manifiesto(), $guia, auth()->user(), 'scan');
             $this->notify('success', "Guía {$guia->code} recibida.");
+            $this->sonarEscaneo(true);
         } catch (RuntimeException $e) {
             $this->notify('error', $e->getMessage());
+            $this->sonarEscaneo(false);
         }
 
         $this->scanCode = '';

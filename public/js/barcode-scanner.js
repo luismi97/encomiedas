@@ -132,48 +132,14 @@
     });
 
     /**
-     * Pitido sintetizado con Web Audio.
+     * Al detectar solo vibra: el pitido lo da la confirmación del servidor.
      *
-     * Sin archivo de sonido: es un binario más que subir en cada despliegue y
-     * una petición más en una bodega con mala señal.
+     * Si sonara acá, un código ilegible o de otra ruta también pitaría, y el
+     * operario aprendería que el pitido no significa nada. Suena cuando la
+     * guía quedó marcada de verdad.
      */
-    let audioCtx = null;
-    function beep() {
-        try {
-            const Ctx = window.AudioContext || window.webkitAudioContext;
-            if (!Ctx) return;
-            audioCtx = audioCtx || new Ctx();
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'square';
-            osc.frequency.value = 1760;
-            gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.14);
-            osc.connect(gain).connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.15);
-        } catch (e) { /* sin audio: la vibración y el aviso en pantalla alcanzan */ }
-    }
-
-    /**
-     * El contexto de audio hay que crearlo dentro del gesto del usuario —el
-     * toque que abre la cámara— o los navegadores móviles no dejan sonar nada
-     * después.
-     */
-    function unlockAudio() {
-        try {
-            const Ctx = window.AudioContext || window.webkitAudioContext;
-            if (!Ctx) return;
-            audioCtx = audioCtx || new Ctx();
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-        } catch (e) {}
-    }
-
     function feedbackSuccess() {
-        try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {}
-        beep();
+        try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) {}
     }
 
     function setStatus(msg) {
@@ -785,7 +751,8 @@
             overlay.classList.remove('hidden');
         }
         state.active = true;
-        unlockAudio(); // dentro del gesto del toque, para poder sonar luego en móvil
+        // Dentro del gesto que abre la cámara, para poder sonar después.
+        if (window.Sonidos) window.Sonidos.despertar(); // dentro del gesto del toque, para poder sonar luego en móvil
         setStatus('Iniciando cámara...');
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {

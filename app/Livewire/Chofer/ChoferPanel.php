@@ -44,6 +44,18 @@ class ChoferPanel extends Component
         $this->feedback = $message;
     }
 
+    /**
+     * Avisa al navegador cómo salió el escaneo, para que suene.
+     *
+     * Se emite desde acá y no al detectar el código: un pitido tiene que
+     * significar «la guía quedó marcada». Si sonara con cada lectura, un
+     * código de otra ruta también pitaría y el operario dejaría de fiarse.
+     */
+    private function sonarEscaneo(bool $ok): void
+    {
+        $this->dispatch('scan-resultado', ok: $ok);
+    }
+
     public function dismissFeedback(): void
     {
         $this->feedback = null;
@@ -89,6 +101,20 @@ class ChoferPanel extends Component
 
         if (! $guia) {
             $this->notify('error', "No existe ninguna guía con el código «{$codigo}».");
+            $this->sonarEscaneo(false);
+            $this->scanCode = '';
+
+            return;
+        }
+
+        $yaRecibida = \App\Models\DispatchGuide::where('dispatch_id', $cierre->id)
+            ->where('invoice_id', $guia->id)
+            ->whereNotNull('received_at')
+            ->exists();
+
+        if ($yaRecibida) {
+            $this->notify('error', "La guía {$guia->code} ya estaba marcada.");
+            $this->sonarEscaneo(false);
             $this->scanCode = '';
 
             return;
@@ -97,8 +123,10 @@ class ChoferPanel extends Component
         try {
             $despachos->recibirGuia($cierre, $guia, auth()->user(), 'scan');
             $this->notify('success', "Guía {$guia->code} marcada como llegada.");
+            $this->sonarEscaneo(true);
         } catch (RuntimeException $e) {
             $this->notify('error', $e->getMessage());
+            $this->sonarEscaneo(false);
         }
 
         $this->scanCode = '';

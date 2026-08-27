@@ -110,4 +110,7 @@
     </div>
 </div>
 
+{{-- Los tonos van aparte del lector: suenan también con el lector físico,
+     que no pasa por la cámara. --}}
+<script src="{{ asset('js/sonidos.js') }}?v={{ @filemtime(public_path('js/sonidos.js')) }}"></script>
 <script src="{{ asset('js/barcode-scanner.js') }}?v={{ @filemtime(public_path('js/barcode-scanner.js')) }}"></script>
