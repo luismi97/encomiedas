@@ -182,6 +182,52 @@ class EscaneoPorCamaraTest extends TestCase
         $this->assertStringContainsString("addEventListener('pagehide'", $js);
     }
 
+    /**
+     * La cámara se queda abierta a propósito (veinte guías seguidas), y tapa la
+     * pantalla entera: el aviso que el componente pinta en la página queda
+     * debajo. Sin mostrarlo dentro del overlay, escanear es escanear a ciegas.
+     */
+    public function test_el_resultado_de_cada_lectura_se_ve_sin_cerrar_la_camara(): void
+    {
+        [$cierre] = $this->cierreEnRuta();
+
+        $html = Livewire::actingAs($this->admin)
+            ->test(DispatchIndex::class)
+            ->call('open', $cierre->id)
+            ->html();
+
+        $this->assertStringContainsString('EncomiendasScanner.notify', $html,
+            'Tras cada lectura hay que mostrar el aviso DENTRO del overlay.');
+        $this->assertStringContainsString('feedback', $html);
+
+        $js = file_get_contents(public_path('js/barcode-scanner.js'));
+        $this->assertStringContainsString('function notify(', $js);
+        $this->assertMatchesRegularExpression('#window\.EncomiendasScanner = \{[^}]*notify#', $js,
+            'notify() tiene que estar expuesta en la API global.');
+    }
+
+    /**
+     * Con la cámara abierta el lector reconoce la etiqueta en cada cuadro. Si
+     * bastara una ventana de tiempo, sostener el bulto un segundo de más
+     * mandaría la guía dos veces y la segunda contestaría "ya fue recibida",
+     * pisando en rojo el acuse que el operario acababa de leer.
+     */
+    public function test_la_misma_etiqueta_no_se_reenvia_sola(): void
+    {
+        $js = file_get_contents(public_path('js/barcode-scanner.js'));
+
+        $this->assertStringContainsString('REARM_MS', $js,
+            'Un código ya entregado solo vuelve a contar si antes dejó de verse.');
+
+        // Recordar SOLO el último código no alcanza: al recibir un cierre hay
+        // varias etiquetas a la vista y la cámara barre de una a otra, así que
+        // al volver a cruzar una ya leída se reenviaría sola.
+        $this->assertStringContainsString('seen: new Map()', $js,
+            'Hay que recordar cuándo se vio por última vez CADA código, no solo el último.');
+        $this->assertStringContainsString('SEEN_TTL_MS', $js,
+            'Ese registro tiene que olvidarse solo, o crece durante todo el turno.');
+    }
+
     public function test_hay_respaldo_para_navegadores_sin_la_api_nativa(): void
     {
         $js = file_get_contents(public_path('js/barcode-scanner.js'));

@@ -72,6 +72,13 @@
         margin-top: .75rem; text-align: center;
         font-size: .875rem; color: rgba(255, 255, 255, .9);
     }
+    /* Resultado de la última lectura, dentro del overlay. Con fondo propio
+       porque sobre el video se lee mal el texto suelto. */
+    .scan-status.scan-ok, .scan-status.scan-err {
+        padding: .6rem .75rem; border-radius: .5rem; font-weight: 600;
+    }
+    .scan-status.scan-ok  { background: rgba(22, 163, 74, .25);  color: #bbf7d0; }
+    .scan-status.scan-err { background: rgba(220, 38, 38, .28); color: #fecaca; }
 
     .scan-btn {
         display: block; width: 100%; margin-top: 1rem; padding: .75rem;

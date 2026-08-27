@@ -54,7 +54,16 @@
     const CONFIRM_WINDOW_MS = 1500; // si tardan mas en repetirse, se reinicia el conteo
 
     const ZXING_CDN = 'https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js';
-    const DEDUP_MS = 1500; // ignorar la misma lectura repetida dentro de esta ventana
+    // Con la cámara abierta apuntando a una etiqueta, el lector la reconoce en
+    // CADA cuadro. Para que no se re-dispare sola, el mismo código solo vuelve
+    // a contar si antes dejó de verse este tiempo — o sea, si salió del cuadro
+    // y volvió. Una ventana fija no alcanzaba: sostener el bulto un segundo de
+    // más mandaba la guía dos veces, y la segunda contesta "ya fue recibida",
+    // que pisa en rojo el "recibida" que el operario acababa de leer.
+    const REARM_MS = 1200;
+    // Cuánto se recuerda un código ya entregado. Solo acota la memoria: pasado
+    // este tiempo sin verse, se olvida y volvería a entrar como nuevo.
+    const SEEN_TTL_MS = 60000;
     // La mira se agranda un 10%: el cajero apunta, no encuadra al pixel. No mas,
     // porque el recuadro ya es w-4/5 h-1/2 — con un 25% de holgura pasaba del
     // ancho del frame y dejaba de desempatar nada en horizontal.
@@ -68,8 +77,11 @@
         detector: null,     // BarcodeDetector nativo
         zxingReader: null,  // respaldo ZXing (maneja su propio stream)
         rafId: null,
-        lastCode: null,
-        lastAt: 0,
+        // código ya entregado -> última vez que se lo vio. NO alcanza con
+        // recordar solo el último: al recibir un cierre hay varias etiquetas a
+        // la vista y la cámara barre de una a otra, así que al volver a cruzar
+        // una ya leída se reenviaría sola.
+        seen: new Map(),
         pending: null,      // { code, format, hits, at } lectura a la espera de confirmacion
         hintAt: 0,          // ultima vez que se aviso "centre el codigo"
         lastSeenAt: 0,      // ultima vez que el detector devolvio ALGO (aunque se descartara)
@@ -166,7 +178,26 @@
 
     function setStatus(msg) {
         const { status } = els();
-        if (status) status.textContent = msg || '';
+        if (!status) return;
+        status.textContent = msg || '';
+        status.classList.remove('scan-ok', 'scan-err');
+    }
+
+    /**
+     * Muestra el resultado de la lectura DENTRO del overlay.
+     *
+     * La cámara se queda abierta a propósito (recibir un cierre son veinte
+     * guías seguidas), y el overlay tapa la pantalla entera: el aviso que el
+     * componente pinta en la página queda DEBAJO y no se ve hasta cerrarla.
+     * Sin esto, escanear veinte guías es escanear a ciegas — no se sabe cuál
+     * entró y cuál no hasta el final.
+     */
+    function notify(message, type) {
+        const { status } = els();
+        if (!status) return;
+        status.textContent = message || SCAN_PROMPT;
+        status.classList.remove('scan-ok', 'scan-err');
+        if (message) status.classList.add(type === 'error' ? 'scan-err' : 'scan-ok');
     }
 
     // Muestra el error en el overlay y se lo pasa a quien abrio el escaner.
@@ -424,11 +455,18 @@
     function emitDetected(code) {
         if (!code) return;
         const now = Date.now();
-        // Evita agregar el mismo producto en frames consecutivos mientras el
-        // codigo sigue frente a la camara.
-        if (code === state.lastCode && (now - state.lastAt) < DEDUP_MS) return;
-        state.lastCode = code;
-        state.lastAt = now;
+
+        const visto = state.seen.get(code);
+        // La marca se actualiza SIEMPRE, también cuando se descarta: así el
+        // reloj cuenta desde que el código deja de verse, no desde que entró.
+        state.seen.set(code, now);
+        if (visto !== undefined && (now - visto) <= REARM_MS) return;
+
+        // Olvidar lo viejo para que el mapa no crezca en un turno largo.
+        for (const [c, t] of state.seen) {
+            if (now - t > SEEN_TTL_MS) state.seen.delete(c);
+        }
+
         feedbackSuccess();
         if (typeof state.onDetected === 'function') state.onDetected(code);
     }
@@ -720,8 +758,7 @@
         if (state.active) return;
         state.onDetected = opts.onDetected || null;
         state.onError = opts.onError || null;
-        state.lastCode = null;
-        state.lastAt = 0;
+        state.seen.clear();
         state.pending = null;
         state.hintAt = 0;
         // Arranca sin girar y con el reloj en cero: el giro entra solo si de
@@ -801,7 +838,7 @@
 
     // Se reasigna siempre para que, si wire:navigate vuelve a ejecutar el
     // script, gane la versión más reciente y no la primera de la sesión.
-    window.EncomiendasScanner = { open, close };
+    window.EncomiendasScanner = { open, close, notify };
 
     // Los listeners globales se enlazan una sola vez: si no, se acumula uno por
     // cada navegación y la cámara se cierra varias veces.

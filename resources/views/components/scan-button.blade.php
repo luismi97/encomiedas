@@ -3,6 +3,9 @@
     'target',
     // Propiedad donde se deja el código antes de llamar al método.
     'model' => 'scanCode',
+    // Propiedades de donde sale el aviso que se muestra dentro del overlay.
+    'feedback' => 'feedback',
+    'feedbackType' => 'feedbackType',
     'label' => 'Cámara',
 ])
 
@@ -11,16 +14,25 @@
 
      La cámara NO se cierra tras la primera lectura: recibir un cierre son
      veinte guías seguidas, y abrirla veinte veces es inservible. El propio
-     lector ignora la misma lectura repetida, así que dejarla abierta no
-     duplica nada. --}}
+     lector ignora la misma lectura repetida mientras la etiqueta siga frente
+     al lente, así que dejarla abierta no duplica nada.
+
+     Por eso mismo el resultado se muestra DENTRO del overlay: el overlay tapa
+     la pantalla completa, así que el aviso que el componente pinta en la
+     página queda debajo y no se ve hasta cerrar la cámara. Sin esto, escanear
+     veinte guías es escanear a ciegas. --}}
 <button type="button"
         x-data
         @click="
             if (! window.EncomiendasScanner) return;
             window.EncomiendasScanner.open({
-                onDetected: (code) => {
+                onDetected: async (code) => {
                     $wire.set('{{ $model }}', code);
-                    $wire.{{ $target }}();
+                    await $wire.{{ $target }}();
+                    window.EncomiendasScanner.notify(
+                        $wire.get('{{ $feedback }}'),
+                        $wire.get('{{ $feedbackType }}')
+                    );
                 },
             });
         "
