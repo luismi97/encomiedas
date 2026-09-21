@@ -62,6 +62,53 @@ class CompanySetting extends Model
      * empresa en contexto se traería la primera fila que encuentre, que es la
      * de otro emisor. Por eso lanza en vez de adivinar.
      */
+    /**
+     * El nombre con el que la empresa se presenta en pantalla.
+     *
+     * Sale de la base y no de APP_NAME: el .env lo fija quien monta el servidor
+     * una sola vez, y el nombre de la empresa lo cambia su administrador desde
+     * Configuración. Con varias empresas en el mismo sistema, además, un nombre
+     * del entorno sería el mismo para todas.
+     *
+     * Se prefiere el nombre comercial sobre la razón social, que es la misma
+     * regla del recibo y de la etiqueta: lo que el cliente ve impreso y lo que
+     * el cajero ve en pantalla tienen que ser la misma empresa.
+     */
+    public static function marca(): string
+    {
+        $configuracion = static::deLaMarca();
+
+        $nombre = trim((string) ($configuracion?->commercial_name ?: $configuracion?->name));
+
+        // La fila de Company existe aunque la configuración fiscal esté en
+        // blanco: recién instalada, la empresa ya tiene nombre y todavía no
+        // tiene cédula ni certificado.
+        return $nombre
+            ?: trim((string) CompanyContext::actual()?->name)
+            ?: (string) config('app.name');
+    }
+
+    /**
+     * La configuración con la que rotular la pantalla, o null si no hay una sola.
+     *
+     * A diferencia de instance(), esto NUNCA lanza ni crea filas: poner el
+     * rótulo del menú no puede tumbar la pantalla. El superadministrador no está
+     * dentro de ninguna empresa, así que para él no hay nombre que mostrar y se
+     * cae al del sistema, que es donde está parado de verdad.
+     */
+    private static function deLaMarca(): ?self
+    {
+        if (CompanyContext::hay()) {
+            // El ámbito global ya recorta a la empresa activa.
+            return static::query()->first();
+        }
+
+        // Instalación de una sola empresa: no hay ambigüedad que resolver.
+        $todas = static::query()->limit(2)->get();
+
+        return $todas->count() === 1 ? $todas->first() : null;
+    }
+
     public static function instance(): self
     {
         if (! CompanyContext::hay()) {

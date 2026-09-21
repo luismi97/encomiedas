@@ -29,7 +29,12 @@
             <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">
                 <x-icon name="box" class="w-5 h-5" />
             </span>
-            <span class="font-bold text-lg">{{ config('app.name') }}</span>
+            {{-- truncate y title: un nombre de la base es más largo que el del
+                 .env —«Transportes La Amistad S.A.»— y sin esto se sale del
+                 sidebar. Al pasar el puntero se lee completo. --}}
+            @php($marca = \App\Models\CompanySetting::marca())
+            <span class="font-bold text-lg truncate" data-test="marca-empresa"
+                  title="{{ $marca }}">{{ $marca }}</span>
         </div>
 
         {{-- overscroll-contain evita que al llegar al final del menú el gesto
