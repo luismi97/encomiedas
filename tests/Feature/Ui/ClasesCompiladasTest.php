@@ -73,4 +73,50 @@ class ClasesCompiladasTest extends TestCase
         $this->assertMatchesRegularExpression("#'\./app/\*\*/\*\.php'#", $config,
             'tailwind.config.js dejó de escanear app/: los colores definidos en constantes se purgarán.');
     }
+
+    /**
+     * El bundle que está en el repositorio tiene que corresponder a las vistas
+     * que están en el repositorio.
+     *
+     * Esto ya pasó una vez y en producción: se desplegaron las vistas nuevas y
+     * el CSS viejo, y los tooltips de ayuda salieron sin forma, porque sus clases
+     * no existían en ese archivo. El servidor es php:8.2-apache sin Node, así que
+     * no puede compilar: el build viaja versionado y esta prueba es la que avisa
+     * cuando quedó atrás.
+     *
+     * Se comprueban clases poco comunes a propósito: son las que solo aparecen
+     * en una vista nueva y por lo tanto las primeras en faltar.
+     */
+    public function test_el_css_compilado_esta_al_dia_con_las_vistas(): void
+    {
+        $hojas = glob(public_path('build/assets/*.css'));
+
+        if (! $hojas) {
+            $this->markTestSkipped('No hay CSS compilado: corré npm run build.');
+        }
+
+        $css = implode('', array_map('file_get_contents', $hojas));
+
+        // Clase => para qué sirve, para que el mensaje diga qué se rompe.
+        $imprescindibles = [
+            'bottom-full'  => 'el globo del tooltip se posicione sobre el botón',
+            'w-64'         => 'el globo del tooltip tenga ancho',
+            'leading-none' => 'el signo de interrogación quepa en su círculo',
+            'ring-brand-400' => 'el recorrido guiado resalte el control del que habla',
+        ];
+
+        $faltantes = [];
+
+        foreach ($imprescindibles as $clase => $paraQue) {
+            // Tailwind escapa los corchetes y las barras; estas no los llevan.
+            if (! str_contains($css, '.' . $clase)) {
+                $faltantes[] = "{$clase} (hace que {$paraQue})";
+            }
+        }
+
+        $this->assertSame([], $faltantes,
+            'El CSS compilado quedó atrás de las vistas. Corré «npm run build» y versioná '
+            . 'public/build, o estas pantallas salen sin estilos en producción. Falta: '
+            . implode('; ', $faltantes));
+    }
 }

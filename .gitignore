@@ -1,6 +1,9 @@
 /.phpunit.cache
 /node_modules
-/public/build
+# public/build NO se ignora: la imagen de producción es php:8.2-apache, sin Node,
+# así que el servidor no puede compilar. Si el CSS no viaja con el código, el
+# deploy sube las vistas nuevas y deja el bundle viejo: las pantallas salen sin
+# los estilos que todavía no existen en ese archivo.
 /public/hot
 /public/storage
 /storage/*.key
