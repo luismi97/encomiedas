@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToCompany;
 use App\Support\CompanyContext;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 class CompanySetting extends Model
@@ -17,6 +18,7 @@ class CompanySetting extends Model
         'environment',
         'name',
         'commercial_name',
+        'logo_path',
         'identification_type',
         'identification_number',
         'activity_code',
@@ -86,6 +88,29 @@ class CompanySetting extends Model
         return $nombre
             ?: trim((string) CompanyContext::actual()?->name)
             ?: (string) config('app.name');
+    }
+
+    /**
+     * La dirección del logo, o null si la empresa no subió ninguno.
+     *
+     * Lleva la marca de tiempo del archivo: sin eso, reemplazar el logo no se
+     * ve hasta que cada usuario vacíe su caché, y el administrador concluye que
+     * la subida no funcionó.
+     */
+    public function logoUrl(): ?string
+    {
+        if (blank($this->logo_path) || ! Storage::disk('public')->exists($this->logo_path)) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($this->logo_path)
+            . '?v=' . Storage::disk('public')->lastModified($this->logo_path);
+    }
+
+    /** El logo de la empresa activa, sin lanzar si no hay una sola. */
+    public static function logoDeLaMarca(): ?string
+    {
+        return static::deLaMarca()?->logoUrl();
     }
 
     /**

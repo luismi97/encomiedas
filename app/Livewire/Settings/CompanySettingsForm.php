@@ -46,6 +46,12 @@ class CompanySettingsForm extends Component
     /** @var mixed */
     public $certificate;
 
+    /** Logo de la empresa: el que sale en el menú. */
+    public $logo;
+
+    /** La dirección del que ya está guardado, para mostrarlo al lado. */
+    public ?string $logoActual = null;
+
     public bool $hasCertificate = false;
 
     /**
@@ -98,6 +104,7 @@ class CompanySettingsForm extends Component
         $this->insurance_percent = (float) $settings->porcentajeDeSeguro();
         // La clave no se precarga: se muestra si ya hay una, no cuál es.
         $this->hasCertificate = filled($settings->certificate_path);
+        $this->logoActual = $settings->logoUrl();
         $this->unreadableFields = $settings->undecryptableFields();
         $this->loadBranches();
     }
@@ -138,6 +145,15 @@ class CompanySettingsForm extends Component
             'atv_username' => 'nullable|string|max:150',
             'atv_password' => 'nullable|string|max:150',
             'certificate' => 'nullable|file|max:2048',
+            /*
+             | Formatos de mapa de bits y NUNCA SVG.
+             |
+             | Un SVG es un documento XML que admite <script>, y este se serviría
+             | desde el mismo dominio del sistema: subir el logo sería una vía
+             | para ejecutar código en la sesión de todos los cajeros. La regla
+             | `image` de Laravel acepta SVG, así que hay que listar los tipos.
+             */
+            'logo' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:1024|dimensions:max_width=1200,max_height=1200',
             'certificate_pin' => 'nullable|string|max:50',
             'default_cabys_code' => 'nullable|string|max:13',
             'insurance_percent' => 'required|numeric|min:0|max:100',
@@ -240,6 +256,10 @@ class CompanySettingsForm extends Component
             $this->hasCertificate = true;
         }
 
+        if ($this->logo) {
+            $this->guardarLogo($settings);
+        }
+
         $settings->fill([
             'enabled' => $this->enabled,
             'environment' => $data['environment'],
@@ -280,10 +300,51 @@ class CompanySettingsForm extends Component
         $this->saveBranchCodes();
 
         $this->certificate = null;
+        $this->logo = null;
+        $this->logoActual = $settings->fresh()->logoUrl();
         $this->atv_password = '';
         $this->certificate_pin = '';
 
         session()->flash('success', 'Configuración de la empresa guardada.');
+    }
+
+    /**
+     * Guarda el logo y borra el anterior.
+     *
+     * El nombre lleva la extensión del archivo, así que pasar de PNG a JPG deja
+     * dos archivos si no se borra el viejo: uno huérfano por cada cambio de
+     * formato, para siempre.
+     */
+    private function guardarLogo(CompanySetting $settings): void
+    {
+        $anterior = $settings->logo_path;
+
+        // El id de la configuración y no el nombre original: dos empresas que
+        // suban «logo.png» no pueden pisarse el archivo, y el nombre que venga
+        // del navegador no llega a tocar el disco.
+        $nombre = 'empresa-' . $settings->id . '.' . $this->logo->extension();
+
+        $settings->logo_path = $this->logo->storeAs('logos', $nombre, 'public');
+
+        if ($anterior && $anterior !== $settings->logo_path) {
+            Storage::disk('public')->delete($anterior);
+        }
+    }
+
+    /** Vuelve al icono genérico del sistema. */
+    public function quitarLogo(): void
+    {
+        $settings = CompanySetting::instance();
+
+        if ($settings->logo_path) {
+            Storage::disk('public')->delete($settings->logo_path);
+            $settings->forceFill(['logo_path' => null])->save();
+        }
+
+        $this->logo = null;
+        $this->logoActual = null;
+
+        session()->flash('success', 'Logo quitado. El menú vuelve al icono del sistema.');
     }
 
     public function searchCabys(CabysService $cabys): void

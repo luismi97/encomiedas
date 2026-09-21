@@ -22,6 +22,42 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label class="label">Razón social</label><input type="text" wire:model="name" class="input"></div>
                 <div><label class="label">Nombre comercial</label><input type="text" wire:model="commercial_name" class="input"></div>
+
+                <div class="sm:col-span-2">
+                    <label class="label flex items-center gap-2">
+                        Logo
+                        <x-ayuda>Sale en el menú, arriba a la izquierda, en lugar del icono genérico. PNG, JPG o WebP de hasta 1 MB. Se ve mejor cuadrado y con fondo transparente.</x-ayuda>
+                    </label>
+
+                    <div class="flex items-center gap-4 flex-wrap">
+                        @if ($logoActual)
+                            <img src="{{ $logoActual }}" alt="Logo de la empresa" data-test="logo-actual"
+                                 class="h-12 w-12 rounded-lg object-contain bg-gray-100 dark:bg-gray-700 p-1">
+                        @else
+                            <span class="flex h-12 w-12 items-center justify-center rounded-lg bg-brand-600 text-white">
+                                <x-icon name="box" class="w-6 h-6" />
+                            </span>
+                        @endif
+
+                        <div class="flex-1 min-w-[220px]">
+                            <input type="file" wire:model="logo" accept="image/png,image/jpeg,image/webp"
+                                   class="input @error('logo') input-error @enderror">
+                            @error('logo') <p class="error-text">{{ $message }}</p> @enderror
+                            <p class="text-xs text-gray-500 mt-1" wire:loading wire:target="logo">Subiendo el logo...</p>
+                        </div>
+
+                        @if ($logoActual)
+                            <x-action-button action="quitarLogo" variant="link-danger" loadingText="Quitando..."
+                                confirm="¿Quitar el logo? El menú vuelve al icono del sistema.">Quitar</x-action-button>
+                        @endif
+                    </div>
+
+                    <p class="text-xs text-gray-500 mt-2">
+                        No se admite SVG a propósito: es un documento que puede llevar código adentro
+                        y se serviría desde este mismo dominio.
+                    </p>
+                </div>
+
                 <div>
                     <label class="label">Tipo de identificación</label>
                     <select wire:model="identification_type" class="input">

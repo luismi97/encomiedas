@@ -761,6 +761,20 @@ descuadre, una anulación o un cambio de estado que nadie recuerda haber hecho.
 económica**, ubicación, teléfono y correo. Todo esto va en cada comprobante
 electrónico.
 
+**El nombre que se ve en pantalla.** El rótulo del menú, arriba a la izquierda,
+sale de acá y no de la configuración del servidor: se prefiere el **nombre
+comercial** y, si está vacío, la razón social. Es la misma regla del recibo y de
+la etiqueta, para que lo que el cliente ve impreso y lo que el cajero ve en
+pantalla sean la misma empresa.
+
+**Logo.** Sale en el menú, en lugar del icono genérico. PNG, JPG o WebP de hasta
+1 MB; se ve mejor cuadrado y con fondo transparente. Hay un botón para quitarlo y
+volver al icono del sistema.
+
+> **No se admite SVG**, y es a propósito: un SVG es un documento que puede llevar
+> código adentro, y se serviría desde el mismo dominio del sistema. Subir el logo
+> se volvería una vía para ejecutar código en la sesión de todos los cajeros.
+
 **Credenciales de Hacienda.** Usuario y contraseña de ATV, certificado digital
 (.p12) y su PIN. Hay un botón para **probar la conexión** antes de emitir.
 

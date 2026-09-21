@@ -26,9 +26,18 @@
         class="fixed inset-y-0 left-0 z-40 w-72 flex flex-col bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform lg:translate-x-0"
         :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
         <div class="h-16 shrink-0 flex items-center gap-2 px-5 border-b border-gray-200 dark:border-gray-700">
-            <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">
-                <x-icon name="box" class="w-5 h-5" />
-            </span>
+            @php($logo = \App\Models\CompanySetting::logoDeLaMarca())
+            @if ($logo)
+                {{-- object-contain y no cover: un logo recortado por el borde es
+                     peor que uno pequeño, y los que suben las empresas vienen en
+                     cualquier proporción. --}}
+                <img src="{{ $logo }}" alt="" data-test="logo-empresa"
+                     class="h-9 w-9 shrink-0 rounded-lg object-contain">
+            @else
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white">
+                    <x-icon name="box" class="w-5 h-5" />
+                </span>
+            @endif
             {{-- truncate y title: un nombre de la base es más largo que el del
                  .env —«Transportes La Amistad S.A.»— y sin esto se sale del
                  sidebar. Al pasar el puntero se lee completo. --}}
