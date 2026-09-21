@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Rates;
 
+use App\Rules\DeLaEmpresa;
 use App\Models\Branch;
 use App\Models\Rate;
 use App\Services\Tarifario;
@@ -41,10 +42,10 @@ class RateIndex extends Component
     {
         return [
             'name' => 'nullable|string|max:100',
-            'origin_branch_id' => 'nullable|exists:branches,id',
+            'origin_branch_id' => ['nullable', DeLaEmpresa::en('branches')],
             // Nullable pero distinta: una tarifa de una sede a sí misma no
             // aplica a ningún envío posible.
-            'destination_branch_id' => 'nullable|exists:branches,id|different:origin_branch_id',
+            'destination_branch_id' => ['nullable', 'different:origin_branch_id', DeLaEmpresa::en('branches')],
             'shipment_type' => ['nullable', Rule::in(array_keys(Rate::SHIPMENT_TYPES))],
             'min_weight' => 'required|numeric|min:0',
             'max_weight' => 'nullable|numeric|gt:min_weight',
@@ -120,13 +121,20 @@ class RateIndex extends Component
             ]);
         }
 
+        // «Todos los tipos» es NULL en base, no cadena vacía: el tarifario busca
+        // las comodines con whereNull, y una tarifa guardada con '' no aparece
+        // NUNCA —ni para el tipo que sea, ni para ninguno—. Quedaba en la lista,
+        // con su precio, sin aplicarse a una sola guía.
+        //
+        // Va con array_merge y no con el operador «+»: el «+» conserva el valor
+        // de la izquierda cuando la clave ya existe, y shipment_type viene en
+        // $data desde validate(), así que la normalización se perdía en silencio.
+        $data['shipment_type'] = $this->shipment_type ?: null;
+
         try {
             Rate::updateOrCreate(
                 ['id' => $this->editingId],
-                $data + [
-                    'shipment_type' => $this->shipment_type ?: null,
-                    'is_active' => $this->is_active,
-                ]
+                array_merge($data, ['is_active' => $this->is_active])
             );
         } catch (QueryException $e) {
             report($e);

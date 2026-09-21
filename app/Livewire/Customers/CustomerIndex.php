@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Customers;
 
+use App\Support\CompanyContext;
+use App\Rules\DeLaEmpresa;
 use App\Models\Branch;
 use App\Models\Customer;
 use Illuminate\Database\QueryException;
@@ -57,13 +59,15 @@ class CustomerIndex extends Component
             'identification_type' => ['nullable', Rule::in(array_keys(Customer::IDENTIFICATION_TYPES))],
             'identification' => [
                 'nullable', 'regex:/^\d{9,12}$/',
-                Rule::unique('customers', 'identification')->ignore($this->editingId),
+                Rule::unique('customers', 'identification')
+                    ->where(fn ($q) => $q->where('company_id', CompanyContext::id()))
+                    ->ignore($this->editingId),
             ],
             'activity_code' => ['nullable', 'regex:/^(?:\d{6}|\d{4}\.\d)$/'],
             'email' => 'nullable|email|max:150',
             'phone' => 'nullable|string|max:30',
             'address' => 'nullable|string|max:255',
-            'branch_id' => 'nullable|exists:branches,id',
+            'branch_id' => ['nullable', DeLaEmpresa::en('branches')],
             'payment_condition' => ['required', Rule::in(array_keys(Customer::PAYMENT_CONDITIONS))],
             'credit_limit' => 'nullable|numeric|min:0',
             'credit_cutoff_day' => 'nullable|integer|min:1|max:31',

@@ -146,21 +146,21 @@
                 ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/30'
                 : 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30' }} p-4">
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                    <div><span class="text-gray-500 block">Peso real</span>{{ $probeResult['peso_real'] }} kg</div>
-                    <div><span class="text-gray-500 block">Peso volumétrico</span>{{ $probeResult['peso_volumetrico'] }} kg</div>
-                    <div><span class="text-gray-500 block">Se cobra por</span><strong>{{ $probeResult['peso_facturable'] }} kg</strong></div>
+                    <div><span class="text-gray-500 block">Peso real</span><span data-test="probe-peso-real">{{ $probeResult['peso_real'] }}</span> kg</div>
+                    <div><span class="text-gray-500 block">Peso volumétrico</span><span data-test="probe-peso-volumetrico">{{ $probeResult['peso_volumetrico'] }}</span> kg</div>
+                    <div><span class="text-gray-500 block">Se cobra por</span><strong data-test="probe-peso-facturable">{{ $probeResult['peso_facturable'] }}</strong> kg</div>
                     <div>
                         <span class="text-gray-500 block">Precio</span>
                         @if ($probeResult['precio'] !== null)
-                            <strong class="text-lg">₡{{ number_format($probeResult['precio'], 2) }}</strong>
+                            <strong class="text-lg" data-test="probe-precio">₡{{ number_format($probeResult['precio'], 2) }}</strong>
                         @else
-                            <span class="text-amber-700 dark:text-amber-300">—</span>
+                            <span class="text-amber-700 dark:text-amber-300" data-test="probe-sin-tarifa">—</span>
                         @endif
                     </div>
                 </div>
                 @if ($probeResult['tarifa'])
                     <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                        Aplica: <strong>{{ $probeResult['tarifa']->name ?: $probeResult['tarifa']->rutaLabel() }}</strong>
+                        Aplica: <strong data-test="probe-tarifa">{{ $probeResult['tarifa']->name ?: $probeResult['tarifa']->rutaLabel() }}</strong>
                         · {{ $probeResult['tarifa']->rutaLabel() }} · {{ $probeResult['tarifa']->pesoLabel() }}
                     </p>
                 @else
@@ -184,7 +184,7 @@
                         <th class="py-2 text-right">Acciones</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody data-test="tabla-tarifas">
                     @forelse ($rates as $rate)
                         <tr wire:key="tarifa-{{ $rate->id }}" class="border-b border-gray-100 dark:border-gray-700/50">
                             <td class="py-3 font-medium">{{ $rate->name ?: '—' }}</td>

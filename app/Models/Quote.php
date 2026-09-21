@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -18,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  */
 class Quote extends Model
 {
-    use BelongsToBranch;
+    use BelongsToCompany, BelongsToBranch;
 
     protected $fillable = [
         'code', 'origin_branch_id', 'destination_branch_id', 'customer_id',

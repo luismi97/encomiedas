@@ -35,6 +35,15 @@
         {{-- overscroll-contain evita que al llegar al final del menú el gesto
              siga desplazando la página de atrás. --}}
         <nav class="flex-1 overflow-y-auto overscroll-contain p-3 space-y-1">
+            {{-- El superadministrador no opera ninguna empresa: no tiene sede ni
+                 caja, así que las pantallas de operación no sabrían qué
+                 mostrarle. Su menú es el de las empresas, y para entrar a una
+                 usa «Entrar» desde el listado. --}}
+            @if (auth()->user()->isSuperadmin())
+                <a href="{{ route('superadmin.companies.index') }}" class="nav-link {{ request()->routeIs('superadmin.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="building" /> <span>Empresas</span>
+                </a>
+            @else
             <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'nav-link-active' : '' }}">
                 <x-icon name="home" /> <span>Inicio</span>
             </a>
@@ -102,6 +111,7 @@
                     <x-icon name="cog" /> <span>Configuración de la empresa</span>
                 </a>
             @endif
+            @endif
         </nav>
     </aside>
 
@@ -123,7 +133,12 @@
 
                 <div class="hidden sm:block text-right leading-tight">
                     <div class="font-medium">{{ auth()->user()->name }}</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                    <div class="text-xs text-gray-500 dark:text-gray-400" data-test="identidad-sesion">
+                        {{-- La empresa va primero: con varias en el mismo sistema,
+                             saber en cuál se está trabajando importa más que el rol. --}}
+                        @if ($empresaActiva = \App\Support\CompanyContext::actual())
+                            <span class="font-medium text-gray-600 dark:text-gray-300">{{ $empresaActiva->name }}</span> ·
+                        @endif
                         {{ auth()->user()->roleLabel() }}@if (auth()->user()->branch) · {{ auth()->user()->branch->name }}@endif
                     </div>
                 </div>
@@ -136,6 +151,28 @@
                 </form>
             </div>
         </header>
+
+        {{-- Suplantación: una franja imposible de no ver. El superadministrador
+             está operando con la identidad de un cliente y todo lo que haga acá
+             queda a nombre de esa persona; confundirse de pestaña y cobrar una
+             guía en la empresa equivocada es exactamente lo que esto evita. --}}
+        @if (\App\Support\Impersonation::activa())
+            <div class="flex items-center justify-between gap-3 flex-wrap px-4 sm:px-6 py-2 bg-amber-100 dark:bg-amber-900/50 border-b border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100 text-sm"
+                 data-test="aviso-suplantacion">
+                <span class="flex items-center gap-2">
+                    <x-icon name="warning" class="w-4 h-4" />
+                    Estás dentro de
+                    <strong>{{ \App\Support\CompanyContext::actual()?->name ?? 'una empresa' }}</strong>
+                    como {{ auth()->user()->name }}.
+                </span>
+                <form method="POST" action="{{ route('superadmin.volver') }}">
+                    @csrf
+                    <button type="submit" class="px-3 py-1 rounded-lg bg-amber-800 text-white hover:bg-amber-900 font-medium">
+                        Volver al panel
+                    </button>
+                </form>
+            </div>
+        @endif
 
         <main class="p-4 sm:p-6">
             @if (session('success'))

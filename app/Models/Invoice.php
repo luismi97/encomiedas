@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Invoice extends Model
 {
-    use HasFactory;
+    use BelongsToCompany, HasFactory;
     use BelongsToBranch;
 
     /**
@@ -415,10 +416,20 @@ class Invoice extends Model
         return in_array($this->status, self::FINAL_STATUSES, true);
     }
 
-    /** URL que lleva el QR: abre el seguimiento público de esta guía. */
+    /**
+     * URL que lleva el QR: abre el seguimiento público de esta guía.
+     *
+     * Incluye la empresa porque el código guía es único por empresa, no por
+     * sistema: dos clientes con una sede «SJ» emiten los dos un SJ-LIM-00005, y
+     * sin la empresa el portal no sabría cuál de los dos paquetes mostrar.
+     */
     public function trackingUrl(): string
     {
-        return url('/rastreo/' . $this->code);
+        $slug = $this->company?->slug ?? $this->company()->withoutGlobalScopes()->value('slug');
+
+        return $slug
+            ? route('rastreo.empresa', ['empresa' => $slug, 'code' => $this->code])
+            : route('rastreo.ver', ['code' => $this->code]);
     }
 
     public function shipmentTypeLabel(): string

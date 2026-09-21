@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\RecorreEmpresas;
+use App\Models\Company;
 use App\Models\Customer;
 use App\Models\User;
 use App\Services\CreditoService;
@@ -16,14 +18,22 @@ use Illuminate\Console\Command;
  */
 class CreditoCorte extends Command
 {
+    use RecorreEmpresas;
+
     protected $signature = 'credito:corte
         {--dry-run : Muestra a quién cortaría sin emitir nada}
         {--cliente= : Corta solo a este cliente, sin importar el día}
-        {--plazo=30 : Días de plazo del estado de cuenta}';
+        {--plazo=30 : Días de plazo del estado de cuenta}
+        {--empresa= : Corta solo esta empresa (id o identificador)}';
 
     protected $description = 'Emite los estados de cuenta de los clientes de crédito con corte hoy';
 
     public function handle(CreditoService $credito): int
+    {
+        return $this->porCadaEmpresa(fn (Company $empresa) => $this->cortar($credito));
+    }
+
+    private function cortar(CreditoService $credito): int
     {
         $simulacion = (bool) $this->option('dry-run');
         $plazo = (int) $this->option('plazo');

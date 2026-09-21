@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Branches;
 
+use App\Support\CompanyContext;
 use App\Models\Branch;
 use Illuminate\Database\QueryException;
 use Illuminate\Validation\Rule;
@@ -50,12 +51,17 @@ class BranchIndex extends Component
             // tiene que ser corto, en letras y único entre sedes.
             'prefix' => [
                 'required', 'string', 'regex:/^[A-Za-z]{2,4}$/',
-                Rule::unique('branches', 'prefix')->ignore($this->editingId),
+                // Por empresa y no por sistema: que otra empresa ya use «SJ»
+                // no es problema de esta, y el índice único lo permite.
+                Rule::unique('branches', 'prefix')
+                    ->where(fn ($q) => $q->where('company_id', CompanyContext::id()))
+                    ->ignore($this->editingId),
             ],
             'sucursal_code' => [
                 'required', 'string', 'regex:/^\d{3}$/',
                 Rule::unique('branches', 'sucursal_code')
-                    ->where(fn ($q) => $q->where('terminal_code', $this->terminal_code))
+                    ->where(fn ($q) => $q->where('terminal_code', $this->terminal_code)
+                        ->where('company_id', CompanyContext::id()))
                     ->ignore($this->editingId),
             ],
             'terminal_code' => ['required', 'string', 'regex:/^\d{5}$/'],

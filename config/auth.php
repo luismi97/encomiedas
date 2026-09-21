@@ -61,7 +61,11 @@ return [
 
     'providers' => [
         'users' => [
-            'driver' => 'eloquent',
+            // 'eloquent-sin-empresa' y no 'eloquent': ver
+            // App\Auth\UserProviderSinEmpresa. Autenticar tiene que encontrar
+            // al usuario de cualquier empresa, porque en ese momento todavía no
+            // se sabe de cuál es.
+            'driver' => 'eloquent-sin-empresa',
             'model' => env('AUTH_MODEL', App\Models\User::class),
         ],
 

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\SuperadminController;
 use App\Http\Controllers\InvoiceExportController;
 use App\Http\Controllers\RastreoController;
 use App\Http\Controllers\ElectronicInvoiceController;
@@ -23,6 +24,7 @@ use App\Livewire\Invoices\InvoiceShow;
 use App\Livewire\Quotes\QuoteIndex;
 use App\Livewire\Rates\RateIndex;
 use App\Livewire\Settings\CompanySettingsForm;
+use App\Livewire\Superadmin\CompanyIndex;
 use App\Livewire\Taxes\TaxIndex;
 use App\Livewire\Users\UserIndex;
 use Illuminate\Support\Facades\Route;
@@ -39,6 +41,11 @@ use Illuminate\Support\Facades\Route;
  */
 Route::middleware('throttle:20,1')->group(function () {
     Route::get('/rastreo', [RastreoController::class, 'buscar'])->name('rastreo.buscar');
+    // Con la empresa en la URL: es lo que genera el QR del recibo desde que el
+    // sistema es multiempresa, porque el mismo código guía puede existir en dos
+    // empresas distintas. La forma corta sigue funcionando para los recibos ya
+    // impresos, y desambigua preguntando cuando hace falta.
+    Route::get('/rastreo/{empresa}/{code}', [RastreoController::class, 'ver'])->name('rastreo.empresa');
     Route::get('/rastreo/{code}', [RastreoController::class, 'ver'])->name('rastreo.ver');
 });
 
@@ -58,6 +65,20 @@ Route::middleware('guest')->group(function () {
     });
     Route::post('/login', [LoginController::class, 'login']);
 });
+
+/*
+ | Panel del dueño del sistema. Vive fuera del grupo de operación: no tiene
+ | empresa, y por eso mismo RequiresCompany lo deja pasar solo por acá.
+ */
+Route::middleware(['auth', 'role:superadmin'])->name('superadmin.')->group(function () {
+    Route::get('/superadmin/empresas', CompanyIndex::class)->name('companies.index');
+    Route::post('/superadmin/empresas/{company}/entrar', [SuperadminController::class, 'entrar'])->name('companies.entrar');
+    Route::post('/superadmin/empresas/{company}/clave-admin', [SuperadminController::class, 'contrasenaDelAdmin'])->name('companies.clave');
+});
+
+// Volver de la suplantación: la pide el usuario suplantado, que en ese momento
+// NO es superadministrador. Por eso no va en el grupo de arriba.
+Route::middleware('auth')->post('/superadmin/volver', [SuperadminController::class, 'volver'])->name('superadmin.volver');
 
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');

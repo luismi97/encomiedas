@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /** Una impresión de etiqueta. Se escribe y no se toca: es evidencia. */
 class PrintLog extends Model
 {
+    use BelongsToCompany;
+
     public const UPDATED_AT = null;
 
     protected $fillable = ['invoice_id', 'user_id', 'copy_number', 'paper_width', 'ip'];

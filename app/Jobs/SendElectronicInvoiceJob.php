@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\ElectronicInvoice;
 use App\Services\Hacienda\ElectronicBillingService;
+use App\Support\CompanyContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -53,7 +54,9 @@ class SendElectronicInvoiceJob implements ShouldQueue, ShouldBeUnique
 
     public function handle(ElectronicBillingService $service): void
     {
-        $electronicInvoice = ElectronicInvoice::find($this->electronicInvoiceId);
+        $electronicInvoice = CompanyContext::sinAlcance(
+            fn () => ElectronicInvoice::find($this->electronicInvoiceId)
+        );
 
         if (!$electronicInvoice) {
             Log::warning("SendElectronicInvoiceJob: comprobante {$this->electronicInvoiceId} no encontrado.");
@@ -62,7 +65,13 @@ class SendElectronicInvoiceJob implements ShouldQueue, ShouldBeUnique
 
         Log::info("SendElectronicInvoiceJob: transmitiendo {$electronicInvoice->clave}");
 
-        $service->send($electronicInvoice, fromQueue: true);
+        // La empresa se fija a mano: en el worker no hay sesión de la cual
+        // deducirla, y el servicio va a pedir el certificado y las credenciales
+        // de ATV. Sin esto firmaría con las de otro emisor —o con las de nadie—.
+        CompanyContext::para(
+            $electronicInvoice->company_id,
+            fn () => $service->send($electronicInvoice, fromQueue: true)
+        );
     }
 
     /**
@@ -71,7 +80,9 @@ class SendElectronicInvoiceJob implements ShouldQueue, ShouldBeUnique
      */
     public function failed(?Throwable $e): void
     {
-        $electronicInvoice = ElectronicInvoice::find($this->electronicInvoiceId);
+        $electronicInvoice = CompanyContext::sinAlcance(
+            fn () => ElectronicInvoice::find($this->electronicInvoiceId)
+        );
 
         if ($electronicInvoice && $electronicInvoice->status === ElectronicInvoice::STATUS_QUEUED) {
             $electronicInvoice->status = ElectronicInvoice::STATUS_ERROR;

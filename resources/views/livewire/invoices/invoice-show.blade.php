@@ -4,7 +4,7 @@
     <div class="card">
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
-                <div class="text-2xl font-bold">{{ $invoice->code }}</div>
+                <div class="text-2xl font-bold" data-test="codigo-guia">{{ $invoice->code }}</div>
                 <div class="text-gray-500 dark:text-gray-400">Creada: {{ $invoice->created_at->format('d/m/Y H:i') }}</div>
                 @if ($invoice->delivered_at)
                     <div class="text-gray-500 dark:text-gray-400">Entregada: {{ $invoice->delivered_at->format('d/m/Y H:i') }}</div>
@@ -252,13 +252,13 @@
 
         <div class="flex justify-end mt-4">
             <div class="w-full sm:w-72 space-y-1">
-                <div class="flex justify-between"><span>Subtotal</span><span>₡{{ number_format($invoice->subtotal, 2) }}</span></div>
-                <div class="flex justify-between"><span>Descuento</span><span>-₡{{ number_format($invoice->discount_amount, 2) }}</span></div>
+                <div class="flex justify-between"><span>Subtotal</span><span data-test="guia-subtotal">₡{{ number_format($invoice->subtotal, 2) }}</span></div>
+                <div class="flex justify-between"><span>Descuento</span><span data-test="guia-descuento">-₡{{ number_format($invoice->discount_amount, 2) }}</span></div>
                 @foreach ($invoice->taxes as $tax)
                     <div class="flex justify-between text-sm"><span>{{ $tax->name }} ({{ number_format($tax->percent, 2) }}%)</span><span>₡{{ number_format($tax->amount, 2) }}</span></div>
                 @endforeach
                 <div class="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-700 pt-2">
-                    <span>Total</span><span>₡{{ number_format($invoice->total, 2) }}</span>
+                    <span>Total</span><span data-test="guia-total">₡{{ number_format($invoice->total, 2) }}</span>
                 </div>
             </div>
         </div>

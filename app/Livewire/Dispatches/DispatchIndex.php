@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Dispatches;
 
+use App\Rules\DeLaEmpresa;
 use App\Models\Branch;
 use App\Models\Dispatch;
 use App\Models\Invoice;
@@ -59,10 +60,10 @@ class DispatchIndex extends Component
     protected function rules(): array
     {
         return [
-            'origin_branch_id' => 'required|exists:branches,id',
-            'destination_branch_id' => 'required|exists:branches,id|different:origin_branch_id',
+            'origin_branch_id' => ['required', DeLaEmpresa::en('branches')],
+            'destination_branch_id' => ['required', 'different:origin_branch_id', DeLaEmpresa::en('branches')],
             'driver_name' => 'nullable|string|max:150',
-            'driver_user_id' => 'nullable|exists:users,id',
+            'driver_user_id' => ['nullable', DeLaEmpresa::en('users')],
             'vehicle_plate' => 'nullable|string|max:20',
             'notes' => 'nullable|string|max:1000',
         ];

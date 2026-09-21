@@ -129,7 +129,7 @@
                             <th class="py-2 text-right">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody data-test="guias-del-cierre">
                         @forelse ($abierto->lines as $linea)
                             {{-- Sin wire:key Livewire reutiliza los nodos de una fila en
                                  otra al re-renderizar, y los botones quedan pegados a la
@@ -173,8 +173,9 @@
                 <div wire:key="acciones-abierto-{{ $abierto->id }}"
                      class="pt-2 border-t border-gray-200 dark:border-gray-700">
                     <h3 class="font-semibold mb-2">Guías disponibles de esta ruta</h3>
+                    <div data-test="guias-disponibles">
                     @forelse ($disponibles as $guia)
-                        <div wire:key="disponible-{{ $guia->id }}"
+                        <div wire:key="disponible-{{ $guia->id }}" data-test="guia-disponible"
                              class="flex items-center justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-700/50">
                             <div>
                                 <span class="font-mono">{{ $guia->code }}</span>
@@ -185,6 +186,7 @@
                     @empty
                         <p class="text-sm text-gray-500">No hay guías pendientes para esta ruta.</p>
                     @endforelse
+                    </div>
 
                     <div class="mt-4">
                         <x-action-button action="despachar" variant="primary" loadingText="Despachando..."

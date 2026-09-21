@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 /** Billete o moneda para el arqueo. */
 class Denomination extends Model
 {
+    use BelongsToCompany;
+
     protected $fillable = ['value', 'sort_order', 'is_active'];
 
     protected function casts(): array

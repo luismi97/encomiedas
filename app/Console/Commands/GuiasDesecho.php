@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\RecorreEmpresas;
+use App\Models\Company;
 use App\Models\GuideStatusHistory;
 use App\Models\Invoice;
 use App\Services\GuideStatusService;
@@ -17,10 +19,19 @@ use Illuminate\Console\Command;
  */
 class GuiasDesecho extends Command
 {
-    protected $signature = 'guias:desecho {--dry-run : Muestra qué haría sin tocar nada}';
+    use RecorreEmpresas;
+
+    protected $signature = 'guias:desecho
+        {--dry-run : Muestra qué haría sin tocar nada}
+        {--empresa= : Procesa solo esta empresa (id o identificador)}';
     protected $description = 'Marca próximas a desecho las guías sin retirar y desecha las que agotaron el plazo';
 
     public function handle(GuideStatusService $estados): int
+    {
+        return $this->porCadaEmpresa(fn (Company $empresa) => $this->procesar($estados));
+    }
+
+    private function procesar(GuideStatusService $estados): int
     {
         $diasAviso  = (int) config('encomiendas.disposal.warn_after_days', 30);
         $diasGracia = (int) config('encomiendas.disposal.dispose_after_days', 15);

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class GuideIncident extends Model
 {
+    use BelongsToCompany;
+
     public const TYPE_DAMAGED  = 'damaged';
     public const TYPE_ADDRESS  = 'wrong_address';
     public const TYPE_ABSENT   = 'recipient_absent';

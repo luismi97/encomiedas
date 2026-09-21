@@ -30,6 +30,7 @@ class DatosConfigurablesTest extends TestCase
             ->reject(fn ($c) => in_array($c, [
                 'id', 'created_at', 'updated_at',
                 'certificate_path', // lo escribe la subida del archivo, no se digita
+                'company_id',       // lo pone el aislamiento, no una persona
             ]));
 
         $faltantes = $columnas->reject(

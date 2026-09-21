@@ -1,4 +1,4 @@
-<x-rastreo-layout>
+<x-rastreo-layout :empresa="$empresa">
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div class="p-6 border-b border-gray-200 dark:border-gray-700">
             <div class="font-mono text-sm text-gray-500 dark:text-gray-400">{{ $guia->code }}</div>

@@ -33,7 +33,7 @@
                 <div>
                     <label class="label">Rol</label>
                     <select wire:model.live="role" class="input">
-                        @foreach (\App\Models\User::ROLES as $valor => $etiqueta)
+                        @foreach (\App\Models\User::ROLES_ASIGNABLES as $valor => $etiqueta)
                             <option value="{{ $valor }}">{{ $etiqueta }}</option>
                         @endforeach
                     </select>

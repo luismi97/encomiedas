@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
+use App\Support\CompanyContext;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Model;
+use RuntimeException;
 
 class CompanySetting extends Model
 {
+    use BelongsToCompany;
+
     protected $fillable = [
         'enabled',
         'environment',
@@ -44,9 +49,39 @@ class CompanySetting extends Model
         ];
     }
 
-    /** Fila única de configuración (crea una por defecto si no existe). */
+    /**
+     * La configuración fiscal de la empresa activa (la crea vacía si no existe).
+     *
+     * Era una fila única del sistema entero. Con varias empresas hay una por
+     * empresa, y el ámbito global de BelongsToCompany es el que decide cuál: el
+     * firstOrCreate sale ya recortado a la empresa en contexto, y el company_id
+     * lo pone el trait al insertar.
+     *
+     * Ojo con el certificado: quien llame a esto fuera del navegador —la cola,
+     * un comando— tiene que haber fijado la empresa con CompanyContext, o sin
+     * empresa en contexto se traería la primera fila que encuentre, que es la
+     * de otro emisor. Por eso lanza en vez de adivinar.
+     */
     public static function instance(): self
     {
+        if (! CompanyContext::hay()) {
+            $fueraDeContexto = static::query()->orderBy('id')->get();
+
+            // Instalación de una sola empresa: no hay ambigüedad que resolver y
+            // los comandos de siempre siguen funcionando sin cambios.
+            if ($fueraDeContexto->count() === 1) {
+                return $fueraDeContexto->first();
+            }
+
+            if ($fueraDeContexto->count() > 1) {
+                throw new RuntimeException(
+                    'Se pidió la configuración fiscal sin empresa en contexto y hay varias. '
+                    . 'Envolvé la llamada en CompanyContext::para($companyId, ...) para saber con '
+                    . 'qué certificado firmar.'
+                );
+            }
+        }
+
         $settings = static::query()->firstOrCreate([], ['environment' => 'sandbox']);
 
         // Los valores por defecto de las columnas (enabled, phone_code, ...) los

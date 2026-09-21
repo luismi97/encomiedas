@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class PackageType extends Model
 {
+    use BelongsToCompany;
+
     protected $fillable = ['name', 'is_fragile', 'sort_order', 'is_active'];
 
     protected function casts(): array

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class CashSession extends Model
 {
-    use BelongsToBranch;
+    use BelongsToCompany, BelongsToBranch;
 
     public const STATUS_OPEN   = 'open';
     public const STATUS_CLOSED = 'closed';

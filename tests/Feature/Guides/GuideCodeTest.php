@@ -148,10 +148,20 @@ class GuideCodeTest extends TestCase
             ->where('origin_prefix', 'SJ')->where('destination_prefix', 'LIM')->value('last_number'));
     }
 
+    /**
+     * El QR lleva la empresa además del código.
+     *
+     * Desde que una instalación atiende a varias empresas, el código guía dejó
+     * de ser único: dos clientes con una sede «SJ» emiten los dos un
+     * SJ-LIM-00001, y sin la empresa el portal no sabría cuál paquete mostrar.
+     */
     public function test_el_qr_apunta_al_seguimiento_publico(): void
     {
         $guia = $this->guia($this->sj, $this->lim)->fresh();
 
-        $this->assertSame(url('/rastreo/SJ-LIM-00001'), $guia->trackingUrl());
+        $this->assertSame(
+            url('/rastreo/' . $this->empresa->slug . '/SJ-LIM-00001'),
+            $guia->trackingUrl()
+        );
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -12,6 +13,17 @@ class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
+    use BelongsToCompany;
+
+    /**
+     * Dueño del sistema, no de una empresa.
+     *
+     * Es el único rol con company_id en null, y de ahí sale todo lo demás: sin
+     * empresa en contexto el ámbito global no filtra, así que ve las de todos.
+     * Por eso no entra a las pantallas de operación —no tendría con cuál de
+     * todas trabajar—: para eso suplanta al administrador de una empresa.
+     */
+    public const ROLE_SUPERADMIN = 'superadmin';
 
     public const ROLE_ADMIN = 'admin';
     public const ROLE_CAJERO = 'cajero';
@@ -19,6 +31,20 @@ class User extends Authenticatable
     public const ROLE_DESPACHADOR = 'despachador';
 
     public const ROLES = [
+        self::ROLE_ADMIN      => 'Administrador',
+        self::ROLE_CAJERO     => 'Cajero',
+        self::ROLE_REPARTIDOR => 'Repartidor',
+        self::ROLE_DESPACHADOR => 'Despachador',
+        self::ROLE_SUPERADMIN => 'Superadministrador',
+    ];
+
+    /**
+     * Los roles que un administrador de empresa puede asignar.
+     *
+     * Sin el superadministrador: si apareciera en el selector de Usuarios,
+     * cualquier administrador podría fabricarse acceso a las demás empresas.
+     */
+    public const ROLES_ASIGNABLES = [
         self::ROLE_ADMIN      => 'Administrador',
         self::ROLE_CAJERO     => 'Cajero',
         self::ROLE_REPARTIDOR => 'Repartidor',
@@ -31,6 +57,7 @@ class User extends Authenticatable
         self::ROLE_CAJERO     => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
         self::ROLE_REPARTIDOR => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
         self::ROLE_DESPACHADOR => 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
+        self::ROLE_SUPERADMIN => 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100',
     ];
 
     /**
@@ -52,6 +79,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'company_id',
         'branch_id',
         'phone',
         'is_active',
@@ -123,6 +151,11 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->role === self::ROLE_ADMIN;
+    }
+
+    public function isSuperadmin(): bool
+    {
+        return $this->role === self::ROLE_SUPERADMIN;
     }
 
     public function isCajero(): bool

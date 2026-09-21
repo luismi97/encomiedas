@@ -189,35 +189,63 @@ class InstalarSistema extends Command
         return $this->call($comando, ['--force' => true]) === self::SUCCESS;
     }
 
+    /** Qué accesos quedaron creados, para entregarlos. */
+    private function mostrarCredenciales(): void
+    {
+        $this->newLine();
+
+        $superadmin = ProduccionSeeder::$superadminCorreo;
+        $admin = ProduccionSeeder::$correoCreado;
+
+        if ($superadmin || $admin) {
+            $this->components->info('Listo. Entrá con estas credenciales:');
+            $this->newLine();
+        }
+
+        // El superadministrador primero: es el acceso que NO se puede perder.
+        // Da de alta a cada cliente nuevo desde el panel, sin volver a la
+        // consola ni instalar otra copia del sistema.
+        if ($superadmin) {
+            $this->components->info('Superadministrador (da de alta las empresas cliente):');
+            $this->components->twoColumnDetail('Usuario', $superadmin);
+            $this->mostrarContrasena(ProduccionSeeder::$superadminContrasena, 'SUPERADMIN_PASSWORD');
+            $this->newLine();
+        }
+
+        if ($admin) {
+            $this->components->info('Administrador de la primera empresa:');
+            $this->components->twoColumnDetail('Usuario', $admin);
+            $this->mostrarContrasena(ProduccionSeeder::$contrasenaGenerada, 'ADMIN_PASSWORD');
+            $this->newLine();
+        } else {
+            // Se avisa aunque se haya creado el superadministrador: quien
+            // reejecuta esto casi siempre viene buscando el acceso de operación,
+            // y el silencio se lee como «se perdió».
+            $this->components->info('Ya había un administrador activo: no se creó ninguno.');
+            $this->components->warn('Si perdiste ese acceso, usá «olvidé mi contraseña» en el login.');
+            $this->newLine();
+        }
+
+        $this->components->info('Siguiente paso: cargar las sucursales con sus códigos de Hacienda.');
+        $this->components->info('Para un cliente nuevo no hace falta instalar nada: '
+            . 'creá su empresa desde el panel de superadministrador, o con «php artisan empresa:crear».');
+    }
+
     /**
      * La contraseña se muestra una sola vez.
      *
      * No se guarda en ningún lado: si se pierde, se restablece por correo o se
      * vuelve a correr el comando con la base vacía.
      */
-    private function mostrarCredenciales(): void
+    private function mostrarContrasena(?string $contrasena, string $variable): void
     {
-        $this->newLine();
-
-        if (! ProduccionSeeder::$correoCreado) {
-            $this->components->info('Ya había un administrador activo: no se creó ninguno.');
-            $this->components->warn('Si perdiste el acceso, usá «olvidé mi contraseña» en el login.');
+        if ($contrasena === null) {
+            $this->components->twoColumnDetail('Contraseña', "la de {$variable} en el .env");
 
             return;
         }
 
-        $this->components->info('Listo. Entrá con estas credenciales:');
-        $this->components->twoColumnDetail('Usuario', ProduccionSeeder::$correoCreado);
-
-        if ($contrasena = ProduccionSeeder::$contrasenaGenerada) {
-            $this->components->twoColumnDetail('Contraseña', "<fg=yellow>{$contrasena}</>");
-            $this->newLine();
-            $this->components->warn('ANOTALA: no se vuelve a mostrar. Cambiala al entrar.');
-        } else {
-            $this->components->twoColumnDetail('Contraseña', 'la de ADMIN_PASSWORD en el .env');
-        }
-
-        $this->newLine();
-        $this->components->info('Siguiente paso: cargar las sucursales con sus códigos de Hacienda.');
+        $this->components->twoColumnDetail('Contraseña', "<fg=yellow>{$contrasena}</>");
+        $this->components->warn('ANOTALA: no se vuelve a mostrar. Cambiala al entrar.');
     }
 }

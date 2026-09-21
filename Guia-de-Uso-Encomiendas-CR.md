@@ -64,6 +64,13 @@ administrador ve todas las sedes.
 **El repartidor solo ve las guías que trae asignadas.** Si intenta abrir o
 imprimir una que no es suya, el sistema se lo niega.
 
+**Y todo lo anterior pasa dentro de una sola empresa.** El mismo sistema puede
+atender a varias a la vez, cada una con sus sedes, sus clientes, sus
+consecutivos y su facturación electrónica, sin verse entre ellas. Para quien
+opera no cambia nada: entra con su usuario y ve lo de su empresa. Quien instala
+y da de alta a los clientes tiene su propia guía en
+[MULTIEMPRESA.md](MULTIEMPRESA.md).
+
 ---
 
 ## 2. Entrar al sistema

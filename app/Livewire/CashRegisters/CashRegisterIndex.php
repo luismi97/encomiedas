@@ -2,6 +2,8 @@
 
 namespace App\Livewire\CashRegisters;
 
+use App\Support\CompanyContext;
+use App\Rules\DeLaEmpresa;
 use App\Models\Branch;
 use App\Models\CashRegister;
 use Illuminate\Database\QueryException;
@@ -31,13 +33,14 @@ class CashRegisterIndex extends Component
     protected function rules(): array
     {
         return [
-            'branch_id' => 'required|exists:branches,id',
+            'branch_id' => ['required', DeLaEmpresa::en('branches')],
             // Único dentro de la sede: con dos «Mostrador 1» en San José el
             // cajero no sabe en cuál está abriendo el turno.
             'name' => [
                 'required', 'string', 'max:60',
                 Rule::unique('cash_registers', 'name')
-                    ->where(fn ($q) => $q->where('branch_id', $this->branch_id))
+                    ->where(fn ($q) => $q->where('branch_id', $this->branch_id)
+                        ->where('company_id', CompanyContext::id()))
                     ->ignore($this->editingId),
             ],
         ];

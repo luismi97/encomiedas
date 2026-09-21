@@ -19,6 +19,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureRole::class,
         ]);
+
+        // Va en el grupo web y no ruta por ruta: la puerta del aislamiento
+        // tiene que cubrir tambien a la pantalla que alguien agregue mañana.
+        $middleware->appendToGroup('web', [
+            \App\Http\Middleware\RequiresCompany::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

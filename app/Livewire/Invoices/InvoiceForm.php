@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Invoices;
 
+use App\Rules\DeLaEmpresa;
 use App\Models\Branch;
 use App\Models\Invoice;
 use App\Models\PackageType;
@@ -428,16 +429,16 @@ class InvoiceForm extends Component
     protected function rules(): array
     {
         return [
-            'pickup_branch_id' => 'required|exists:branches,id',
+            'pickup_branch_id' => ['required', DeLaEmpresa::en('branches')],
             // Una encomienda es un traslado entre sedes: origen y destino
             // iguales no es un envío, y además rompe el código guía, que se
             // arma con los dos prefijos (SJ-SJ-00001 no significa nada).
-            'delivery_branch_id' => 'required|exists:branches,id|different:pickup_branch_id',
+            'delivery_branch_id' => ['required', 'different:pickup_branch_id', DeLaEmpresa::en('branches')],
             'sender_name' => 'required|string|max:150',
             'sender_phone' => 'nullable|string|max:30',
             'sender_identification' => 'nullable|string|max:20',
-            'sender_customer_id' => 'nullable|exists:customers,id',
-            'recipient_customer_id' => 'nullable|exists:customers,id',
+            'sender_customer_id' => ['nullable', DeLaEmpresa::en('customers')],
+            'recipient_customer_id' => ['nullable', DeLaEmpresa::en('customers')],
             'shipment_type' => ['nullable', Rule::in(array_keys(Rate::SHIPMENT_TYPES))],
             'declared_value' => 'nullable|numeric|min:0',
             'recipient_name' => 'required|string|max:150',
@@ -447,7 +448,7 @@ class InvoiceForm extends Component
                 : ['nullable', 'string', 'max:20'],
             'recipient_identification_type' => $this->wantsInvoice ? 'required|in:01,02,03,04' : 'nullable',
             'recipient_email' => 'nullable|email',
-            'assigned_to' => 'nullable|exists:users,id',
+            'assigned_to' => ['nullable', DeLaEmpresa::en('users')],
             'discount_amount' => 'nullable|numeric|min:0',
             'home_delivery_fee' => 'nullable|numeric|min:0',
             // Sin dirección exacta, «a domicilio» es una promesa sin destino.
@@ -455,7 +456,7 @@ class InvoiceForm extends Component
             'payment_method' => 'required|in:' . implode(',', array_keys(Invoice::PAYMENT_METHODS)),
             'cobro' => 'required|in:' . self::COBRO_PREPAID . ',' . self::COBRO_COLLECT . ',' . self::COBRO_CREDIT,
             'items' => 'required|array|min:1',
-            'items.*.package_type_id' => 'required|exists:package_types,id',
+            'items.*.package_type_id' => ['required', DeLaEmpresa::en('package_types')],
             'items.*.size' => 'nullable|string|max:20',
             'items.*.weight' => 'nullable|numeric|min:0|max:999999.99',
             'items.*.length_cm' => 'nullable|numeric|min:0|max:999999.99',

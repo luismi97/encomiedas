@@ -2,6 +2,7 @@
 
 namespace App\Livewire\PackageTypes;
 
+use App\Support\CompanyContext;
 use App\Models\PackageType;
 use Illuminate\Database\QueryException;
 use Illuminate\Validation\Rule;
@@ -32,7 +33,9 @@ class PackageTypeIndex extends Component
         return [
             'name' => [
                 'required', 'string', 'max:60',
-                Rule::unique('package_types', 'name')->ignore($this->editingId),
+                Rule::unique('package_types', 'name')
+                    ->where(fn ($q) => $q->where('company_id', CompanyContext::id()))
+                    ->ignore($this->editingId),
             ],
             'sort_order' => 'nullable|integer|min:0|max:999',
         ];

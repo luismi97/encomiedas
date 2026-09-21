@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Users;
 
+use App\Rules\DeLaEmpresa;
 use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -35,8 +36,11 @@ class UserIndex extends Component
             'username' => $usernameRules,
             'email' => 'required|email|unique:users,email,' . $this->editingId,
             'password' => $this->editingId ? 'nullable|string|min:6' : 'required|string|min:6',
-            'role' => ['required', Rule::in(array_keys(User::ROLES))],
-            'branch_id' => 'nullable|exists:branches,id',
+            // ROLES_ASIGNABLES y no ROLES: con el superadministrador en la
+            // lista, cualquier administrador podría fabricarse una cuenta sin
+            // empresa —y ver las de todos los demás clientes—.
+            'role' => ['required', Rule::in(array_keys(User::ROLES_ASIGNABLES))],
+            'branch_id' => ['nullable', DeLaEmpresa::en('branches')],
             'phone' => 'nullable|string|max:30',
         ];
     }

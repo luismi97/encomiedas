@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Quotes;
 
+use App\Rules\DeLaEmpresa;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\PackageType;
@@ -73,16 +74,16 @@ class QuoteIndex extends Component
     protected function rules(): array
     {
         return [
-            'origin_branch_id' => 'required|exists:branches,id',
-            'destination_branch_id' => 'required|exists:branches,id|different:origin_branch_id',
-            'customer_id' => 'nullable|exists:customers,id',
+            'origin_branch_id' => ['required', DeLaEmpresa::en('branches')],
+            'destination_branch_id' => ['required', 'different:origin_branch_id', DeLaEmpresa::en('branches')],
+            'customer_id' => ['nullable', DeLaEmpresa::en('customers')],
             'customer_name' => 'required|string|max:150',
             'customer_email' => 'nullable|email|max:150',
             'customer_phone' => 'nullable|string|max:30',
             'valid_until' => 'nullable|date|after_or_equal:today',
             'notes' => 'nullable|string|max:1000',
             'items' => 'required|array|min:1',
-            'items.*.package_type_id' => 'nullable|exists:package_types,id',
+            'items.*.package_type_id' => ['nullable', DeLaEmpresa::en('package_types')],
             'items.*.description' => 'nullable|string|max:255',
             'items.*.weight' => 'nullable|numeric|min:0|max:999999.99',
             'items.*.length_cm' => 'nullable|numeric|min:0|max:999999.99',

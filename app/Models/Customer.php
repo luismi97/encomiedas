@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Customer extends Model
 {
-    use HasFactory;
+    use BelongsToCompany, HasFactory;
 
     public const PAYMENT_CASH   = 'cash';
     public const PAYMENT_CREDIT = 'credit';

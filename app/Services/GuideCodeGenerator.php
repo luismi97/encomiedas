@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Branch;
+use App\Support\CompanyContext;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -14,6 +15,10 @@ use RuntimeException;
  * El consecutivo es por par de ruta y se reserva bajo candado en base. Contarlo
  * con un COUNT sobre invoices parece más simple hasta que dos sedes emiten en
  * el mismo segundo y las dos leen el mismo número.
+ *
+ * Y es por empresa: dos empresas distintas usan «SJ» para su sede de San José,
+ * y sin separarlas la guía número 1 de la segunda empresa saldría numerada
+ * donde quedó la primera —o chocaría contra el índice único—.
  */
 class GuideCodeGenerator
 {
@@ -22,7 +27,7 @@ class GuideCodeGenerator
         $prefijoOrigen  = $this->prefijo($origen);
         $prefijoDestino = $this->prefijo($destino);
 
-        $numero = $this->reservarConsecutivo($prefijoOrigen, $prefijoDestino);
+        $numero = $this->reservarConsecutivo($prefijoOrigen, $prefijoDestino, $origen->company_id);
         $ancho  = max(1, (int) config('encomiendas.guide_sequence_padding', 5));
 
         return $prefijoOrigen . '-' . $prefijoDestino . '-' . str_pad((string) $numero, $ancho, '0', STR_PAD_LEFT);
@@ -45,10 +50,15 @@ class GuideCodeGenerator
      * Reserva el siguiente número de la ruta. La fila se bloquea para que dos
      * transacciones simultáneas no lean el mismo valor.
      */
-    private function reservarConsecutivo(string $origen, string $destino): int
+    private function reservarConsecutivo(string $origen, string $destino, ?int $companyId): int
     {
-        return DB::transaction(function () use ($origen, $destino) {
+        // La sede manda sobre el contexto: el consecutivo tiene que ser el de la
+        // empresa dueña de la guía aunque quien la cree sea un proceso de fondo.
+        $companyId ??= CompanyContext::id();
+
+        return DB::transaction(function () use ($origen, $destino, $companyId) {
             $fila = DB::table('guide_sequences')
+                ->where('company_id', $companyId)
                 ->where('origin_prefix', $origen)
                 ->where('destination_prefix', $destino)
                 ->lockForUpdate()
@@ -59,6 +69,7 @@ class GuideCodeGenerator
                 // entre el select y esto, el índice único la rechaza en vez de
                 // reventar, y se relee.
                 DB::table('guide_sequences')->insertOrIgnore([
+                    'company_id'         => $companyId,
                     'origin_prefix'      => $origen,
                     'destination_prefix' => $destino,
                     'last_number'        => 0,
@@ -67,6 +78,7 @@ class GuideCodeGenerator
                 ]);
 
                 $fila = DB::table('guide_sequences')
+                    ->where('company_id', $companyId)
                     ->where('origin_prefix', $origen)
                     ->where('destination_prefix', $destino)
                     ->lockForUpdate()

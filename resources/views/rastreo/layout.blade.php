@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <title>Seguimiento de encomienda — {{ config('app.name') }}</title>
+    @php($marca = ($empresa ?? null)?->name ?: config('app.name'))
+    <title>Seguimiento de encomienda — {{ $marca }}</title>
     @vite(['resources/css/app.css'])
     {{-- Antes del primer pintado para que no parpadee el tema claro. --}}
     <script>
@@ -19,7 +20,7 @@
                 <x-icon name="box" class="w-6 h-6" />
             </span>
             <div>
-                <div class="font-bold text-lg leading-tight">{{ config('app.name') }}</div>
+                <div class="font-bold text-lg leading-tight">{{ $marca }}</div>
                 <div class="text-sm text-gray-500 dark:text-gray-400">Seguimiento de encomiendas</div>
             </div>
         </header>

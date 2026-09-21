@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\RecorreEmpresas;
+use App\Models\Company;
 use App\Models\CompanySetting;
 use App\Models\ElectronicInvoice;
 use App\Services\Hacienda\ElectronicBillingService;
@@ -9,13 +11,26 @@ use Illuminate\Console\Command;
 
 class HaciendaPoll extends Command
 {
+    use RecorreEmpresas;
+
     protected $signature = 'hacienda:poll
         {--limit= : Máximo de comprobantes por corrida}
-        {--max-seconds= : Presupuesto de tiempo para la corrida}';
+        {--max-seconds= : Presupuesto de tiempo para la corrida}
+        {--empresa= : Consulta solo esta empresa (id o identificador)}';
 
     protected $description = 'Consulta en Hacienda el estado de los comprobantes enviados (sent) y actualiza aceptado/rechazado.';
 
+    /**
+     * Una pasada por empresa: cada una consulta con SUS credenciales de ATV y
+     * ve solo sus comprobantes, que es lo que el ámbito global garantiza una
+     * vez fijado el contexto.
+     */
     public function handle(ElectronicBillingService $service): int
+    {
+        return $this->porCadaEmpresa(fn (Company $empresa) => $this->consultar($service));
+    }
+
+    private function consultar(ElectronicBillingService $service): int
     {
         // Sin facturación electrónica configurada no hay nada que consultar, y
         // esto corre cada minuto: salir aquí evita levantar el framework para

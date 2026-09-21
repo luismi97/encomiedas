@@ -366,23 +366,23 @@
         <div class="card">
             <div class="flex justify-end">
                 <div class="w-full sm:w-72 space-y-1 text-base">
-                    <div class="flex justify-between"><span>Bultos</span><span>₡{{ number_format($this->subtotal, 2) }}</span></div>
+                    <div class="flex justify-between"><span>Bultos</span><span data-test="resumen-bultos">₡{{ number_format($this->subtotal, 2) }}</span></div>
                     @if ($this->insuranceFee > 0)
                         <div class="flex justify-between">
                             <span>Seguro ({{ rtrim(rtrim(number_format($empresa->porcentajeDeSeguro(), 2), '0'), '.') }}% declarado)</span>
-                            <span>₡{{ number_format($this->insuranceFee, 2) }}</span>
+                            <span data-test="resumen-seguro">₡{{ number_format($this->insuranceFee, 2) }}</span>
                         </div>
                     @endif
                     @if ($this->homeDeliveryFeeAmount > 0)
                         <div class="flex justify-between">
                             <span>Entrega a domicilio</span>
-                            <span>₡{{ number_format($this->homeDeliveryFeeAmount, 2) }}</span>
+                            <span data-test="resumen-domicilio">₡{{ number_format($this->homeDeliveryFeeAmount, 2) }}</span>
                         </div>
                     @endif
-                    <div class="flex justify-between"><span>Descuento</span><span>-₡{{ number_format((float) $discount_amount, 2) }}</span></div>
-                    <div class="flex justify-between"><span>Impuestos</span><span>₡{{ number_format($this->taxTotal, 2) }}</span></div>
+                    <div class="flex justify-between"><span>Descuento</span><span data-test="resumen-descuento">-₡{{ number_format((float) $discount_amount, 2) }}</span></div>
+                    <div class="flex justify-between"><span>Impuestos</span><span data-test="resumen-impuestos">₡{{ number_format($this->taxTotal, 2) }}</span></div>
                     <div class="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-700 pt-2">
-                        <span>Total</span><span>₡{{ number_format($this->total, 2) }}</span>
+                        <span>Total</span><span data-test="resumen-total">₡{{ number_format($this->total, 2) }}</span>
                     </div>
                 </div>
             </div>

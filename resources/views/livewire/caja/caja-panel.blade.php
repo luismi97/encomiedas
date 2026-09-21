@@ -1,6 +1,7 @@
 <div class="space-y-6">
     @if ($feedback)
-        <div class="flex items-start gap-3 p-4 rounded-lg border text-base
+        <div data-test="aviso-caja"
+             class="flex items-start gap-3 p-4 rounded-lg border text-base
             {{ $feedbackType === 'error'
                 ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/40 text-red-800 dark:text-red-200'
                 : 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/40 text-green-800 dark:text-green-200' }}">
@@ -17,7 +18,7 @@
             Todo cobro de contado entra al turno abierto. Sin caja abierta, el cobro no llega al arqueo.
         </p>
         @if ($cajas->isNotEmpty())
-            <select wire:model.live="registerId" class="input sm:max-w-[280px]">
+            <select wire:model.live="registerId" class="input sm:max-w-[280px]" data-test="caja-selector">
                 @foreach ($cajas as $nombreSede => $delaSede)
                     <optgroup label="{{ $nombreSede }}">
                         @foreach ($delaSede as $c)
@@ -104,7 +105,7 @@
             <div class="flex flex-wrap items-end gap-3">
                 <div>
                     <label class="label">Fondo inicial (₡)</label>
-                    <input type="number" step="0.01" wire:model="openingFloat" class="input sm:w-48">
+                    <input type="number" step="0.01" wire:model="openingFloat" class="input sm:w-48" data-test="fondo-inicial">
                 </div>
                 <x-action-button action="abrir" variant="primary" loadingText="Abriendo...">
                     <x-icon name="check-circle" class="w-4 h-4" /> Abrir caja
@@ -131,7 +132,7 @@
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm rounded-lg bg-gray-50 dark:bg-gray-900/40 p-3">
                 <div><span class="text-gray-500 block">Fondo inicial</span><strong>₡{{ number_format((float) $sesion->opening_float, 2) }}</strong></div>
                 <div><span class="text-gray-500 block">Movimientos</span><strong>{{ $sesion->movements->count() }}</strong></div>
-                <div><span class="text-gray-500 block">Efectivo esperado</span><strong class="text-lg">₡{{ number_format($esperado, 2) }}</strong></div>
+                <div><span class="text-gray-500 block">Efectivo esperado</span><strong class="text-lg" data-test="efectivo-esperado">₡{{ number_format($esperado, 2) }}</strong></div>
                 <div><span class="text-gray-500 block">Otros medios</span>
                     <strong>₡{{ number_format($porMedio->reject(fn ($m, $k) => $k === 'cash')->sum('total'), 2) }}</strong>
                 </div>
@@ -190,18 +191,20 @@
                         @foreach ($denominaciones as $d)
                             <div>
                                 <label class="label">{{ $d->label() }}</label>
-                                <input type="number" min="0" wire:model.live="counts.{{ $d->id }}" class="input">
+                                <input type="number" min="0" wire:model.live="counts.{{ $d->id }}" class="input"
+                                       data-denominacion="{{ $d->value }}">
                             </div>
                         @endforeach
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm rounded-lg bg-gray-50 dark:bg-gray-900/40 p-3">
-                        <div><span class="text-gray-500 block">Esperado</span><strong>₡{{ number_format($esperado, 2) }}</strong></div>
-                        <div><span class="text-gray-500 block">Contado</span><strong>₡{{ number_format($this->contado, 2) }}</strong></div>
+                        <div><span class="text-gray-500 block">Esperado</span><strong data-test="arqueo-esperado">₡{{ number_format($esperado, 2) }}</strong></div>
+                        <div><span class="text-gray-500 block">Contado</span><strong data-test="arqueo-contado">₡{{ number_format($this->contado, 2) }}</strong></div>
                         <div>
                             <span class="text-gray-500 block">Diferencia</span>
                             @php $dif = round($this->contado - $esperado, 2); @endphp
-                            <strong class="{{ abs($dif) < 0.01 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300' }}">
+                            <strong data-test="arqueo-diferencia"
+                                class="{{ abs($dif) < 0.01 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300' }}">
                                 {{ $dif > 0 ? '+' : '' }}₡{{ number_format($dif, 2) }}
                             </strong>
                         </div>
