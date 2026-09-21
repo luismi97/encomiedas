@@ -24,6 +24,7 @@
             <x-action-button action="sendSelected" variant="primary" loadingText="Enviando..." :disabled="empty($selected)">
                 <x-icon name="send" class="w-4 h-4" /> Enviar seleccionadas a Hacienda ({{ count($selected) }})
             </x-action-button>
+                <x-ayuda posicion="izquierda">Transmite a Hacienda los comprobantes marcados. El envío nunca es automático: lo autoriza una persona.</x-ayuda>
         </div>
     @endif
 
@@ -149,6 +150,6 @@
             @endforelse
         </div>
 
-        <div class="mt-4">{{ $items->links() }}</div>
+        <div class="mt-4"><x-scroll-mas :hayMas="$scroll['hayMas']" :enElTope="$scroll['enElTope']" :visibles="$scroll['visibles']" etiqueta="comprobantes" /></div>
     </div>
 </div>

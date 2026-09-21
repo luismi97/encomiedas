@@ -97,6 +97,7 @@
                         :disabled="$pendientes->isEmpty()">
                         <x-icon name="receipt" class="w-4 h-4" /> Emitir estado de cuenta
                     </x-action-button>
+                <x-ayuda posicion="izquierda">Agrupa las guías del período en un estado de cuenta. A partir del corte, esas guías ya no entran en otro.</x-ayuda>
                 </div>
             </div>
 

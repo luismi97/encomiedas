@@ -5,11 +5,13 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\SuperadminController;
 use App\Http\Controllers\InvoiceExportController;
 use App\Http\Controllers\RastreoController;
+use App\Http\Controllers\CustomerImportController;
 use App\Http\Controllers\ElectronicInvoiceController;
 use App\Livewire\ActivityLogs\ActivityLogIndex;
 use App\Livewire\Branches\BranchIndex;
 use App\Livewire\CashRegisters\CashRegisterIndex;
 use App\Livewire\PackageTypes\PackageTypeIndex;
+use App\Livewire\Customers\CustomerImport;
 use App\Livewire\Customers\CustomerIndex;
 use App\Livewire\Caja\CajaPanel;
 use App\Livewire\Chofer\ChoferPanel;
@@ -24,6 +26,7 @@ use App\Livewire\Invoices\InvoiceShow;
 use App\Livewire\Quotes\QuoteIndex;
 use App\Livewire\Rates\RateIndex;
 use App\Livewire\Settings\CompanySettingsForm;
+use App\Livewire\ShippingRoutes\ShippingRouteIndex;
 use App\Livewire\Superadmin\CompanyIndex;
 use App\Livewire\Taxes\TaxIndex;
 use App\Livewire\Users\UserIndex;
@@ -116,6 +119,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/cotizaciones/{quote}/pdf', [InvoiceExportController::class, 'quotePdf'])->name('quotes.pdf');
 
         Route::get('/customers', CustomerIndex::class)->name('customers.index');
+        Route::get('/customers/importar', CustomerImport::class)->name('customers.import');
+        Route::get('/customers/plantilla', [CustomerImportController::class, 'plantilla'])->name('customers.plantilla');
         Route::get('/credito', CreditoPanel::class)->name('credito.index');
         Route::get('/reportes', ReportePanel::class)->name('reportes.index');
         Route::get('/credito/{statement}/pdf', [InvoiceExportController::class, 'creditStatementPdf'])->name('credito.pdf');
@@ -140,6 +145,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/cash-registers', CashRegisterIndex::class)->name('cash-registers.index');
         Route::get('/package-types', PackageTypeIndex::class)->name('package-types.index');
         Route::get('/rates', RateIndex::class)->name('rates.index');
+        // /rutas y no /routes: «mi-ruta» ya es la vista del chofer y las dos
+        // cosas se llaman igual en la conversación de la oficina.
+        Route::get('/rutas', ShippingRouteIndex::class)->name('shipping-routes.index');
         Route::get('/taxes', TaxIndex::class)->name('taxes.index');
         Route::get('/users', UserIndex::class)->name('users.index');
         Route::get('/activity-logs', ActivityLogIndex::class)->name('activity-logs.index');

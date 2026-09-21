@@ -106,7 +106,40 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'guide_state' => 'array',
         ];
+    }
+
+    // ── Guías de pantalla ─────────────────────────────────────────────
+
+    /** Ya la terminó o dijo que no la quiere ver: en los dos casos, no se abre sola. */
+    public function yaVioLaGuia(string $clave): bool
+    {
+        return isset(($this->guide_state ?? [])[$clave]);
+    }
+
+    /**
+     * Deja constancia de qué pasó con la guía de una pantalla.
+     *
+     * Se distingue «terminada» de «descartada» aunque las dos la cierren igual:
+     * sirve para saber si el recorrido ayuda o si todo el mundo lo salta, que es
+     * lo único que dice si vale la pena mantenerlo.
+     */
+    public function marcarGuia(string $clave, string $estado): void
+    {
+        $estados = $this->guide_state ?? [];
+        $estados[$clave] = ['estado' => $estado, 'en' => now()->toIso8601String()];
+
+        $this->forceFill(['guide_state' => $estados])->save();
+    }
+
+    /** La vuelve a abrir la próxima vez que se entre a esa pantalla. */
+    public function olvidarGuia(string $clave): void
+    {
+        $estados = $this->guide_state ?? [];
+        unset($estados[$clave]);
+
+        $this->forceFill(['guide_state' => $estados])->save();
     }
 
     public function branch(): BelongsTo

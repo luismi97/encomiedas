@@ -4,6 +4,7 @@ namespace Tests\Feature\Dispatches;
 
 use App\Models\Branch;
 use App\Models\Dispatch;
+use App\Models\GuideIncident;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Services\DispatchService;
@@ -199,6 +200,86 @@ class DispatchServiceTest extends TestCase
         $this->assertSame(Invoice::STATUS_DISPATCHED, $seExtravia->fresh()->status);
         $this->assertSame('faltante', $manifiesto->fresh()->lines()
             ->where('invoice_id', $seExtravia->id)->first()->incident);
+    }
+
+    /** El faltante tiene que dejar trabajo pendiente en algún lado, no solo una marca. */
+    public function test_cada_faltante_abre_una_incidencia_de_extravio(): void
+    {
+        $manifiesto = $this->manifiesto();
+        $llega = $this->guia();
+        $seExtravia = $this->guia();
+
+        foreach ([$llega, $seExtravia] as $g) {
+            $this->servicio()->agregarGuia($manifiesto, $g);
+        }
+
+        $manifiesto = $this->servicio()->despachar($manifiesto->fresh(), $this->usuario);
+        $this->servicio()->recibirGuia($manifiesto, $llega->fresh(), $this->usuario);
+        $this->servicio()->cerrarRecepcion($manifiesto->fresh(), $this->usuario);
+
+        $incidencia = GuideIncident::where('invoice_id', $seExtravia->id)->first();
+
+        $this->assertNotNull($incidencia);
+        $this->assertSame(GuideIncident::TYPE_LOST, $incidencia->type);
+        $this->assertStringContainsString($manifiesto->code, $incidencia->description);
+        $this->assertSame($this->lim->id, $incidencia->branch_id);
+        $this->assertFalse($incidencia->estaResuelta());
+
+        // La que sí llegó no arrastra ninguna.
+        $this->assertSame(0, GuideIncident::where('invoice_id', $llega->id)->count());
+    }
+
+    /**
+     * Sin esta salida la guía se quedaba en «Enviado» para siempre: el cierre ya
+     * no admite recepciones y ningún otro cierre la ofrece.
+     */
+    public function test_un_faltante_que_aparece_se_recibe_contra_el_cierre_cerrado(): void
+    {
+        $manifiesto = $this->manifiesto();
+        $seExtravia = $this->guia();
+        $this->servicio()->agregarGuia($manifiesto, $seExtravia);
+        $manifiesto = $this->servicio()->despachar($manifiesto->fresh(), $this->usuario);
+        $this->servicio()->cerrarRecepcion($manifiesto->fresh(), $this->usuario);
+
+        $this->servicio()->recibirFaltante($manifiesto->fresh(), $seExtravia->fresh(), $this->usuario);
+
+        $seExtravia->refresh();
+        $this->assertSame(Invoice::STATUS_AT_DESTINATION, $seExtravia->status);
+        $this->assertNotNull($seExtravia->arrived_at);
+
+        $incidencia = GuideIncident::where('invoice_id', $seExtravia->id)->first();
+        $this->assertTrue($incidencia->estaResuelta());
+        $this->assertSame($this->usuario->id, $incidencia->resolved_by);
+    }
+
+    /** Lo que pasó en el viaje no se reescribe: el cierre conserva su faltante. */
+    public function test_el_cierre_conserva_la_marca_aunque_la_guia_aparezca(): void
+    {
+        $manifiesto = $this->manifiesto();
+        $seExtravia = $this->guia();
+        $this->servicio()->agregarGuia($manifiesto, $seExtravia);
+        $manifiesto = $this->servicio()->despachar($manifiesto->fresh(), $this->usuario);
+        $this->servicio()->cerrarRecepcion($manifiesto->fresh(), $this->usuario);
+
+        $this->servicio()->recibirFaltante($manifiesto->fresh(), $seExtravia->fresh(), $this->usuario);
+
+        $linea = $manifiesto->fresh()->lines()->where('invoice_id', $seExtravia->id)->first();
+
+        $this->assertSame('faltante', $linea->incident);
+        $this->assertNotNull($linea->received_at);
+        $this->assertSame($this->usuario->id, $linea->received_by);
+    }
+
+    public function test_una_guia_que_no_quedo_faltante_no_se_recibe_por_esa_via(): void
+    {
+        $manifiesto = $this->manifiesto();
+        $guia = $this->guia();
+        $this->servicio()->agregarGuia($manifiesto, $guia);
+        $manifiesto = $this->servicio()->despachar($manifiesto->fresh(), $this->usuario);
+
+        $this->expectExceptionMessage('no quedó como faltante');
+
+        $this->servicio()->recibirFaltante($manifiesto, $guia->fresh(), $this->usuario);
     }
 
     public function test_una_guia_ajena_al_cierre_no_se_puede_recibir(): void

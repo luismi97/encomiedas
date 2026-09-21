@@ -5,6 +5,29 @@
     <form wire:submit="save" class="space-y-6">
         <div class="card space-y-4">
             <h2 class="text-lg font-semibold">Ruta</h2>
+
+            @if ($rutas->isNotEmpty())
+                <div data-ayuda="guia-ruta">
+                    <label class="label flex items-center gap-2">
+                        Ruta predefinida
+                        <x-ayuda>Elegí la ruta y se rellenan las dos sucursales de un solo toque. Si corregís una sucursal a mano, la ruta se suelta sola: la guía ya no va por ahí.</x-ayuda>
+                    </label>
+                    <select wire:model.live="shipping_route_id" class="input" data-test="ruta-predefinida">
+                        <option value="">— Sin ruta: elegir las sucursales a mano —</option>
+                        @foreach ($rutas as $ruta)
+                            <option value="{{ $ruta->id }}">{{ $ruta->etiqueta() }}</option>
+                        @endforeach
+                    </select>
+                    @if ($rutaElegida?->transitoLabel())
+                        <p class="text-xs text-gray-500 mt-1" data-test="llegada-estimada">
+                            Tránsito de {{ $rutaElegida->transitoLabel() }}:
+                            llega aproximadamente el {{ $rutaElegida->llegadaEstimadaDesde()->format('d/m/Y') }}.
+                        </p>
+                    @endif
+                    @error('shipping_route_id') <p class="error-text">{{ $message }}</p> @enderror
+                </div>
+            @endif
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="label">Sucursal de recogida</label>

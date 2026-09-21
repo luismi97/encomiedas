@@ -46,6 +46,7 @@
                  y no tenía por dónde llegar. --}}
             @if (auth()->user()->puedeOperarCaja())
                 <a href="{{ route('invoices.create') }}" class="btn-primary"><x-icon name="plus" class="w-4 h-4" /> Nueva guía</a>
+        <x-ayuda posicion="izquierda">Registra una encomienda nueva: ruta, remitente, destinatario y bultos. Al guardar se asigna el código de guía y se imprime la etiqueta.</x-ayuda>
             @endif
             <a href="{{ route('invoices.export', ['from' => $from, 'to' => $to, 'status' => $status, 'branch_id' => $branchId, 'search' => $search]) }}"
                class="btn-secondary" target="_blank">
@@ -203,5 +204,6 @@
         </div>
     </div>
 
-    <div>{{ $invoices->links() }}</div>
+    <x-scroll-mas :hayMas="$scroll['hayMas']" :enElTope="$scroll['enElTope']"
+        :visibles="$scroll['visibles']" etiqueta="guías" />
 </div>

@@ -4,6 +4,7 @@
     <div class="flex items-center justify-between flex-wrap gap-3">
         <p class="text-gray-500 dark:text-gray-400">Impuestos aplicables a las facturas de encomienda (ej. IVA 13%).</p>
         <x-action-button action="create" variant="primary" loadingText="Abriendo..."><x-icon name="plus" class="w-4 h-4" /> Nuevo impuesto</x-action-button>
+        <x-ayuda posicion="izquierda">El porcentaje y el código de Hacienda que viajan en el comprobante electrónico de cada guía.</x-ayuda>
     </div>
 
     @if ($showForm)

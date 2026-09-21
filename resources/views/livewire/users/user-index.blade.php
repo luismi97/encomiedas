@@ -4,6 +4,7 @@
     <div class="flex items-center justify-between flex-wrap gap-3">
         <p class="text-gray-500 dark:text-gray-400">Administradores y repartidores del sistema.</p>
         <x-action-button action="create" variant="primary" loadingText="Abriendo..."><x-icon name="plus" class="w-4 h-4" /> Nuevo usuario</x-action-button>
+        <x-ayuda posicion="izquierda">El rol decide qué ve cada quien: el cajero factura en su sede, el despachador solo arma camiones y el repartidor solo ve su ruta.</x-ayuda>
     </div>
 
     @if ($showForm)

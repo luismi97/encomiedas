@@ -9,6 +9,7 @@ use App\Models\PackageType;
 use App\Models\CompanySetting;
 use App\Models\Customer;
 use App\Models\Rate;
+use App\Models\ShippingRoute;
 use App\Models\Tax;
 use App\Services\CajaService;
 use App\Services\CreditoService;
@@ -22,6 +23,15 @@ use Livewire\Component;
 class InvoiceForm extends Component
 {
     public ?Invoice $invoice = null;
+
+    /**
+     * Ruta predefinida. Es un atajo: rellena las dos sedes de un solo toque.
+     *
+     * No reemplaza a los selects —un envío suelto hacia una sede sin ruta tiene
+     * que poder facturarse igual—, pero queda guardada en la guía, porque de
+     * ella sale la fecha que se le prometió al cliente.
+     */
+    public $shipping_route_id = null;
 
     public $pickup_branch_id = null;
     public $delivery_branch_id = null;
@@ -126,6 +136,7 @@ class InvoiceForm extends Component
 
         if ($invoice && $invoice->exists) {
             $this->invoice = $invoice;
+            $this->shipping_route_id = $invoice->shipping_route_id;
             $this->pickup_branch_id = $invoice->pickup_branch_id;
             $this->delivery_branch_id = $invoice->delivery_branch_id;
             $this->sender_name = $invoice->sender_name;
@@ -290,6 +301,46 @@ class InvoiceForm extends Component
     }
 
     /**
+     * Elegir la ruta pone las dos sedes.
+     *
+     * Vaciarla no las borra: quien deselecciona la ruta suele querer corregir
+     * una sola de las dos sedes, y dejarle el formulario en blanco lo obligaría
+     * a empezar de nuevo.
+     */
+    public function updatedShippingRouteId($value): void
+    {
+        if (! $value || ! $ruta = ShippingRoute::find($value)) {
+            return;
+        }
+
+        $this->pickup_branch_id = $ruta->origin_branch_id;
+        $this->delivery_branch_id = $ruta->destination_branch_id;
+
+        $this->cotizar(app(Tarifario::class));
+    }
+
+    /**
+     * La ruta guardada tiene que decir la verdad.
+     *
+     * Si después de elegirla alguien corrige una sede a mano, la guía ya no va
+     * por esa ruta: se suelta, y con ella la fecha prometida. Guardar una ruta
+     * que no coincide con las sedes sería prometer un plazo de otro viaje.
+     */
+    private function soltarRutaSiYaNoCoincide(): void
+    {
+        if (! $this->shipping_route_id || ! $ruta = ShippingRoute::find($this->shipping_route_id)) {
+            return;
+        }
+
+        $coincide = (int) $ruta->origin_branch_id === (int) $this->pickup_branch_id
+            && (int) $ruta->destination_branch_id === (int) $this->delivery_branch_id;
+
+        if (! $coincide) {
+            $this->shipping_route_id = null;
+        }
+    }
+
+    /**
      * Recotiza sola cuando cambia algo que afecta el precio.
      *
      * Antes había que presionar «Calcular con el tarifario»: quien creaba una
@@ -298,6 +349,10 @@ class InvoiceForm extends Component
      */
     public function updated(string $campo): void
     {
+        if (in_array($campo, ['pickup_branch_id', 'delivery_branch_id'], true)) {
+            $this->soltarRutaSiYaNoCoincide();
+        }
+
         $afectaElPrecio = in_array($campo, ['pickup_branch_id', 'delivery_branch_id', 'shipment_type'], true)
             || preg_match('/^items\.\d+\.(weight|length_cm|width_cm|height_cm)$/', $campo);
 
@@ -429,6 +484,7 @@ class InvoiceForm extends Component
     protected function rules(): array
     {
         return [
+            'shipping_route_id' => ['nullable', DeLaEmpresa::en('shipping_routes')],
             'pickup_branch_id' => ['required', DeLaEmpresa::en('branches')],
             // Una encomienda es un traslado entre sedes: origen y destino
             // iguales no es un envío, y además rompe el código guía, que se
@@ -618,6 +674,7 @@ class InvoiceForm extends Component
             $invoice->fill([
                 'pickup_branch_id' => $data['pickup_branch_id'],
                 'delivery_branch_id' => $data['delivery_branch_id'],
+                'shipping_route_id' => $data['shipping_route_id'] ?: null,
                 'sender_name' => $data['sender_name'],
                 'sender_phone' => $data['sender_phone'],
                 'sender_identification' => $data['sender_identification'],
@@ -730,18 +787,38 @@ class InvoiceForm extends Component
         }
 
         return Customer::active()
-            ->where(fn ($q) => $q
-                ->where('name', 'like', "%{$termino}%")
-                ->orWhere('identification', 'like', "{$termino}%"))
+            ->buscar($termino)
             ->orderBy('name')
             ->limit(15)
             ->get(['id', 'name', 'identification']);
+    }
+
+    /**
+     * Las rutas del desplegable, en el orden en que sirven.
+     *
+     * Primero las que salen de la sede de quien atiende —que son las suyas— y
+     * dentro de eso las más usadas: en un mostrador, la ruta correcta casi
+     * siempre es la de ayer.
+     */
+    private function rutasDisponibles()
+    {
+        $miSede = auth()->user()?->branch_id;
+
+        return ShippingRoute::active()
+            ->with(['originBranch', 'destinationBranch'])
+            ->withCount('invoices')
+            ->when($miSede, fn ($q) => $q->orderByRaw('origin_branch_id = ? desc', [$miSede]))
+            ->orderByDesc('invoices_count')
+            ->orderBy('name')
+            ->get();
     }
 
     public function render()
     {
         return view('livewire.invoices.invoice-form', [
             'branches' => Branch::where('is_active', true)->orderBy('name')->get(),
+            'rutas' => $this->rutasDisponibles(),
+            'rutaElegida' => $this->shipping_route_id ? ShippingRoute::find($this->shipping_route_id) : null,
             'taxes' => Tax::where('is_active', true)->orderBy('name')->get(),
             'repartidores' => User::where('role', User::ROLE_REPARTIDOR)->where('is_active', true)->orderBy('name')->get(),
             'remitenteElegido' => $this->sender_customer_id ? Customer::find($this->sender_customer_id) : null,

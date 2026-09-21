@@ -15,6 +15,7 @@
     <div class="flex items-center justify-between flex-wrap gap-3">
         <p class="text-gray-500 dark:text-gray-400">Puntos de recogida y entrega de encomiendas a nivel nacional.</p>
         <x-action-button action="create" variant="primary" loadingText="Abriendo..."><x-icon name="plus" class="w-4 h-4" /> Nueva sucursal</x-action-button>
+        <x-ayuda posicion="izquierda">Su prefijo es lo que arma el código de guía (SJ-LIM-00005) y su ancho de rollo define cómo salen el recibo y la etiqueta.</x-ayuda>
     </div>
 
     @if ($showForm)

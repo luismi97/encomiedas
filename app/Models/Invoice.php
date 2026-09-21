@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToCompany;
+use App\Support\BusquedaDeTexto;
+use Illuminate\Support\Carbon;
 use App\Models\Concerns\BelongsToBranch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -185,6 +187,7 @@ class Invoice extends Model
         'notes',
         'created_by',
         'assigned_to',
+        'shipping_route_id',
         'delivered_at',
         'returned_at',
     ];
@@ -315,6 +318,34 @@ class Invoice extends Model
     }
 
     /**
+     * Buscador del listado: código, remitente y destinatario.
+     *
+     * El código entra por su índice único buscando por el principio, que es como
+     * se lee de una etiqueta. La cola se acepta aparte porque es como lo dicta el
+     * cliente por teléfono —«la cero cero cinco»— y ese es el único comodín
+     * inicial que queda en pie, limitado a tres cifras para que no traiga media
+     * tabla. Los nombres los resuelve el índice de texto completo.
+     */
+    public function scopeBuscar(Builder $query, ?string $termino): Builder
+    {
+        $termino = trim((string) $termino);
+
+        if (! BusquedaDeTexto::esBuscable($termino)) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $q) use ($termino) {
+            $q->where('code', 'like', $termino . '%');
+
+            if (ctype_digit($termino) && mb_strlen($termino) >= 3) {
+                $q->orWhere('code', 'like', '%' . $termino);
+            }
+
+            BusquedaDeTexto::agregar($q, ['sender_name', 'recipient_name'], $termino);
+        });
+    }
+
+    /**
      * El movimiento de caja donde entró el cobro de esta guía.
      *
      * Sirve para poder responder «¿dónde fue a parar esa plata?» desde la guía
@@ -440,6 +471,23 @@ class Invoice extends Model
     public function pickupBranch(): BelongsTo
     {
         return $this->belongsTo(Branch::class, 'pickup_branch_id');
+    }
+
+    public function shippingRoute(): BelongsTo
+    {
+        return $this->belongsTo(ShippingRoute::class);
+    }
+
+    /**
+     * Cuándo se le prometió al cliente que llega.
+     *
+     * Se calcula desde la creación y no desde el despacho a propósito: es lo que
+     * se le dice al remitente en el mostrador, antes de que exista ningún cierre.
+     * Sin ruta no hay promesa, y es preferible no decir nada a inventar un plazo.
+     */
+    public function llegadaEstimada(): ?Carbon
+    {
+        return $this->shippingRoute?->llegadaEstimadaDesde($this->created_at);
     }
 
     public function deliveryBranch(): BelongsTo

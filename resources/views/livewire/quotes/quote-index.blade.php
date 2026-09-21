@@ -20,6 +20,7 @@
         <x-action-button action="create" variant="primary" loadingText="Abriendo...">
             <x-icon name="plus" class="w-4 h-4" /> Nueva cotización
         </x-action-button>
+        <x-ayuda posicion="izquierda">Una proforma para pasarle al cliente. No consume consecutivo ni llega a Hacienda: no es nada hasta que el cliente acepte y se convierta en guía.</x-ayuda>
     </div>
 
     @if ($showForm)
@@ -279,6 +280,6 @@
             @endforeach
         </div>
 
-        <div class="mt-4">{{ $cotizaciones->links() }}</div>
+        <div class="mt-4"><x-scroll-mas :hayMas="$scroll['hayMas']" :enElTope="$scroll['enElTope']" :visibles="$scroll['visibles']" etiqueta="cotizaciones" /></div>
     </div>
 </div>

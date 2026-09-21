@@ -95,6 +95,9 @@
                 <a href="{{ route('rates.index') }}" class="nav-link {{ request()->routeIs('rates.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="banknotes" /> <span>Tarifario</span>
                 </a>
+                <a href="{{ route('shipping-routes.index') }}" class="nav-link {{ request()->routeIs('shipping-routes.*') ? 'nav-link-active' : '' }}">
+                    <x-icon name="truck" /> <span>Rutas</span>
+                </a>
                 <a href="{{ route('package-types.index') }}" class="nav-link {{ request()->routeIs('package-types.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="box" /> <span>Tipos de bulto</span>
                 </a>
@@ -126,6 +129,19 @@
             </div>
 
             <div class="flex items-center gap-2 sm:gap-4">
+                {{-- Reabrir el recorrido de esta pantalla. Solo aparece donde
+                     hay uno definido: un botón que a veces no hace nada enseña
+                     a no confiar en él. --}}
+                @if (\App\Support\GuiasDePantalla::para(request()->route()?->getName()))
+                    <button type="button" x-on:click="$dispatch('abrir-guia')"
+                            class="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium
+                                   inline-flex items-center gap-2"
+                            data-test="boton-guia">
+                        <x-icon name="clipboard-list" class="w-5 h-5" />
+                        <span class="hidden sm:inline">Guía</span>
+                    </button>
+                @endif
+
                 <button @click="dark = !dark" type="button" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cambiar tema">
                     <span x-show="!dark"><x-icon name="moon" class="w-5 h-5" /></span>
                     <span x-show="dark" x-cloak><x-icon name="sun" class="w-5 h-5" /></span>
@@ -191,6 +207,12 @@
             {{ $slot }}
         </main>
     </div>
+
+    {{-- La guía de la pantalla. Va acá y no dentro del <main> porque su tarjeta
+         es fija y no forma parte del contenido que cada pantalla reemplaza. --}}
+    @auth
+        @livewire('ayuda.guia-de-pantalla', ['clave' => request()->route()?->getName()])
+    @endauth
 
     {{-- Fuera del contenido Livewire: el morph destruiría el <video>. --}}
     <x-barcode-scanner />

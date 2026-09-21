@@ -6,6 +6,7 @@ use App\Rules\DeLaEmpresa;
 use App\Models\Branch;
 use App\Models\Dispatch;
 use App\Models\Invoice;
+use App\Models\ShippingRoute;
 use App\Models\User;
 use App\Services\DispatchService;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,8 @@ class DispatchIndex extends Component
     public string $filterStatus = '';
 
     public bool $showForm = false;
+    /** Atajo: elegir la ruta pone origen y destino del cierre. */
+    public $shipping_route_id = null;
     public $origin_branch_id = null;
     public $destination_branch_id = null;
     public string $driver_name = '';
@@ -97,16 +100,29 @@ class DispatchIndex extends Component
         }
     }
 
+    /** Elegir la ruta arma la cabecera del cierre: origen y destino de un toque. */
+    public function updatedShippingRouteId($value): void
+    {
+        if (! $value || ! $ruta = ShippingRoute::find($value)) {
+            return;
+        }
+
+        $this->origin_branch_id = $ruta->origin_branch_id;
+        $this->destination_branch_id = $ruta->destination_branch_id;
+    }
+
     public function create(): void
     {
         $this->feedback = null;
-        $this->reset(['origin_branch_id', 'destination_branch_id', 'driver_name', 'driver_user_id', 'vehicle_plate', 'notes']);
+        $this->reset(['shipping_route_id', 'origin_branch_id', 'destination_branch_id', 'driver_name', 'driver_user_id', 'vehicle_plate', 'notes']);
         $this->resetErrorBag();
         $this->showForm = true;
     }
 
     public function save(): void
     {
+        // La ruta es solo el atajo que rellenó los dos campos: el cierre guarda
+        // las sedes, que es lo que el manifiesto dice desde siempre.
         $data = $this->validate();
 
         $manifiesto = Dispatch::create($data + [
@@ -233,6 +249,26 @@ class DispatchIndex extends Component
         }
     }
 
+    /**
+     * El faltante apareció. Va aparte de recibir(): aquella exige un cierre en
+     * ruta, y este ya se cerró —es justo el caso que dejaba la guía varada.
+     */
+    public function recibirFaltante(int $invoiceId, DispatchService $servicio): void
+    {
+        $this->feedback = null;
+
+        try {
+            $recuperada = $servicio->recibirFaltante($this->manifiesto(), Invoice::findOrFail($invoiceId), auth()->user());
+
+            $this->notify('success', $recuperada
+                ? 'Guía recibida en destino y extravío resuelto. '
+                    . 'El cierre conserva la marca del faltante: eso pasó en ese viaje.'
+                : 'Esta guía ya había aparecido: está en destino desde antes.');
+        } catch (RuntimeException $e) {
+            $this->notify('error', $e->getMessage());
+        }
+    }
+
     public function cerrarRecepcion(DispatchService $servicio): void
     {
         $this->feedback = null;
@@ -248,7 +284,7 @@ class DispatchIndex extends Component
         if ($resumen['faltantes']) {
             $this->notify('error', 'Recepción cerrada con ' . count($resumen['faltantes'])
                 . ' faltante(s): ' . implode(', ', $resumen['faltantes'])
-                . '. Quedaron registrados en el cierre.');
+                . '. Cada uno quedó con una incidencia de extravío abierta en su guía.');
 
             return;
         }
@@ -275,6 +311,8 @@ class DispatchIndex extends Component
                 ->latest()
                 ->paginate(10),
             'branches'    => Branch::where('is_active', true)->orderBy('name')->get(['id', 'name', 'prefix']),
+            'rutas'       => ShippingRoute::active()->with(['originBranch', 'destinationBranch'])
+                ->orderBy('name')->get(),
             'choferes'    => User::where('role', User::ROLE_REPARTIDOR)->where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ])->layout('layouts.app', ['title' => 'Cierres de envío']);
     }

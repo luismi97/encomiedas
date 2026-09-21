@@ -14,8 +14,8 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use App\Livewire\Concerns\ScrollInfinito;
 use Livewire\Component;
-use Livewire\WithPagination;
 
 /**
  * Cotizador: precios por escrito que NO se facturan.
@@ -25,7 +25,7 @@ use Livewire\WithPagination;
  */
 class QuoteIndex extends Component
 {
-    use WithPagination;
+    use ScrollInfinito;
 
     public bool $showForm = false;
     public $editingId = null;
@@ -418,9 +418,7 @@ class QuoteIndex extends Component
         }
 
         return Customer::active()
-            ->where(fn ($q) => $q
-                ->where('name', 'like', "%{$termino}%")
-                ->orWhere('identification', 'like', "{$termino}%"))
+            ->buscar($termino)
             ->orderBy('name')
             ->limit(15)
             ->get(['id', 'name', 'identification']);
@@ -428,10 +426,13 @@ class QuoteIndex extends Component
 
     public function render()
     {
+        $tanda = $this->tanda(
+            Quote::with(['originBranch', 'destinationBranch', 'creator'])->latest('id')
+        );
+
         return view('livewire.quotes.quote-index', [
-            'cotizaciones' => Quote::with(['originBranch', 'destinationBranch', 'creator'])
-                ->latest('id')
-                ->paginate(15),
+            'cotizaciones' => $tanda['items'],
+            'scroll' => $tanda,
             'branches' => Branch::where('is_active', true)->orderBy('name')->get(['id', 'name', 'prefix']),
             'clienteElegido' => $this->customer_id ? Customer::find($this->customer_id) : null,
             'resultadosCliente' => $this->customer_id ? null : $this->buscarClientes($this->customerSearch),

@@ -25,6 +25,20 @@
         <div class="card">
             <h2 class="text-lg font-semibold mb-4">Nuevo cierre de envío</h2>
             <form wire:submit="save" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                @if ($rutas->isNotEmpty())
+                    <div class="sm:col-span-2">
+                        <label class="label flex items-center gap-2">
+                            Ruta predefinida
+                            <x-ayuda>Elegí la ruta y se llenan las dos sedes del cierre. Podés corregirlas a mano después.</x-ayuda>
+                        </label>
+                        <select wire:model.live="shipping_route_id" class="input" data-test="ruta-del-cierre">
+                            <option value="">— Sin ruta: elegir las sedes a mano —</option>
+                            @foreach ($rutas as $ruta)
+                                <option value="{{ $ruta->id }}">{{ $ruta->etiqueta() }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
                 <div>
                     <label class="label">Sede origen</label>
                     <select wire:model="origin_branch_id" class="input @error('origin_branch_id') input-error @enderror">
@@ -140,7 +154,11 @@
                                 <td class="py-3 text-sm">{{ $linea->invoice?->recipient_name }}</td>
                                 <td class="py-3 text-sm">{{ $linea->invoice?->items->count() }}</td>
                                 <td class="py-3">
-                                    @if ($linea->incident === 'faltante')
+                                    @if ($linea->incident === 'faltante' && $linea->received_at)
+                                        {{-- Apareció después: la guía ya está en destino, pero el
+                                             viaje siguió teniendo un faltante y así se muestra. --}}
+                                        <span class="badge bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">Apareció</span>
+                                    @elseif ($linea->incident === 'faltante')
                                         <span class="badge bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200">Faltante</span>
                                     @elseif ($linea->received_at)
                                         <span class="badge bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">Recibida</span>
@@ -155,6 +173,9 @@
                                         <x-action-button action="quitar({{ $linea->invoice_id }})" variant="link-danger">Quitar</x-action-button>
                                     @elseif ($abierto->enRuta() && ! $linea->received_at)
                                         <x-action-button action="recibir({{ $linea->invoice_id }})" variant="link">Marcar recibida</x-action-button>
+                                    @elseif ($linea->incident === 'faltante' && ! $linea->received_at)
+                                        <x-action-button action="recibirFaltante({{ $linea->invoice_id }})" variant="link"
+                                            confirm="¿La guía apareció? Pasa a «Llegó al destino» y se cierra el extravío. El cierre conserva la marca del faltante.">Apareció</x-action-button>
                                     @endif
                                 </td>
                             </tr>
@@ -193,6 +214,7 @@
                             confirm="¿Despachar el cierre? Todas sus guías pasan a «Enviado» y ya no se pueden quitar.">
                             <x-icon name="truck" class="w-4 h-4" /> Despachar cierre
                         </x-action-button>
+                    <x-ayuda>Sale el camión. Todas las guías del cierre pasan a «Enviado» de una vez y ya no se les puede agregar ni quitar nada.</x-ayuda>
                     </div>
                 </div>
             @elseif ($abierto->enRuta())
@@ -202,6 +224,7 @@
                         confirm="¿Cerrar la recepción? Lo que no esté marcado queda registrado como faltante.">
                         <x-icon name="check" class="w-4 h-4" /> Cerrar recepción
                     </x-action-button>
+                    <x-ayuda>Da por terminada la recepción. Lo que no se marcó queda como faltante y abre una incidencia de extravío en su guía.</x-ayuda>
                 </div>
             @endif
         </div>

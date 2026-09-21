@@ -19,6 +19,7 @@
         <x-action-button action="create" variant="primary" loadingText="Abriendo...">
             <x-icon name="plus" class="w-4 h-4" /> Nueva tarifa
         </x-action-button>
+        <x-ayuda posicion="izquierda">Una tarifa cubre un rango de peso entre dos sedes. Dejar origen o destino en blanco significa «cualquiera», y sirve para una tarifa base.</x-ayuda>
     </div>
 
     @if ($showForm)

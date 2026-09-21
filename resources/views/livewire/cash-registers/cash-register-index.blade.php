@@ -20,6 +20,7 @@
         <x-action-button action="create" variant="primary" loadingText="Abriendo...">
             <x-icon name="plus" class="w-4 h-4" /> Nueva caja
         </x-action-button>
+        <x-ayuda posicion="izquierda">Una caja es una gaveta. Dos cajeros de la misma sede no pueden compartirla: el faltante de uno aparecería en el conteo del otro.</x-ayuda>
     </div>
 
     @if ($showForm)

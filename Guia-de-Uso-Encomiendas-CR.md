@@ -28,6 +28,7 @@ todos los días: cajero, repartidor y administrador.
 14. [Sucursales](#14-sucursales)
 15. [Cajas](#15-cajas)
 16. [Tarifario](#16-tarifario)
+16b. [Rutas](#16b-rutas)
 17. [Tipos de bulto](#17-tipos-de-bulto)
 18. [Impuestos](#18-impuestos)
 19. [Usuarios](#19-usuarios)
@@ -35,6 +36,7 @@ todos los días: cajero, repartidor y administrador.
 21. [Datos de la empresa](#21-datos-de-la-empresa)
 
 **Referencia**
+21b. [La ayuda en pantalla](#21b-la-ayuda-en-pantalla)
 22. [Rastreo público](#22-rastreo-público)
 23. [Correos que envía el sistema](#23-correos-que-envía-el-sistema)
 24. [Tareas automáticas](#24-tareas-automáticas)
@@ -158,8 +160,16 @@ otra.
 
 **Guías → Nueva guía.**
 
-**Ruta.** Sede de origen y de destino. Tienen que ser **distintas**: una
-encomienda es un traslado entre sedes, y el código se arma con los dos prefijos.
+**Ruta.** Si el par de sucursales está definido como **ruta predefinida**,
+elegirla llena origen y destino de un solo toque, y si la ruta declara días de
+tránsito el formulario muestra la fecha aproximada de llegada. No es obligatoria:
+los dos desplegables siguen ahí para un envío suelto.
+
+Si después corregís una sucursal a mano, la ruta **se suelta sola**: la guía ya no
+va por ahí, y dejarla puesta sería prometer el plazo de otro viaje.
+
+Sede de origen y de destino tienen que ser **distintas**: una encomienda es un
+traslado entre sedes, y el código se arma con los dos prefijos.
 
 **Remitente y destinatario.** Nombre, teléfono e identificación. Se pueden
 buscar entre los clientes ya registrados o digitar directo.
@@ -265,6 +275,18 @@ Se filtra por **período** (hoy, esta semana, este mes, rango de fechas), por
 **estado** y por **sucursal**, con búsqueda libre por código, remitente o
 destinatario. En el celular las mismas guías se ven como tarjetas.
 
+**No hay números de página.** La lista crece hacia abajo: al llegar al final se
+carga la siguiente tanda sola. Con más de un millón de guías, contar el total
+para poder numerar las páginas costaba más que traer las guías, y el número de
+página no lo usaba nadie —quien busca una guía la busca por código, no por
+página 4.783—.
+
+Pasadas unas cuantas tandas la lista deja de crecer y avisa: a esa altura, lo que
+encuentra lo que buscás es acotar el filtro, no seguir bajando.
+
+El **código de guía** se busca desde el principio (`SJ-LIM`) o por la cola, que
+es como lo dicta el cliente por teléfono: «la cero cero cinco».
+
 ---
 
 ## 6. Impresión: recibo y etiqueta
@@ -336,6 +358,20 @@ código aunque siga enfrente.
 Al **cerrar la recepción**, el sistema informa si hubo **faltantes**: guías que
 salieron en el manifiesto y no llegaron. Eso es lo que convierte al cierre en un
 control y no en un papel.
+
+Cada faltante abre además una **incidencia de extravío** en su guía, para que el
+paquete perdido no se quede solo anotado dentro de un manifiesto que nadie vuelve
+a abrir. La guía sigue en *Enviado*: no llegó, y darla por recibida sería mentir.
+
+### Cuando el faltante aparece
+
+Se traspapeló en bodega, viajó en el camión siguiente. Se abre el cierre —aunque
+ya esté recibido— y se marca **Apareció** en esa línea: la guía pasa a *Llegó al
+destino* y la incidencia de extravío queda resuelta.
+
+El cierre **conserva la marca del faltante**, y es a propósito: eso fue lo que
+pasó en ese viaje, y el conteo de un manifiesto no se reescribe después. La línea
+queda como *Apareció*, que dice las dos cosas.
 
 ### Estados del cierre
 
@@ -418,6 +454,33 @@ Los clientes con **convenio de crédito** llevan además:
 
 - **Límite de crédito**: hasta cuánto pueden deber
 - **Día de corte**: qué día del mes se les corta el estado de cuenta
+
+### Importar desde un archivo
+
+**Clientes → Importar CSV.** Para la cartera que ya existe en una hoja de cálculo.
+
+1. **Descargá la plantilla.** Trae los encabezados que el sistema entiende y dos
+   ejemplos: uno de contado y uno de crédito, que son los que se comportan distinto.
+2. **Pegá tus clientes** debajo del encabezado y guardá como CSV.
+3. **Revisá.** Este paso **no escribe nada**: muestra fila por fila qué se va a
+   crear, cuáles ya existen y cuáles no entran, cada una con su número de línea.
+4. **Importá.** Recién acá se guarda.
+
+El archivo entra tal como lo exportó Excel: sirve con **coma o punto y coma**, con
+acentos, y la identificación puede venir **con guiones**. La sucursal se escribe con
+el nombre o con el prefijo.
+
+Se distingue lo que **bota una fila** de lo que solo **avisa**. Botan: quedarse sin
+nombre, una identificación que no tenga de 9 a 12 dígitos, un cliente de crédito sin
+identificación y una identificación repetida dentro del mismo archivo. Avisan pero
+dejan pasar: una sucursal que no existe, un correo mal escrito o un día de corte
+fuera de rango — el dato se deja en blanco y el cliente entra igual.
+
+Los que **ya están registrados** se omiten, salvo que marqués expresamente
+«actualizar los que ya existen». Ni aun así se reactiva a un cliente dado de baja:
+si alguien lo desactivó a propósito, una carga masiva no es quién para revivirlo.
+
+Tope de **5.000 filas** por archivo.
 
 ---
 
@@ -601,6 +664,38 @@ use un cajero.
 
 ---
 
+## 16b. Rutas
+
+**Rutas → Nueva ruta.** Los pares origen–destino que se repiten todos los días,
+con nombre propio.
+
+Sin esto, el mostrador elige dos sucursales en cada encomienda, y las mismas dos
+treinta veces al día: una mano cansada elige mal y el paquete sale para otra
+provincia.
+
+| Campo | Para qué sirve |
+|---|---|
+| **Nombre** | «Limón directo» dice más que «SJO → LIM» cuando hay dos maneras de llegar al mismo lugar |
+| **Origen y destino** | Las dos sucursales, distintas entre sí |
+| **Días de tránsito** | Cuánto tarda normalmente. Opcional |
+| **Activa** | Si se ofrece al crear guías y cierres |
+
+**Una sola ruta por par de sedes.** Dos rutas iguales con nombres distintos
+obligan a adivinar cuál usar, y ninguna de las dos está mal.
+
+Los **días de tránsito** hacen dos cosas: le prometen una fecha de llegada al
+cliente en el mostrador, y le dicen al control nocturno cuándo una guía de esa
+ruta va tarde **de verdad**. Una ruta de dos días no está estancada al tercero,
+pero tampoco hay que esperar los siete días del umbral general para notarlo.
+
+La ruta se usa también al armar un **cierre de envío**: elegirla llena las dos
+sedes del manifiesto.
+
+**Una ruta ya usada no se borra**, se desactiva: borrarla dejaría sin fecha
+prometida a guías que ya salieron con ella.
+
+---
+
 ## 17. Tipos de bulto
 
 > Solo administración.
@@ -675,6 +770,35 @@ electrónico.
 
 ---
 
+## 21b. La ayuda en pantalla
+
+Hay dos ayudas, y son distintas.
+
+**El signo de interrogación.** Junto a un botón, explica qué hace **ese** botón y
+qué pasa si lo tocás. Se abre con el puntero, con el teclado y con un toque en la
+pantalla. Está siempre disponible y no hay nada que recordar.
+
+**El recorrido guiado.** La primera vez que entrás a una pantalla se abre solo,
+abajo, y la explica en tres o cuatro pasos. Va resaltando el control del que
+habla cada paso.
+
+Se cierra de dos maneras y las dos se recuerdan:
+
+- **Entendido**, al llegar al último paso: la hiciste.
+- **No mostrar más**, en cualquier momento: no la querés.
+
+En los dos casos **no vuelve a abrirse sola**. Y se guarda **por persona, no por
+computadora**: quien ya la hizo no la vuelve a ver aunque se siente en otra
+máquina, y el cajero nuevo sí la ve aunque use la computadora de siempre.
+
+Cada pantalla se recuerda por separado, así que cerrar la de guías no cierra la
+de cierres de envío.
+
+Para volver a verla: el botón **Guía**, en la barra de arriba. Aparece solo en
+las pantallas que tienen recorrido.
+
+---
+
 ## 22. Rastreo público
 
 **Sin necesidad de entrar al sistema**, en `/rastreo`.
@@ -721,12 +845,18 @@ Esa entrada dispara las tres tareas. No hay que configurarlas por separado:
 | Tarea | Cuándo | Qué hace |
 |---|---|---|
 | Consulta a Hacienda | Cada minuto | Revisa los comprobantes enviados y actualiza su estado |
-| Control de desecho | 2:30 a. m. | Marca como *próximas a desecho* las que llevan mucho en destino |
+| Control de desecho | 2:30 a. m. | Marca como *próximas a desecho* las que llevan mucho en destino y lista las **estancadas en tránsito** |
 | Corte de crédito | 3:00 a. m. | Genera los estados de cuenta de los clientes cuyo día de corte llegó |
 
 **Plazos de desecho** (configurables): se avisa a los **30 días** de llegar al
 destino, y hay **15 días** de gracia antes de desechar. El desecho automático
 viene **desactivado** por defecto: se marca, pero alguien tiene que confirmarlo.
+
+**Estancadas en tránsito** (configurable, **7 días** por defecto): las guías que
+salieron en un camión y nadie marcó al llegar. El control de desecho persigue lo
+que llegó y nadie retiró; esto persigue lo contrario, que antes no lo miraba
+nadie. Solo las lista —el paquete está físicamente en algún lado y no le toca a
+una tarea de madrugada decidir dónde—.
 
 ### El procesador de la cola
 

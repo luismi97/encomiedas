@@ -4,12 +4,12 @@ namespace App\Livewire\Hacienda;
 
 use App\Models\ElectronicInvoice;
 use App\Services\Hacienda\ElectronicBillingService;
+use App\Livewire\Concerns\ScrollInfinito;
 use Livewire\Component;
-use Livewire\WithPagination;
 
 class PendingQueue extends Component
 {
-    use WithPagination;
+    use ScrollInfinito;
 
     /** @var array<int> */
     public array $selected = [];
@@ -36,7 +36,7 @@ class PendingQueue extends Component
         $this->selected = [];
         $this->selectAll = false;
         $this->rejectionId = null;
-        $this->resetPage();
+        $this->reiniciarScroll();
     }
 
     public function showRejection(int $id): void
@@ -111,13 +111,16 @@ class PendingQueue extends Component
 
     public function render()
     {
+        $tanda = $this->tanda($this->baseQuery());
+
         $rejection = $this->rejectionId
             ? ElectronicInvoice::with('invoice')->find($this->rejectionId)
             : null;
 
         return view('livewire.hacienda.pending-queue', [
             'rejection' => $rejection,
-            'items' => $this->baseQuery()->paginate(15),
+            'items' => $tanda['items'],
+            'scroll' => $tanda,
         ])->layout('layouts.app', ['title' => 'Pendientes de envío a Hacienda']);
     }
 }

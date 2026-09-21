@@ -77,6 +77,6 @@
             @endforelse
         </div>
 
-        <div class="mt-4">{{ $logs->links() }}</div>
+        <div class="mt-4"><x-scroll-mas :hayMas="$scroll['hayMas']" :enElTope="$scroll['enElTope']" :visibles="$scroll['visibles']" etiqueta="movimientos" /></div>
     </div>
 </div>

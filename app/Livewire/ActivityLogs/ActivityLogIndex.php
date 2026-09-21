@@ -5,12 +5,12 @@ namespace App\Livewire\ActivityLogs;
 use Illuminate\Support\Carbon;
 use App\Models\ActivityLog;
 use App\Models\User;
+use App\Livewire\Concerns\ScrollInfinito;
 use Livewire\Component;
-use Livewire\WithPagination;
 
 class ActivityLogIndex extends Component
 {
-    use WithPagination;
+    use ScrollInfinito;
 
     public $userId = null;
     public string $from = '';
@@ -19,7 +19,7 @@ class ActivityLogIndex extends Component
     public function updating($name): void
     {
         if (in_array($name, ['userId', 'from', 'to'], true)) {
-            $this->resetPage();
+            $this->reiniciarScroll();
         }
     }
 
@@ -38,8 +38,11 @@ class ActivityLogIndex extends Component
             $query->where('created_at', '<=', Carbon::parse($this->to)->endOfDay());
         }
 
+        $tanda = $this->tanda($query);
+
         return view('livewire.activity-logs.activity-log-index', [
-            'logs' => $query->paginate(20),
+            'logs' => $tanda['items'],
+            'scroll' => $tanda,
             'users' => User::orderBy('name')->get(),
         ])->layout('layouts.app', ['title' => 'Actividad de usuarios']);
     }

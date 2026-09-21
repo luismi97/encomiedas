@@ -3,8 +3,10 @@
 namespace Tests\Feature\Guides;
 
 use App\Models\Branch;
+use App\Models\GuideStatusHistory;
 use App\Models\Invoice;
 use App\Models\User;
+use App\Services\GuideStatusService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -44,6 +46,30 @@ class GuiasDesechoTest extends TestCase
         return $guia->fresh();
     }
 
+    /** Salió en un camión hace tantos días y nadie la marcó al llegar. */
+    private function guiaEnTransito(int $diasAtras): Invoice
+    {
+        $guia = Invoice::create([
+            'status' => Invoice::STATUS_PENDING,
+            'pickup_branch_id' => $this->sj->id,
+            'delivery_branch_id' => $this->lim->id,
+            'sender_name' => 'Marta', 'recipient_name' => 'José',
+            'subtotal' => 1000, 'discount_amount' => 0, 'tax_total' => 130, 'total' => 1130,
+            'created_by' => $this->usuario->id,
+        ]);
+
+        $estados = app(GuideStatusService::class);
+        $guia = $estados->cambiar($guia->fresh(), Invoice::STATUS_READY, $this->usuario);
+        $guia = $estados->cambiar($guia, Invoice::STATUS_DISPATCHED, $this->usuario);
+
+        // Toda su bitácora al pasado: lo que el comando mira es cuánto hace que
+        // la guía no se mueve, no cuándo se creó la fila.
+        GuideStatusHistory::where('invoice_id', $guia->id)
+            ->update(['happened_at' => now()->subDays($diasAtras)]);
+
+        return $guia->fresh();
+    }
+
     public function test_avisa_las_que_pasaron_el_plazo_en_destino(): void
     {
         config(['encomiendas.disposal.warn_after_days' => 30]);
@@ -58,6 +84,48 @@ class GuiasDesechoTest extends TestCase
         $this->assertSame(Invoice::STATUS_NEAR_DISPOSAL, $vencida->fresh()->status);
         $this->assertSame(Invoice::STATUS_AT_DESTINATION, $reciente->fresh()->status);
         $this->assertNotNull($vencida->fresh()->disposal_warned_at);
+    }
+
+    /**
+     * El otro extremo del viaje: salió y nadie la recibió. No la reclama ninguna
+     * otra tarea, así que sin este aviso se quedaba en tránsito para siempre.
+     */
+    public function test_lista_las_guias_que_salieron_y_nadie_recibio(): void
+    {
+        config(['encomiendas.stuck_after_days' => 7]);
+
+        $estancada = $this->guiaEnTransito(10);
+        $reciente  = $this->guiaEnTransito(2);
+
+        $this->artisan('guias:desecho')
+            ->expectsOutputToContain('Estancadas en tránsito: 1')
+            ->expectsOutputToContain($estancada->code)
+            ->doesntExpectOutputToContain($reciente->code)
+            ->assertSuccessful();
+    }
+
+    /** Informa y nada más: el paquete está en algún lado y el cron no sabe dónde. */
+    public function test_la_estancada_no_cambia_de_estado(): void
+    {
+        config(['encomiendas.stuck_after_days' => 7]);
+        $estancada = $this->guiaEnTransito(30);
+
+        $pasos = $estancada->statusHistories()->count();
+
+        $this->artisan('guias:desecho')->assertSuccessful();
+
+        $this->assertSame(Invoice::STATUS_DISPATCHED, $estancada->fresh()->status);
+        $this->assertSame($pasos, $estancada->fresh()->statusHistories()->count());
+    }
+
+    public function test_el_aviso_de_estancadas_se_puede_apagar(): void
+    {
+        config(['encomiendas.stuck_after_days' => 0]);
+        $this->guiaEnTransito(90);
+
+        $this->artisan('guias:desecho')
+            ->doesntExpectOutputToContain('Estancadas en tránsito')
+            ->assertSuccessful();
     }
 
     /** El aviso queda en la bitácora como automático, no a nombre de nadie. */

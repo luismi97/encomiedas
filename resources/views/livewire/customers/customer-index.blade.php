@@ -14,9 +14,16 @@
 
     <div class="flex items-center justify-between flex-wrap gap-3">
         <p class="text-gray-500 dark:text-gray-400">Remitentes y destinatarios registrados, de contado y de crédito.</p>
-        <x-action-button action="create" variant="primary" loadingText="Abriendo...">
-            <x-icon name="plus" class="w-4 h-4" /> Nuevo cliente
-        </x-action-button>
+        <div class="flex items-center gap-2 flex-wrap">
+            <a href="{{ route('customers.import') }}" class="btn-secondary inline-flex items-center gap-2"
+               data-ayuda="clientes-importar">
+                <x-icon name="upload" class="w-4 h-4" /> Importar CSV
+            </a>
+            <x-ayuda>Carga muchos clientes de una vez desde una hoja de cálculo. Primero muestra qué va a pasar con cada fila y recién después escribe.</x-ayuda>
+            <x-action-button action="create" variant="primary" loadingText="Abriendo...">
+                <x-icon name="plus" class="w-4 h-4" /> Nuevo cliente
+            </x-action-button>
+        </div>
     </div>
 
     @if ($showForm)
@@ -247,6 +254,6 @@
             @endforelse
         </div>
 
-        <div>{{ $customers->links() }}</div>
+        <div><x-scroll-mas :hayMas="$scroll['hayMas']" :enElTope="$scroll['enElTope']" :visibles="$scroll['visibles']" etiqueta="clientes" /></div>
     </div>
 </div>

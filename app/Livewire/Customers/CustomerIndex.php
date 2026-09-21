@@ -9,12 +9,12 @@ use App\Models\Customer;
 use Illuminate\Database\QueryException;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use App\Livewire\Concerns\ScrollInfinito;
 use Livewire\Component;
-use Livewire\WithPagination;
 
 class CustomerIndex extends Component
 {
-    use WithPagination;
+    use ScrollInfinito;
 
     public string $search = '';
     public string $filterCondition = '';
@@ -43,12 +43,12 @@ class CustomerIndex extends Component
 
     public function updatedSearch(): void
     {
-        $this->resetPage();
+        $this->reiniciarScroll();
     }
 
     public function updatedFilterCondition(): void
     {
-        $this->resetPage();
+        $this->reiniciarScroll();
     }
 
     protected function rules(): array
@@ -227,22 +227,17 @@ class CustomerIndex extends Component
     {
         $query = Customer::query()->with('branch:id,name');
 
-        if ($this->search !== '') {
-            $termino = '%' . $this->search . '%';
-            $query->where(fn ($q) => $q
-                ->where('name', 'like', $termino)
-                ->orWhere('commercial_name', 'like', $termino)
-                ->orWhere('identification', 'like', $termino)
-                ->orWhere('email', 'like', $termino)
-                ->orWhere('phone', 'like', $termino));
-        }
+        $query->buscar($this->search);
 
         if ($this->filterCondition !== '') {
             $query->where('payment_condition', $this->filterCondition);
         }
 
+        $tanda = $this->tanda($query->orderBy('name'));
+
         return view('livewire.customers.customer-index', [
-            'customers' => $query->orderBy('name')->paginate(15),
+            'customers' => $tanda['items'],
+            'scroll'    => $tanda,
             'branches'  => Branch::where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ])->layout('layouts.app', ['title' => 'Clientes']);
     }

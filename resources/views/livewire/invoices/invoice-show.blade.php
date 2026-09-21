@@ -70,6 +70,7 @@
                     confirm="¿Anular esta guía? Queda registrado y no se puede deshacer.">
                     <x-icon name="x" class="w-4 h-4" /> Confirmar anulación
                 </x-action-button>
+                <x-ayuda posicion="izquierda">Anula la guía con un motivo obligatorio. Solo se puede antes de que salga: una encomienda que ya viaja se devuelve, que es otra cosa.</x-ayuda>
                 <button type="button" wire:click="$set('showCancelForm', false)" class="btn-secondary">Cancelar</button>
             </div>
         </div>
@@ -102,6 +103,7 @@
                 <x-action-button action="entregar" variant="success" loadingText="Registrando...">
                     <x-icon name="check" class="w-4 h-4" /> Confirmar entrega
                 </x-action-button>
+                <x-ayuda posicion="izquierda">Cierra la guía como entregada: quedan registrados el nombre de quien retira y su firma. Si es por cobrar, el cobro entra a tu caja en este mismo acto.</x-ayuda>
                 <button type="button" wire:click="$set('showDeliveryForm', false)" class="btn-secondary">Cancelar</button>
             </div>
         </div>

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Invoices;
 
+use App\Livewire\Concerns\ScrollInfinito;
 use App\Models\ActivityLog;
 use App\Models\Branch;
 use App\Models\Invoice;
@@ -9,11 +10,10 @@ use App\Services\GuideStatusService;
 use RuntimeException;
 use Illuminate\Support\Carbon;
 use Livewire\Component;
-use Livewire\WithPagination;
 
 class InvoiceIndex extends Component
 {
-    use WithPagination;
+    use ScrollInfinito;
 
     public string $period = 'today'; // today|week|month|range|all
     public string $from = '';
@@ -31,7 +31,7 @@ class InvoiceIndex extends Component
     public function updating($name): void
     {
         if (in_array($name, ['period', 'from', 'to', 'status', 'branchId', 'search'], true)) {
-            $this->resetPage();
+            $this->reiniciarScroll();
         }
     }
 
@@ -82,13 +82,9 @@ class InvoiceIndex extends Component
                     ->orWhere('delivery_branch_id', $this->branchId);
             });
         }
-        if ($this->search) {
-            $query->where(function ($q) {
-                $q->where('code', 'like', "%{$this->search}%")
-                    ->orWhere('recipient_name', 'like', "%{$this->search}%")
-                    ->orWhere('sender_name', 'like', "%{$this->search}%");
-            });
-        }
+        // El buscador vive en el modelo: el listado, la exportación y cualquier
+        // otra pantalla tienen que entender lo mismo por «buscar».
+        $query->buscar($this->search);
 
         return $query->latest();
     }
@@ -138,8 +134,11 @@ class InvoiceIndex extends Component
 
     public function render()
     {
+        $tanda = $this->tanda($this->baseQuery());
+
         return view('livewire.invoices.invoice-index', [
-            'invoices' => $this->baseQuery()->paginate(12),
+            'invoices' => $tanda['items'],
+            'scroll'   => $tanda,
             'branches' => Branch::orderBy('name')->get(),
             'statuses' => Invoice::STATUSES,
         ])->layout('layouts.app', ['title' => 'Facturas / Encomiendas']);

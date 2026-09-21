@@ -156,9 +156,13 @@ El recorrido completo de un paquete, con los diez estados del sistema.
 ### 3.2 Recibir en destino
 
 1. Recepción **por código**, que es lo que hace el escáner: se digita el código
-   guía y la línea se marca recibida.
+   guía y la línea se marca recibida —y la guía pasa ahí mismo a **Llegó al
+   destino**, no al cerrar—.
 2. Recepción **marcando a mano**, para cuando el código no se lee.
-3. Se cierra la recepción → las recibidas pasan a **Llegó al destino**.
+3. Se cierra la recepción → lo que no se marcó queda **faltante**, con una
+   incidencia de extravío abierta en su guía, que sigue en **Enviado**.
+4. El faltante **aparece**: se marca contra el cierre ya cerrado, la guía pasa a
+   **Llegó al destino** y el extravío se resuelve. El cierre conserva la marca.
 
 Y un código que no va en ese camión **se rechaza**: no se puede marcar como
 recibida una guía que el manifiesto no traía.

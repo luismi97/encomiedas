@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToCompany;
+use App\Support\BusquedaDeTexto;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -72,6 +73,30 @@ class Customer extends Model
     public function scopeCredit(Builder $query): Builder
     {
         return $query->where('payment_condition', self::PAYMENT_CREDIT);
+    }
+
+    /**
+     * Buscador de clientes: nombre, nombre comercial, cédula, correo o teléfono.
+     *
+     * Los datos de contacto se buscan por prefijo —una cédula o un teléfono se
+     * digitan desde el principio, nunca por la mitad— y el nombre por índice de
+     * texto completo, que es lo único que aguanta una cartera grande.
+     */
+    public function scopeBuscar(Builder $query, ?string $termino): Builder
+    {
+        $termino = trim((string) $termino);
+
+        if (! BusquedaDeTexto::esBuscable($termino)) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $q) use ($termino) {
+            $q->where('identification', 'like', $termino . '%')
+                ->orWhere('phone', 'like', $termino . '%')
+                ->orWhere('email', 'like', $termino . '%');
+
+            BusquedaDeTexto::agregar($q, ['name', 'commercial_name'], $termino);
+        });
     }
 
     public function isCredit(): bool

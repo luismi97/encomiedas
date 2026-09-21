@@ -59,7 +59,7 @@
                     <td class="text-right">{{ $guia?->items->count() }}</td>
                     <td class="text-right">{{ number_format((float) $guia?->items->sum('weight'), 2) }} kg</td>
                     <td class="text-right">₡{{ number_format((float) $guia?->declared_value, 2) }}</td>
-                    <td>{{ $linea->received_at ? 'Sí' : ($linea->incident === 'faltante' ? 'FALTANTE' : '☐') }}</td>
+                    <td>@if ($linea->incident === 'faltante'){{ $linea->received_at ? 'FALTANTE (apareció)' : 'FALTANTE' }}@else{{ $linea->received_at ? 'Sí' : '☐' }}@endif</td>
                 </tr>
             @endforeach
         </tbody>

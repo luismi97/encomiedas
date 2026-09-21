@@ -110,6 +110,7 @@
                 <x-action-button action="abrir" variant="primary" loadingText="Abriendo...">
                     <x-icon name="check-circle" class="w-4 h-4" /> Abrir caja
                 </x-action-button>
+                <x-ayuda posicion="izquierda">Abre tu turno con el fondo inicial. Sin turno abierto no se puede cobrar de contado: el dinero no entraría a ningún arqueo.</x-ayuda>
             </div>
         </div>
     @else
@@ -178,6 +179,7 @@
                 <x-action-button action="abrirArqueo" variant="primary" loadingText="Abriendo...">
                     <x-icon name="banknotes" class="w-4 h-4" /> Cerrar turno y hacer arqueo
                 </x-action-button>
+                <x-ayuda posicion="izquierda">Cierra el turno: se cuenta por denominación y el sistema compara contra lo esperado. La diferencia queda registrada.</x-ayuda>
             @else
                 <div class="rounded-lg border border-brand-200 dark:border-brand-800 p-4 space-y-4">
                     <div>
