@@ -11,6 +11,7 @@ use App\Models\Tax;
 use App\Notifications\EnviarProforma;
 use App\Services\Tarifario;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -272,47 +273,60 @@ class QuoteIndex extends Component
         $data = $this->validate();
 
         try {
-            DB::transaction(function () use ($data) {
-                $cot = $this->editingId ? Quote::findOrFail($this->editingId) : new Quote();
+            // El primer COT de una empresa no tiene filas que bloquear: dos
+            // creadas en el mismo instante pueden sacar el mismo número. La
+            // segunda se reintenta y ahí ya ve la primera.
+            for ($intento = 1; ; $intento++) {
+                try {
+                    DB::transaction(function () use ($data) {
+                        $cot = $this->editingId ? Quote::findOrFail($this->editingId) : new Quote();
 
-                $cot->fill([
-                    'origin_branch_id' => $data['origin_branch_id'],
-                    'destination_branch_id' => $data['destination_branch_id'],
-                    'customer_id' => $data['customer_id'],
-                    'customer_name' => $data['customer_name'],
-                    'customer_email' => $data['customer_email'] ?: null,
-                    'customer_phone' => $data['customer_phone'] ?: null,
-                    'shipment_type' => $this->shipment_type ?: null,
-                    'notes' => $data['notes'] ?: null,
-                    'valid_until' => $data['valid_until'] ?: null,
-                    'subtotal' => $this->subtotal,
-                    'tax_total' => $this->taxTotal,
-                    'total' => $this->total,
-                ]);
+                        $cot->fill([
+                            'origin_branch_id' => $data['origin_branch_id'],
+                            'destination_branch_id' => $data['destination_branch_id'],
+                            'customer_id' => $data['customer_id'],
+                            'customer_name' => $data['customer_name'],
+                            'customer_email' => $data['customer_email'] ?: null,
+                            'customer_phone' => $data['customer_phone'] ?: null,
+                            'shipment_type' => $this->shipment_type ?: null,
+                            'notes' => $data['notes'] ?: null,
+                            'valid_until' => $data['valid_until'] ?: null,
+                            'subtotal' => $this->subtotal,
+                            'tax_total' => $this->taxTotal,
+                            'total' => $this->total,
+                        ]);
 
-                if (! $cot->exists) {
-                    $cot->code = Quote::siguienteCodigo();
-                    $cot->created_by = auth()->id();
+                        if (! $cot->exists) {
+                            $cot->code = Quote::siguienteCodigo();
+                            $cot->created_by = auth()->id();
+                        }
+
+                        $cot->save();
+
+                        $cot->items()->delete();
+
+                        foreach ($data['items'] as $item) {
+                            $cot->items()->create([
+                                'package_type_id' => $item['package_type_id'] ?: null,
+                                'description' => $item['description'] ?: null,
+                                'weight' => $item['weight'] ?: null,
+                                'length_cm' => $item['length_cm'] ?: null,
+                                'width_cm' => $item['width_cm'] ?: null,
+                                'height_cm' => $item['height_cm'] ?: null,
+                                'price' => $item['price'],
+                            ]);
+                        }
+
+                        $this->editingId = $cot->id;
+                    });
+
+                    break;
+                } catch (UniqueConstraintViolationException $e) {
+                    if ($this->editingId || $intento >= 3) {
+                        throw $e;
+                    }
                 }
-
-                $cot->save();
-
-                $cot->items()->delete();
-
-                foreach ($data['items'] as $item) {
-                    $cot->items()->create([
-                        'package_type_id' => $item['package_type_id'] ?: null,
-                        'description' => $item['description'] ?: null,
-                        'weight' => $item['weight'] ?: null,
-                        'length_cm' => $item['length_cm'] ?: null,
-                        'width_cm' => $item['width_cm'] ?: null,
-                        'height_cm' => $item['height_cm'] ?: null,
-                        'price' => $item['price'],
-                    ]);
-                }
-
-                $this->editingId = $cot->id;
-            });
+            }
         } catch (QueryException $e) {
             report($e);
             $this->notify('error', 'No se pudo guardar la cotización.');

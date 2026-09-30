@@ -7,8 +7,10 @@ use App\Models\Branch;
 use App\Models\Dispatch;
 use App\Models\Invoice;
 use App\Models\ShippingRoute;
+use App\Scopes\BranchScope;
 use App\Models\User;
 use App\Services\DispatchService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -125,24 +127,58 @@ class DispatchIndex extends Component
         // las sedes, que es lo que el manifiesto dice desde siempre.
         $data = $this->validate();
 
-        $manifiesto = Dispatch::create($data + [
-            'code' => $this->siguienteCodigo(),
-            'created_by' => auth()->id(),
-        ]);
+        $manifiesto = $this->crearConCodigo($data + ['created_by' => auth()->id()]);
 
         $this->showForm = false;
         $this->openId = $manifiesto->id;
         $this->notify('success', "Cierre {$manifiesto->code} creado. Agregale las guías que salen en este viaje.");
     }
 
-    /** CIE-000001, con reserva bajo candado para no repetirlo. */
-    private function siguienteCodigo(): string
+    /**
+     * Crea el cierre con su CIE-000001, sin repetirlo.
+     *
+     * El número se calcula y el cierre se guarda en la MISMA transacción: antes
+     * el candado se soltaba al calcular, y dos cierres creados en el mismo
+     * instante salían con el mismo código y el segundo reventaba contra el
+     * índice único. Y aun así se reintenta si choca: el primer cierre de una
+     * empresa no tiene filas que bloquear, y ahí el candado no protege nada.
+     */
+    private function crearConCodigo(array $datos): Dispatch
     {
-        return DB::transaction(function () {
-            $ultimo = Dispatch::lockForUpdate()->max('id') ?? 0;
+        for ($intento = 1; ; $intento++) {
+            try {
+                return DB::transaction(function () use ($datos) {
+                    // Sobre TODOS los cierres de la empresa, no los que ve el
+                    // usuario: el filtro por sede le esconde al cajero los de
+                    // otras sucursales, y con eso el de una sede sin cierres
+                    // calculaba CIE-000001 aunque ya existiera en otra.
+                    $numero = ($this->cierresDeLaEmpresa()->lockForUpdate()->max('id') ?? 0) + 1;
 
-            return 'CIE-' . str_pad((string) ($ultimo + 1), 6, '0', STR_PAD_LEFT);
-        });
+                    // Un código que ya existe —cargado a mano, o de una
+                    // numeración anterior— se salta en vez de chocar.
+                    while ($this->cierresDeLaEmpresa()->where('code', $this->codigoCierre($numero))->exists()) {
+                        $numero++;
+                    }
+
+                    return Dispatch::create($datos + ['code' => $this->codigoCierre($numero)]);
+                });
+            } catch (UniqueConstraintViolationException $e) {
+                if ($intento >= 3) {
+                    throw $e;
+                }
+            }
+        }
+    }
+
+    /** El índice único es por empresa: la numeración también. */
+    private function cierresDeLaEmpresa(): \Illuminate\Database\Eloquent\Builder
+    {
+        return Dispatch::withoutGlobalScope(BranchScope::class);
+    }
+
+    private function codigoCierre(int $numero): string
+    {
+        return 'CIE-' . str_pad((string) $numero, 6, '0', STR_PAD_LEFT);
     }
 
     public function open(int $id): void

@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\CajaService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InvoiceExportController extends Controller
 {
@@ -82,13 +83,20 @@ class InvoiceExportController extends Controller
 
         // Reimpresión controlada: cada copia queda registrada y la etiqueta se
         // marca. Dos rótulos iguales sin marca es el fraude que esto evita.
-        $copia = \App\Models\PrintLog::create([
-            'invoice_id'  => $invoice->id,
-            'user_id'     => $user->id,
-            'copy_number' => $invoice->printLogs()->count() + 1,
-            'paper_width' => $papel['ancho'],
-            'ip'          => $request->ip(),
-        ]);
+        //
+        // Bajo candado sobre la guía: sin él, dos clics seguidos contaban las
+        // copias a la vez y salían dos «originales» sin la marca.
+        $copia = DB::transaction(function () use ($invoice, $user, $papel, $request) {
+            Invoice::whereKey($invoice->id)->lockForUpdate()->first();
+
+            return \App\Models\PrintLog::create([
+                'invoice_id'  => $invoice->id,
+                'user_id'     => $user->id,
+                'copy_number' => $invoice->printLogs()->count() + 1,
+                'paper_width' => $papel['ancho'],
+                'ip'          => $request->ip(),
+            ]);
+        });
 
         return view('recibo.termico', $papel + [
             'guia'    => $invoice,

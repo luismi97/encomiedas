@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Scopes\BranchScope;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -129,18 +130,34 @@ class Quote extends Model
      *
      * Se reserva bajo candado por la misma razón que el de las guías: contarlo
      * con un COUNT hace que dos cotizaciones simultáneas lean el mismo número.
+     * Quien llama tiene que guardar la cotización dentro de la misma
+     * transacción, o el candado se suelta antes de tiempo.
+     *
+     * Por empresa, como el índice único: antes se quitaban TODOS los filtros y
+     * cada empresa seguía la numeración de las demás —una empresa nueva
+     * arrancaba en COT-000057—. Se quita solo el filtro por sede, que al
+     * cajero le esconde las cotizaciones de otras sucursales y lo haría
+     * repetir un número.
      */
     public static function siguienteCodigo(): string
     {
         return DB::transaction(function () {
-            $ultimo = static::withoutGlobalScopes()
+            $delaEmpresa = fn () => static::withoutGlobalScope(BranchScope::class);
+
+            $ultimo = $delaEmpresa()
                 ->lockForUpdate()
                 ->orderByDesc('id')
                 ->value('code');
 
             $numero = $ultimo && preg_match('/(\d+)$/', $ultimo, $m) ? ((int) $m[1]) + 1 : 1;
+            $codigo = fn (int $n) => 'COT-' . str_pad((string) $n, 6, '0', STR_PAD_LEFT);
 
-            return 'COT-' . str_pad((string) $numero, 6, '0', STR_PAD_LEFT);
+            // Un código ya usado se salta en vez de chocar contra el único.
+            while ($delaEmpresa()->where('code', $codigo($numero))->exists()) {
+                $numero++;
+            }
+
+            return $codigo($numero);
         });
     }
 }

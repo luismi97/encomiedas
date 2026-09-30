@@ -10,6 +10,7 @@ use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -109,6 +110,22 @@ class CreditoService
             return null;
         }
 
+        // El primer estado de cuenta de una empresa no tiene filas que
+        // bloquear: dos cortes en el mismo instante pueden sacar el mismo
+        // número. El segundo se reintenta y ahí ya ve el primero.
+        for ($intento = 1; ; $intento++) {
+            try {
+                return $this->emitirEstado($cliente, $usuario, $guias, $hasta, $plazoDias);
+            } catch (UniqueConstraintViolationException $e) {
+                if ($intento >= 3) {
+                    throw $e;
+                }
+            }
+        }
+    }
+
+    private function emitirEstado(Customer $cliente, User $usuario, $guias, CarbonInterface $hasta, int $plazoDias): CreditStatement
+    {
         return DB::transaction(function () use ($cliente, $usuario, $guias, $hasta, $plazoDias) {
             $total = round((float) $guias->sum('total'), 2);
 
@@ -132,11 +149,18 @@ class CreditoService
         });
     }
 
+    /** Se llama dentro de la transacción que guarda el estado: el candado dura hasta el final. */
     private function siguienteCodigo(): string
     {
-        $ultimo = CreditStatement::lockForUpdate()->max('id') ?? 0;
+        $numero = (CreditStatement::lockForUpdate()->max('id') ?? 0) + 1;
+        $codigo = fn (int $n) => 'EC-' . str_pad((string) $n, 6, '0', STR_PAD_LEFT);
 
-        return 'EC-' . str_pad((string) ($ultimo + 1), 6, '0', STR_PAD_LEFT);
+        // Un código ya usado se salta en vez de chocar contra el único.
+        while (CreditStatement::where('code', $codigo($numero))->exists()) {
+            $numero++;
+        }
+
+        return $codigo($numero);
     }
 
     /**

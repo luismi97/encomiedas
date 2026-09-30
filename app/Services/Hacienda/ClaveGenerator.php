@@ -85,11 +85,22 @@ class ClaveGenerator
                 ->first();
 
             if (!$sequence) {
-                $sequence = \App\Models\ElectronicBillingSequence::create([
-                    'branch_id'     => $branch->id,
-                    'document_type' => $documentCode,
-                    'last_number'   => 0,
-                ]);
+                // El primer comprobante de ese tipo en la sede crea el
+                // contador. Si otro proceso lo creó en el mismo instante, el
+                // índice único rechaza este y se usa el suyo, bajo candado: de
+                // lo contrario el comprobante se caía en vez de numerarse.
+                try {
+                    $sequence = \App\Models\ElectronicBillingSequence::create([
+                        'branch_id'     => $branch->id,
+                        'document_type' => $documentCode,
+                        'last_number'   => 0,
+                    ]);
+                } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+                    $sequence = \App\Models\ElectronicBillingSequence::where('branch_id', $branch->id)
+                        ->where('document_type', $documentCode)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+                }
             }
 
             $sequence->last_number = $sequence->last_number + 1;
