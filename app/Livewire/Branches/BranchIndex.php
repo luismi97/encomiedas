@@ -27,6 +27,7 @@ class BranchIndex extends Component
     public string $district = '';
     public string $phone = '';
     public $receipt_paper_width = 80;
+    public string $receipt_printer = Branch::IMPRESORA_TERMICA;
 
     /** business_hours como arreglo editable: [dia => ['abre'=>..,'cierra'=>..]] */
     public array $business_hours = [];
@@ -71,6 +72,7 @@ class BranchIndex extends Component
             'district' => 'nullable|regex:/^\d{2}$/',
             'phone' => 'nullable|string|max:30',
             'receipt_paper_width' => ['required', Rule::in(Branch::PAPER_WIDTHS)],
+            'receipt_printer' => ['required', Rule::in(array_keys(Branch::PRINTER_TYPES))],
         ];
     }
 
@@ -133,6 +135,7 @@ class BranchIndex extends Component
         $this->district = (string) $branch->district;
         $this->phone = (string) $branch->phone;
         $this->receipt_paper_width = $branch->receiptPaperWidthMm();
+        $this->receipt_printer = $branch->receiptPrinterType();
         $this->business_hours = $this->horarioEditable($branch->business_hours ?? []);
         $this->is_active = $branch->is_active;
         $this->codesLocked = $branch->hasHaciendaHistory();
@@ -323,6 +326,7 @@ class BranchIndex extends Component
         $this->sucursal_code = '001';
         $this->terminal_code = '00001';
         $this->receipt_paper_width = 80;
+        $this->receipt_printer = Branch::IMPRESORA_TERMICA;
         $this->business_hours = $this->horarioEditable([]);
         $this->is_active = true;
         $this->codesLocked = false;

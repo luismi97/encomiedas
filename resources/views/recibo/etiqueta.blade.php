@@ -23,7 +23,7 @@
         margin: 0;
         padding: 3mm;
         font-family: "Courier New", ui-monospace, monospace;
-        font-size: {{ $ancho >= 80 ? '11px' : '10px' }};
+        font-size: {{ $ancho >= 76 ? '11px' : '10px' }};
         line-height: 1.3;
         color: #000;
         background: #fff;
@@ -35,27 +35,27 @@
 
     /* La ruta es lo que lee el que carga el camión, de lejos y apurado. */
     .ruta {
-        font-size: {{ $ancho >= 80 ? '26px' : '20px' }};
+        font-size: {{ $ancho >= 76 ? '26px' : '20px' }};
         font-weight: bold;
         letter-spacing: 1px;
         line-height: 1.1;
     }
-    .destino-sede { font-size: {{ $ancho >= 80 ? '15px' : '13px' }}; font-weight: bold; }
+    .destino-sede { font-size: {{ $ancho >= 76 ? '15px' : '13px' }}; font-weight: bold; }
 
-    .persona { font-size: {{ $ancho >= 80 ? '14px' : '12px' }}; font-weight: bold; }
+    .persona { font-size: {{ $ancho >= 76 ? '14px' : '12px' }}; font-weight: bold; }
 
     /* El SVG se escala al ancho del papel; el alto lo fija el propio SVG. */
     .barras svg { width: 100%; height: auto; display: block; }
     .codigo {
-        font-size: {{ $ancho >= 80 ? '15px' : '12px' }};
+        font-size: {{ $ancho >= 76 ? '15px' : '12px' }};
         font-weight: bold;
-        letter-spacing: {{ $ancho >= 80 ? '2px' : '1px' }};
+        letter-spacing: {{ $ancho >= 76 ? '2px' : '1px' }};
     }
 
     .bulto {
         border: 2px solid #000;
         padding: 1mm;
-        font-size: {{ $ancho >= 80 ? '15px' : '13px' }};
+        font-size: {{ $ancho >= 76 ? '15px' : '13px' }};
         font-weight: bold;
     }
 
@@ -74,19 +74,28 @@
         padding: 1mm;
         margin-top: 1.5mm;
         font-weight: bold;
-        font-size: {{ $ancho >= 80 ? '14px' : '12px' }};
+        font-size: {{ $ancho >= 76 ? '14px' : '12px' }};
     }
 
-    /* Invertido: en térmica el negro sólido es lo único que se ve de lejos. */
+    /* Invertido: en térmica el negro sólido es lo único que se ve de lejos.
+       Sin print-color-adjust el navegador no imprime el fondo por defecto y
+       el texto blanco sale convertido en un gris desteñido. */
     .cobrar {
         background: #000;
         color: #fff;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
         padding: 1.5mm;
         margin-top: 1.5mm;
         font-weight: bold;
-        font-size: {{ $ancho >= 80 ? '16px' : '13px' }};
+        font-size: {{ $ancho >= 76 ? '16px' : '13px' }};
         letter-spacing: 1px;
     }
+    .cobrar .monto { font-size: {{ $ancho >= 76 ? '20px' : '16px' }}; }
+
+    .direccion { font-size: {{ $ancho >= 76 ? '11px' : '10px' }}; }
+    .tipo-bulto { font-size: {{ $ancho >= 76 ? '13px' : '11px' }}; }
+    .chico { font-size: 8px; }
 
     /* Cada etiqueta en su propia hoja de rollo: el corte va entre bultos. */
     .corte { page-break-after: always; }
@@ -99,6 +108,39 @@
     @media print {
         .no-imprimir { display: none !important; }
     }
+
+    @if ($matriz)
+        /*
+           Matriz de puntos (TM-U220 y similares). El cabezal de 9 agujas tiene
+           tan poca resolución vertical que la letra de 8 a 11 px en peso
+           normal sale deshecha: la empresa, «Destino», «Remitente», los
+           teléfonos y el origen no se leían, y solo sobrevivía lo que ya iba
+           grande y en negrita. Acá todo va en negrita, sin serifas y nada por
+           debajo de 12 px.
+        */
+        body {
+            width: {{ $anchoUtil }}mm;
+            padding: 2mm 0;
+            font-family: Tahoma, Verdana, Arial, sans-serif;
+            font-size: {{ $ancho >= 76 ? '14px' : '13px' }};
+            font-weight: bold;
+        }
+        .etiqueta, .chico { font-size: 12px; letter-spacing: 0; }
+        .direccion { font-size: {{ $ancho >= 76 ? '14px' : '13px' }}; }
+        .regla { border-top: 2px solid #000; }
+        .bultos td { border-bottom: 1px solid #000; }
+
+        /* Sin bloque negro: una de impacto lo imprime a golpes de aguja, tarda,
+           gasta la cinta y deja el texto calado ilegible. Recuadro grueso. */
+        .cobrar { background: none; color: #000; border: 3px solid #000; }
+
+        @media print {
+            /* El área imprimible va centrada en el rollo: pegado a la
+               izquierda, lo primero que se corta es el comienzo del renglón;
+               y demasiado ancho, el final del código de barras. */
+            body { margin: 0 auto; }
+        }
+    @endif
 </style>
 </head>
 <body onload="window.print()">
@@ -125,7 +167,7 @@
             <div class="destino-sede">{{ $guia->deliveryBranch?->name }}</div>
             @if ($guia->esADomicilio())
                 <div class="domicilio">A DOMICILIO</div>
-                <div style="font-size: {{ $ancho >= 80 ? '11px' : '10px' }}">{{ $guia->delivery_address }}</div>
+                <div class="direccion">{{ $guia->delivery_address }}</div>
             @endif
         </div>
 
@@ -142,7 +184,7 @@
             <div class="centro bulto">
                 BULTO {{ $indice + 1 }} DE {{ count($bultos) }}
                 @if ($soloEste?->packageType)
-                    <div style="font-size: {{ $ancho >= 80 ? '13px' : '11px' }}">
+                    <div class="tipo-bulto">
                         {{ mb_strtoupper($soloEste->packageType->name, 'UTF-8') }}
                     </div>
                 @endif
@@ -173,7 +215,7 @@
         @if ($guia->tieneCobroPendiente())
             <div class="centro cobrar">
                 POR COBRAR
-                <div style="font-size: {{ $ancho >= 80 ? '20px' : '16px' }}">
+                <div class="monto">
                     ₡{{ number_format((float) $guia->total, 2) }}
                 </div>
             </div>
@@ -215,7 +257,7 @@
             @endif
         @endif
 
-        <div class="centro" style="margin-top:1.5mm; font-size:8px;">
+        <div class="centro chico" style="margin-top:1.5mm;">
             {{ $guia->created_at?->format('d/m/Y H:i') }}
         </div>
     </div>

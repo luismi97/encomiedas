@@ -83,12 +83,27 @@
                     <input type="text" wire:model="phone" class="input @error('phone') input-error @enderror">
                 </div>
                 <div>
-                    <label class="label">Ancho del rollo térmico</label>
+                    <label class="label">Impresora de recibos</label>
+                    <select wire:model="receipt_printer" class="input @error('receipt_printer') input-error @enderror">
+                        @foreach (\App\Models\Branch::PRINTER_TYPES as $tipo => $nombre)
+                            <option value="{{ $tipo }}">{{ $nombre }}</option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Las de matriz de puntos (Epson TM-U220 y similares) imprimen con letra más grande y en negrita.
+                    </p>
+                    @error('receipt_printer') <p class="error-text">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="label">Ancho del rollo</label>
                     <select wire:model="receipt_paper_width" class="input @error('receipt_paper_width') input-error @enderror">
                         @foreach (\App\Models\Branch::PAPER_WIDTHS as $ancho)
                             <option value="{{ $ancho }}">{{ $ancho }} mm</option>
                         @endforeach
                     </select>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Las de matriz de puntos usan casi siempre rollo de 76 mm.
+                    </p>
                     @error('receipt_paper_width') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
 

@@ -45,6 +45,7 @@
                 </x-action-button>
             @endforeach
 
+            <a href="{{ route('invoices.factura', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="document" class="w-4 h-4" /> Imprimir factura</a>
             <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="download" class="w-4 h-4" /> Descargar factura</a>
             <a href="{{ route('invoices.recibo', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="receipt" class="w-4 h-4" /> Recibo del cliente</a>
             <a href="{{ route('invoices.etiqueta', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="box" class="w-4 h-4" /> Etiqueta del paquete</a>

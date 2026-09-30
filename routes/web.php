@@ -93,6 +93,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/invoices/{invoice}', InvoiceShow::class)->name('invoices.show');
     Route::get('/invoices/{invoice}/pdf', [InvoiceExportController::class, 'downloadInvoice'])->name('invoices.pdf');
     Route::get('/invoices/{invoice}/recibo', [InvoiceExportController::class, 'reciboTermico'])->name('invoices.recibo');
+    Route::get('/invoices/{invoice}/factura', [InvoiceExportController::class, 'facturaRollo'])->name('invoices.factura');
     Route::get('/invoices/{invoice}/etiqueta', [InvoiceExportController::class, 'etiquetaPaquete'])->name('invoices.etiqueta');
     // Vista de calle: el chofer solo ve el cierre que trae asignado.
     Route::middleware('role:admin,repartidor')->group(function () {

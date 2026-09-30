@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Carbon;
+use App\Models\Branch;
 use App\Models\CompanySetting;
 use App\Models\Invoice;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -76,12 +77,7 @@ class InvoiceExportController extends Controller
 
         $invoice->load(['items', 'pickupBranch', 'deliveryBranch']);
 
-        // El ancho manda el de la sede de origen, que es donde se imprime.
-        $ancho = $request->integer('ancho')
-            ?: $invoice->pickupBranch?->receiptPaperWidthMm()
-            ?? 80;
-
-        $ancho = in_array($ancho, \App\Models\Branch::PAPER_WIDTHS, true) ? $ancho : 80;
+        $papel = $this->papel($request, $invoice);
 
         // Reimpresión controlada: cada copia queda registrada y la etiqueta se
         // marca. Dos rótulos iguales sin marca es el fraude que esto evita.
@@ -89,16 +85,38 @@ class InvoiceExportController extends Controller
             'invoice_id'  => $invoice->id,
             'user_id'     => $user->id,
             'copy_number' => $invoice->printLogs()->count() + 1,
-            'paper_width' => $ancho,
+            'paper_width' => $papel['ancho'],
             'ip'          => $request->ip(),
         ]);
 
-        return view('recibo.termico', [
+        return view('recibo.termico', $papel + [
             'guia'    => $invoice,
             'empresa' => CompanySetting::instance(),
-            'ancho'   => $ancho,
             'qr'      => $qr->dataUri($invoice->trackingUrl(), 260),
             'copia'   => $copia,
+        ]);
+    }
+
+    /**
+     * La factura en rollo, para la misma impresora del recibo.
+     *
+     * La de A4 (downloadInvoice) sigue para descargar o mandar por correo,
+     * pero en el mostrador se imprime en rollo, y un A4 encogido a 76 mm sale
+     * con la letra a una cuarta parte de su tamaño.
+     */
+    public function facturaRollo(Request $request, Invoice $invoice)
+    {
+        $user = $request->user();
+
+        if ($user->isRepartidor() && $invoice->assigned_to !== $user->id) {
+            abort(403);
+        }
+
+        $invoice->load(['items', 'taxes', 'pickupBranch', 'deliveryBranch', 'electronicInvoice']);
+
+        return view('recibo.factura', $this->papel($request, $invoice) + [
+            'guia'    => $invoice,
+            'empresa' => CompanySetting::instance(),
         ]);
     }
 
@@ -124,25 +142,51 @@ class InvoiceExportController extends Controller
 
         $invoice->load(['items', 'pickupBranch', 'deliveryBranch']);
 
-        $ancho = $request->integer('ancho')
-            ?: $invoice->pickupBranch?->receiptPaperWidthMm()
-            ?? 80;
-
-        $ancho = in_array($ancho, \App\Models\Branch::PAPER_WIDTHS, true) ? $ancho : 80;
+        $papel = $this->papel($request, $invoice);
 
         // Una guía sin renglones igual se despacha: en ese caso va una sola
         // etiqueta, sin detalle de bulto.
         $bultos = $invoice->items->isNotEmpty() ? $invoice->items->all() : [null];
 
-        return view('recibo.etiqueta', [
+        return view('recibo.etiqueta', $papel + [
             'guia'    => $invoice,
             'empresa' => CompanySetting::instance(),
-            'ancho'   => $ancho,
             'bultos'  => $bultos,
             // El alto en píxeles se traduce a milímetros al imprimir; 55 da una
-            // barra cómoda de escanear en rollo de 58 y de 80.
-            'barras'  => $barras->svg($invoice->code, alto: 55, modulo: 2),
+            // barra cómoda de escanear en rollo de 58 y de 80. La de impacto
+            // la necesita más alta: el lector tiene más renglón donde enganchar
+            // cuando las barras finas salen corridas.
+            'barras'  => $barras->svg($invoice->code, alto: $papel['matriz'] ? 90 : 55, modulo: 2),
         ]);
+    }
+
+    /**
+     * Cómo imprime el mostrador: ancho del rollo y tipo de impresora.
+     *
+     * Manda la sede de origen, que es donde se imprime. ?ancho= y ?impresora=
+     * lo fuerzan por URL, para probar en otra impresora sin tocar la sede.
+     *
+     * @return array{ancho:int, matriz:bool, anchoUtil:int}
+     */
+    private function papel(Request $request, Invoice $invoice): array
+    {
+        $sede = $invoice->pickupBranch;
+
+        $ancho = $request->integer('ancho') ?: $sede?->receiptPaperWidthMm() ?? 80;
+        $ancho = in_array($ancho, Branch::PAPER_WIDTHS, true) ? $ancho : 80;
+
+        $matriz = match ($request->query('impresora')) {
+            Branch::IMPRESORA_MATRIZ  => true,
+            Branch::IMPRESORA_TERMICA => false,
+            default                   => (bool) $sede?->imprimeEnMatriz(),
+        };
+
+        return [
+            'ancho'     => $ancho,
+            'matriz'    => $matriz,
+            // La térmica imprime casi de borde a borde; la de impacto no.
+            'anchoUtil' => $matriz ? Branch::ANCHO_IMPRIMIBLE_MATRIZ[$ancho] : $ancho,
+        ];
     }
 
     /** Proforma en PDF, para descargar o adjuntar. */

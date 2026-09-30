@@ -3,55 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>{{ $guia->code }}</title>
-<style>
-    /*
-       Etiqueta para impresora térmica. Se imprime desde el navegador contra el
-       driver del sistema: no hace falta WebUSB ni un puente local, y funciona
-       igual en Windows, Mac y una tablet Android.
-
-       El ancho sale de la sede, no de una constante: cada mostrador compra la
-       impresora que consigue, de 58 o de 80 mm.
-    */
-    @page {
-        size: {{ $ancho }}mm auto;
-        margin: 0;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-        width: {{ $ancho }}mm;
-        margin: 0;
-        padding: 3mm;
-        /* Monoespaciada: en térmica es lo que sale parejo y legible. */
-        font-family: "Courier New", ui-monospace, monospace;
-        font-size: {{ $ancho >= 80 ? '11px' : '10px' }};
-        line-height: 1.35;
-        color: #000;
-        background: #fff;
-    }
-
-    .centro { text-align: center; }
-    .grande { font-size: {{ $ancho >= 80 ? '17px' : '14px' }}; font-weight: bold; letter-spacing: .5px; }
-    .medio  { font-size: {{ $ancho >= 80 ? '13px' : '12px' }}; font-weight: bold; }
-    .regla  { border-top: 1px dashed #000; margin: 2mm 0; }
-    /* Tabla y no flex: la etiqueta también se renderiza a PDF en algunos
-       flujos, y DomPDF ignora flexbox — los montos saldrían pegados. */
-    .fila   { width: 100%; border-collapse: collapse; }
-    .fila td:last-child { text-align: right; }
-    .etiqueta { text-transform: uppercase; font-size: 9px; letter-spacing: .4px; }
-    .qr img { width: {{ $ancho >= 80 ? '36mm' : '30mm' }}; height: auto; }
-    .firma { margin-top: 8mm; border-top: 1px solid #000; padding-top: 1mm; text-align: center; font-size: 9px; }
-
-    /* En pantalla se ve el papel; al imprimir, solo el contenido. */
-    @media screen {
-        body { margin: 20px auto; box-shadow: 0 0 0 1px #ddd; }
-        .no-imprimir { display: block; }
-    }
-    @media print {
-        .no-imprimir { display: none !important; }
-    }
-</style>
+@include('recibo._estilos')
 </head>
 <body onload="window.print()">
 
@@ -70,7 +22,7 @@
     @if (($copia ?? null) && $copia->esReimpresion())
         <div class="centro" style="border: 2px solid #000; padding: 1mm; margin-bottom: 2mm; font-weight: bold;">
             REIMPRESIÓN · COPIA {{ $copia->copy_number }}
-            <div style="font-size: 8px; font-weight: normal;">{{ $copia->created_at->format('d/m/Y H:i') }}</div>
+            <div class="chico fino">{{ $copia->created_at->format('d/m/Y H:i') }}</div>
         </div>
     @endif
 
@@ -82,7 +34,7 @@
 
     <div class="centro qr" style="margin: 2mm 0;">
         <img src="{{ $qr }}" alt="QR {{ $guia->code }}">
-        <div style="font-size: 8px;">Escanee para seguir su encomienda</div>
+        <div class="chico">Escanee para seguir su encomienda</div>
     </div>
 
     <div class="regla"></div>
@@ -130,7 +82,7 @@
                 <td>{{ $item->weight ? number_format((float) $item->weight, 2) . ' kg' : '' }}</td>
             </tr></table>
             @if ($item->description)
-                <div style="font-size: 9px;">{{ $item->description }}</div>
+                <div class="nota">{{ $item->description }}</div>
             @endif
         @empty
             <div>Sin paquetes registrados</div>
@@ -165,7 +117,7 @@
 
     <div class="firma">Recibí conforme · nombre, cédula y firma</div>
 
-    <div class="centro" style="margin-top: 3mm; font-size: 8px;">
+    <div class="centro chico" style="margin-top: 3mm;">
         Consérvelo: es el comprobante de su encomienda.
     </div>
 

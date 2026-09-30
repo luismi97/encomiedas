@@ -125,8 +125,10 @@
                                        class="btn-secondary !py-1.5 !px-2.5 text-sm">
                                         <x-icon name="receipt" class="w-4 h-4" />
                                     </a>
-                                    <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank"
-                                       title="Factura en PDF"
+                                    {{-- En rollo, como el recibo: es la impresora del mostrador.
+                                         La de A4 se descarga desde el detalle. --}}
+                                    <a href="{{ route('invoices.factura', $invoice) }}" target="_blank"
+                                       title="Factura"
                                        class="btn-secondary !py-1.5 !px-2.5 text-sm">
                                         <x-icon name="document" class="w-4 h-4" />
                                     </a>
@@ -194,6 +196,9 @@
                         </a>
                         <a href="{{ route('invoices.recibo', $invoice) }}" target="_blank" class="btn-secondary !py-2 !px-3 text-sm">
                             <x-icon name="receipt" class="w-4 h-4" /> Recibo
+                        </a>
+                        <a href="{{ route('invoices.factura', $invoice) }}" target="_blank" class="btn-secondary !py-2 !px-3 text-sm">
+                            <x-icon name="document" class="w-4 h-4" /> Factura
                         </a>
                         <a href="{{ route('invoices.show', $invoice) }}" class="btn-secondary !py-2 !px-3 text-sm">Detalle</a>
                     </div>
