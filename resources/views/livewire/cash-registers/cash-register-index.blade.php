@@ -46,6 +46,26 @@
                         @error('name') <p class="error-text">{{ $message }}</p> @enderror
                         <p class="text-xs text-gray-500 mt-1">Es lo que el cajero elige al abrir el turno.</p>
                     </div>
+                    <div>
+                        <label class="label">Impresora de recibos</label>
+                        <select wire:model="receipt_printer" class="input @error('receipt_printer') input-error @enderror">
+                            @foreach (\App\Models\CashRegister::PRINTER_TYPES as $tipo => $nombre)
+                                <option value="{{ $tipo }}">{{ $nombre }}</option>
+                            @endforeach
+                        </select>
+                        @error('receipt_printer') <p class="error-text">{{ $message }}</p> @enderror
+                        <p class="text-xs text-gray-500 mt-1">Las de matriz de puntos (Epson TM-U220 y similares) imprimen con letra más grande y en negrita.</p>
+                    </div>
+                    <div>
+                        <label class="label">Ancho del rollo</label>
+                        <select wire:model="receipt_paper_width" class="input @error('receipt_paper_width') input-error @enderror">
+                            @foreach (\App\Models\CashRegister::PAPER_WIDTHS as $ancho)
+                                <option value="{{ $ancho }}">{{ $ancho }} mm</option>
+                            @endforeach
+                        </select>
+                        @error('receipt_paper_width') <p class="error-text">{{ $message }}</p> @enderror
+                        <p class="text-xs text-gray-500 mt-1">Las de matriz de puntos usan casi siempre rollo de 76 mm.</p>
+                    </div>
                 </div>
 
                 <label class="inline-flex items-center gap-2">
@@ -87,7 +107,10 @@
                     <tbody>
                         @forelse ($sede->cashRegisters as $caja)
                             <tr wire:key="caja-{{ $caja->id }}" class="border-b border-gray-100 dark:border-gray-700/50">
-                                <td class="py-3 font-medium">{{ $caja->name }}</td>
+                                <td class="py-3">
+                                    <div class="font-medium">{{ $caja->name }}</div>
+                                    <div class="text-xs text-gray-500">{{ $caja->impresoraLabel() }}</div>
+                                </td>
                                 <td class="py-3 text-sm">
                                     @if ($caja->estaAbierta())
                                         <span class="badge bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">Abierto</span>
@@ -124,7 +147,10 @@
                 @foreach ($sede->cashRegisters as $caja)
                     <div wire:key="caja-movil-{{ $caja->id }}" class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                         <div class="flex items-start justify-between gap-2">
-                            <div class="font-semibold">{{ $caja->name }}</div>
+                            <div>
+                                <div class="font-semibold">{{ $caja->name }}</div>
+                                <div class="text-xs text-gray-500">{{ $caja->impresoraLabel() }}</div>
+                            </div>
                             <span class="badge {{ $caja->is_active
                                 ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
                                 : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }}">

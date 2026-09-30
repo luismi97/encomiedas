@@ -161,10 +161,10 @@ class EtiquetaPaqueteTest extends TestCase
             ->assertSee('1 BULTO');
     }
 
-    /** El ancho sale de la sede que imprime, igual que el recibo. */
-    public function test_respeta_el_ancho_de_rollo_de_la_sede(): void
+    /** El ancho sale de la caja que imprime, igual que el recibo. */
+    public function test_respeta_el_ancho_de_rollo_de_la_caja(): void
     {
-        $this->sj->update(['receipt_paper_width' => 58]);
+        $this->sj->cashRegisters()->update(['receipt_paper_width' => 58]);
         $guia = $this->guia();
 
         $this->actingAs($this->admin)

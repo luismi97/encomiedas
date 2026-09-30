@@ -23,8 +23,6 @@ class Branch extends Model
         'canton',
         'district',
         'phone',
-        'receipt_paper_width',
-        'receipt_printer',
         'business_hours',
         'is_active',
     ];
@@ -221,52 +219,6 @@ class Branch extends Model
     public function customers(): HasMany
     {
         return $this->hasMany(Customer::class);
-    }
-
-    /**
-     * Anchos de rollo del mercado, en milímetros. 58 y 80 son los de las
-     * térmicas; 76 es el de las de impacto (Epson TM-U220 y similares).
-     */
-    public const PAPER_WIDTHS = [58, 76, 80];
-
-    public const IMPRESORA_TERMICA = 'termica';
-    public const IMPRESORA_MATRIZ = 'matriz';
-
-    public const PRINTER_TYPES = [
-        self::IMPRESORA_TERMICA => 'Térmica',
-        self::IMPRESORA_MATRIZ  => 'Matriz de puntos (impacto)',
-    ];
-
-    /**
-     * Lo que de verdad imprime una de impacto en cada rollo, en milímetros. El
-     * cabezal no llega a los bordes: en rollo de 76 la TM-U220 imprime 63,4 mm
-     * centrados, y lo que se diseña más ancho sale cortado a la derecha —justo
-     * donde van los montos— o el navegador lo encoge hasta que no se lee.
-     */
-    public const ANCHO_IMPRIMIBLE_MATRIZ = [58 => 45, 76 => 63, 80 => 68];
-
-    /** Una fila vieja o un valor raro cae a térmica, que era lo único que había. */
-    public function receiptPrinterType(): string
-    {
-        return array_key_exists((string) $this->receipt_printer, self::PRINTER_TYPES)
-            ? $this->receipt_printer
-            : self::IMPRESORA_TERMICA;
-    }
-
-    public function imprimeEnMatriz(): bool
-    {
-        return $this->receiptPrinterType() === self::IMPRESORA_MATRIZ;
-    }
-
-    /**
-     * Ancho del rollo saneado: una fila vieja puede traer null o un valor raro,
-     * y una etiqueta con el ancho equivocado sale cortada.
-     */
-    public function receiptPaperWidthMm(): int
-    {
-        $ancho = (int) ($this->receipt_paper_width ?? 0);
-
-        return in_array($ancho, self::PAPER_WIDTHS, true) ? $ancho : 80;
     }
 
     /** Prefijo del código guía (SJ-LIM-00005), en mayúsculas. */

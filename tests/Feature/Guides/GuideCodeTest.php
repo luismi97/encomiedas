@@ -73,6 +73,25 @@ class GuideCodeTest extends TestCase
         $this->assertSame('LIM-SJ-00001', $this->generador()->generar($this->lim, $this->sj));
     }
 
+    /**
+     * Si el contador quedó detrás de las guías que ya existen, el código que
+     * tocaba chocaba contra el índice único y nadie podía recibir encomiendas
+     * en esa ruta (Duplicate entry '4-SJ-LIM-00001' en producción).
+     */
+    public function test_un_contador_atrasado_salta_los_codigos_ya_usados(): void
+    {
+        $this->assertSame('SJ-LIM-00001', $this->guia($this->sj, $this->lim)->fresh()->code);
+        $this->assertSame('SJ-LIM-00002', $this->guia($this->sj, $this->lim)->fresh()->code);
+
+        DB::table('guide_sequences')->update(['last_number' => 0]);
+
+        $this->assertSame('SJ-LIM-00003', $this->guia($this->sj, $this->lim)->fresh()->code);
+
+        // Y el contador queda al día: la siguiente no vuelve a recorrer.
+        $this->assertSame(3, (int) DB::table('guide_sequences')->value('last_number'));
+        $this->assertSame('SJ-LIM-00004', $this->generador()->generar($this->sj, $this->lim));
+    }
+
     public function test_el_relleno_de_ceros_es_configurable(): void
     {
         config(['encomiendas.guide_sequence_padding' => 3]);

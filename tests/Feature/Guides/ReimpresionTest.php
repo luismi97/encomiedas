@@ -28,7 +28,7 @@ class ReimpresionTest extends TestCase
 
         CompanySetting::instance();
 
-        $sj  = Branch::create(['name' => 'San José', 'prefix' => 'SJ', 'sucursal_code' => '001', 'terminal_code' => '00001', 'is_active' => true, 'receipt_paper_width' => 80]);
+        $sj  = Branch::create(['name' => 'San José', 'prefix' => 'SJ', 'sucursal_code' => '001', 'terminal_code' => '00001', 'is_active' => true]);
         $lim = Branch::create(['name' => 'Limón', 'prefix' => 'LIM', 'sucursal_code' => '002', 'terminal_code' => '00001', 'is_active' => true]);
 
         $this->usuario = User::create([
@@ -98,7 +98,7 @@ class ReimpresionTest extends TestCase
         $this->assertArrayNotHasKey('updated_at', PrintLog::firstOrFail()->getAttributes());
     }
 
-    public function test_el_ancho_sale_de_la_sede_de_origen(): void
+    public function test_el_ancho_sale_de_la_caja(): void
     {
         $this->imprimir()->assertOk()->assertSee('size: 80mm', false);
 

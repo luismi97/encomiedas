@@ -25,6 +25,8 @@ class CashRegisterIndex extends Component
 
     public $branch_id = null;
     public string $name = '';
+    public $receipt_paper_width = 80;
+    public string $receipt_printer = CashRegister::IMPRESORA_TERMICA;
     public bool $is_active = true;
 
     public ?string $feedback = null;
@@ -43,6 +45,8 @@ class CashRegisterIndex extends Component
                         ->where('company_id', CompanyContext::id()))
                     ->ignore($this->editingId),
             ],
+            'receipt_printer' => ['required', Rule::in(array_keys(CashRegister::PRINTER_TYPES))],
+            'receipt_paper_width' => ['required', Rule::in(CashRegister::PAPER_WIDTHS)],
         ];
     }
 
@@ -97,6 +101,8 @@ class CashRegisterIndex extends Component
         $this->editingId = $caja->id;
         $this->branch_id = $caja->branch_id;
         $this->name = (string) $caja->name;
+        $this->receipt_printer = $caja->receiptPrinterType();
+        $this->receipt_paper_width = $caja->receiptPaperWidthMm();
         $this->is_active = (bool) $caja->is_active;
         $this->showForm = true;
     }
@@ -194,6 +200,8 @@ class CashRegisterIndex extends Component
     private function resetForm(): void
     {
         $this->reset(['editingId', 'branch_id', 'name']);
+        $this->receipt_printer = CashRegister::IMPRESORA_TERMICA;
+        $this->receipt_paper_width = 80;
         $this->is_active = true;
         $this->resetErrorBag();
     }

@@ -109,7 +109,7 @@
         @endif
         <tr><td>Impuesto</td><td>{{ number_format((float) $guia->tax_total, 2) }}</td></tr>
         <tr class="grande"><td>TOTAL</td><td>{{ number_format((float) $guia->total, 2) }}</td></tr>
-        <tr><td>{{ $guia->saleConditionLabel() }}</td><td>{{ \App\Models\Invoice::PAYMENT_METHODS[$guia->payment_method] ?? '' }}</td></tr>
+        <tr><td>{{ $guia->saleConditionLabel() }}</td><td>{{ $guia->medioDePagoImpreso() }}</td></tr>
         @if ((float) $guia->declared_value > 0)
             <tr><td>Valor declarado</td><td>{{ number_format((float) $guia->declared_value, 2) }}</td></tr>
         @endif

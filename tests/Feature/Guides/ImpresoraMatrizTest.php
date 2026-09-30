@@ -2,14 +2,16 @@
 
 namespace Tests\Feature\Guides;
 
-use App\Livewire\Branches\BranchIndex;
+use App\Livewire\CashRegisters\CashRegisterIndex;
 use App\Models\Branch;
+use App\Models\CashRegister;
 use App\Models\CompanySetting;
 use App\Models\ElectronicInvoice;
 use App\Models\Invoice;
 use App\Models\InvoiceTax;
 use App\Models\User;
 use App\Services\BarcodeService;
+use App\Services\CajaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -28,6 +30,7 @@ class ImpresoraMatrizTest extends TestCase
 
     private Branch $sj;
     private Branch $lim;
+    private CashRegister $caja;
     private User $admin;
     private Invoice $guia;
 
@@ -37,10 +40,12 @@ class ImpresoraMatrizTest extends TestCase
 
         CompanySetting::instance();
 
-        $this->sj = Branch::create([
-            'name' => 'San José', 'prefix' => 'SJ', 'sucursal_code' => '001', 'terminal_code' => '00001',
-            'is_active' => true, 'receipt_paper_width' => 76, 'receipt_printer' => Branch::IMPRESORA_MATRIZ,
-        ]);
+        $this->sj = Branch::create(['name' => 'San José', 'prefix' => 'SJ', 'sucursal_code' => '001', 'terminal_code' => '00001', 'is_active' => true]);
+
+        // La sede nace con su caja principal: es la que tiene la de impacto.
+        $this->caja = $this->sj->cashRegisters()->firstOrFail();
+        $this->caja->update(['receipt_paper_width' => 76, 'receipt_printer' => CashRegister::IMPRESORA_MATRIZ]);
+
         $this->lim = Branch::create(['name' => 'Limón', 'prefix' => 'LIM', 'sucursal_code' => '006', 'terminal_code' => '00001', 'is_active' => true]);
 
         $this->admin = User::create([
@@ -75,7 +80,7 @@ class ImpresoraMatrizTest extends TestCase
             ->getContent();
     }
 
-    public function test_el_recibo_de_una_sede_con_matriz_va_en_negrita_y_letra_sin_serifas(): void
+    public function test_el_recibo_de_una_caja_con_matriz_va_en_negrita_y_letra_sin_serifas(): void
     {
         $html = $this->html('invoices.recibo');
 
@@ -92,9 +97,9 @@ class ImpresoraMatrizTest extends TestCase
         $this->assertStringContainsString('width: 63mm', $html);
     }
 
-    public function test_una_sede_termica_sigue_como_antes(): void
+    public function test_una_caja_termica_sigue_como_antes(): void
     {
-        $this->sj->update(['receipt_printer' => Branch::IMPRESORA_TERMICA]);
+        $this->caja->update(['receipt_printer' => CashRegister::IMPRESORA_TERMICA]);
 
         $html = $this->html('invoices.recibo');
 
@@ -102,21 +107,21 @@ class ImpresoraMatrizTest extends TestCase
         $this->assertStringContainsString('Courier New', $html);
     }
 
-    /** Para probar la otra impresora sin tocar la sede. */
+    /** Para probar la otra impresora sin tocar la caja. */
     public function test_el_tipo_de_impresora_se_puede_forzar_por_url(): void
     {
         $this->assertStringNotContainsString('Tahoma', $this->html('invoices.recibo', ['impresora' => 'termica']));
 
-        $this->sj->update(['receipt_printer' => Branch::IMPRESORA_TERMICA]);
+        $this->caja->update(['receipt_printer' => CashRegister::IMPRESORA_TERMICA]);
 
         $this->assertStringContainsString('Tahoma', $this->html('invoices.recibo', ['impresora' => 'matriz']));
     }
 
     public function test_un_tipo_de_impresora_desconocido_cae_a_termica(): void
     {
-        $this->sj->forceFill(['receipt_printer' => 'laser'])->save();
+        $this->caja->forceFill(['receipt_printer' => 'laser'])->save();
 
-        $this->assertSame(Branch::IMPRESORA_TERMICA, $this->sj->fresh()->receiptPrinterType());
+        $this->assertSame(CashRegister::IMPRESORA_TERMICA, $this->caja->fresh()->receiptPrinterType());
         $this->assertStringNotContainsString('Tahoma', $this->html('invoices.recibo'));
     }
 
@@ -216,28 +221,98 @@ class ImpresoraMatrizTest extends TestCase
         $this->assertStringContainsString(route('invoices.factura', $this->guia), $html);
     }
 
-    public function test_la_sede_guarda_el_tipo_de_impresora_y_el_rollo_de_76(): void
+    /**
+     * Un por cobrar es «Contado» ante Hacienda, pero «Efectivo» al lado se
+     * leía como que ya se había pagado, justo encima del aviso POR COBRAR.
+     */
+    public function test_un_por_cobrar_pendiente_no_dice_efectivo(): void
     {
+        $this->guia->update(['payment_timing' => Invoice::TIMING_COLLECT]);
+
+        foreach (['invoices.recibo', 'invoices.factura'] as $ruta) {
+            $html = $this->html($ruta);
+
+            $this->assertStringContainsString('Se paga al retirar', $html);
+            $this->assertStringNotContainsString('Efectivo', $html);
+        }
+
+        $this->guia->update(['collected_at' => now()]);
+
+        $this->assertStringContainsString('Efectivo', $this->html('invoices.factura'));
+    }
+
+    /**
+     * Cada mostrador tiene su impresora: en la misma sede, quien tiene turno
+     * en la caja de la térmica imprime para térmica, aunque la otra sea de
+     * impacto.
+     */
+    public function test_manda_la_caja_del_turno_abierto_de_quien_imprime(): void
+    {
+        $termica = $this->sj->cashRegisters()->create([
+            'name' => 'Mostrador 2', 'is_active' => true,
+            'receipt_paper_width' => 80, 'receipt_printer' => CashRegister::IMPRESORA_TERMICA,
+        ]);
+
+        app(CajaService::class)->abrir($termica, $this->admin, 0);
+        $this->assertStringNotContainsString('Tahoma', $this->html('invoices.recibo'));
+
+        $otro = User::create([
+            'name' => 'Cajera', 'username' => 'cajera', 'email' => 'c@t.test', 'branch_id' => $this->sj->id,
+            'password' => bcrypt('x'), 'role' => User::ROLE_ADMIN, 'is_active' => true,
+        ]);
+        app(CajaService::class)->abrir($this->caja, $otro, 0);
+
+        $this->actingAs($otro)
+            ->get(route('invoices.recibo', $this->guia))
+            ->assertSee('font-family: Tahoma', false);
+    }
+
+    /** Sin turno y con cajas que imprimen distinto no se adivina. */
+    public function test_sin_turno_y_con_cajas_distintas_queda_la_termica_de_80(): void
+    {
+        $this->sj->cashRegisters()->create(['name' => 'Mostrador 2', 'is_active' => true, 'receipt_paper_width' => 80]);
+
+        $html = $this->html('invoices.recibo');
+
+        $this->assertStringNotContainsString('Tahoma', $html);
+        $this->assertStringContainsString('size: 80mm', $html);
+    }
+
+    /** Sin turno, si todas las cajas de la sede imprimen igual, no hay duda. */
+    public function test_sin_turno_y_con_cajas_iguales_usa_esa_configuracion(): void
+    {
+        $this->sj->cashRegisters()->create([
+            'name' => 'Mostrador 2', 'is_active' => true,
+            'receipt_paper_width' => 76, 'receipt_printer' => CashRegister::IMPRESORA_MATRIZ,
+        ]);
+
+        $this->assertStringContainsString('font-family: Tahoma', $this->html('invoices.recibo'));
+    }
+
+    public function test_la_caja_guarda_el_tipo_de_impresora_y_el_rollo_de_76(): void
+    {
+        $caja = $this->lim->cashRegisters()->firstOrFail();
+
         Livewire::actingAs($this->admin)
-            ->test(BranchIndex::class)
-            ->call('edit', $this->lim->id)
-            ->assertSet('receipt_printer', Branch::IMPRESORA_TERMICA)
-            ->set('receipt_printer', Branch::IMPRESORA_MATRIZ)
+            ->test(CashRegisterIndex::class)
+            ->call('edit', $caja->id)
+            ->assertSet('receipt_printer', CashRegister::IMPRESORA_TERMICA)
+            ->set('receipt_printer', CashRegister::IMPRESORA_MATRIZ)
             ->set('receipt_paper_width', 76)
             ->call('save')
             ->assertHasNoErrors();
 
-        $lim = $this->lim->fresh();
+        $caja->refresh();
 
-        $this->assertTrue($lim->imprimeEnMatriz());
-        $this->assertSame(76, $lim->receiptPaperWidthMm());
+        $this->assertTrue($caja->imprimeEnMatriz());
+        $this->assertSame(76, $caja->receiptPaperWidthMm());
     }
 
-    public function test_la_sede_rechaza_un_tipo_de_impresora_inventado(): void
+    public function test_la_caja_rechaza_un_tipo_de_impresora_inventado(): void
     {
         Livewire::actingAs($this->admin)
-            ->test(BranchIndex::class)
-            ->call('edit', $this->lim->id)
+            ->test(CashRegisterIndex::class)
+            ->call('edit', $this->lim->cashRegisters()->firstOrFail()->id)
             ->set('receipt_printer', 'laser')
             ->call('save')
             ->assertHasErrors('receipt_printer');

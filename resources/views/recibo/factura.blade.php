@@ -111,7 +111,7 @@
     </table>
 
     <div style="margin-top: 1mm;">
-        {{ $guia->saleConditionLabel() }}@if (isset(\App\Models\Invoice::PAYMENT_METHODS[$guia->payment_method])) · {{ \App\Models\Invoice::PAYMENT_METHODS[$guia->payment_method] }}@endif
+        {{ $guia->saleConditionLabel() }}@if ($guia->medioDePagoImpreso() !== '') · {{ $guia->medioDePagoImpreso() }}@endif
     </div>
     <div>Comprobante: {{ $guia->billTypeLabel() }} · Colones (CRC)</div>
 

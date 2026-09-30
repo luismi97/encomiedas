@@ -416,6 +416,22 @@ class Invoice extends Model
         return \App\Services\Hacienda\Catalogs::saleConditionLabel($this->sale_condition);
     }
 
+    /**
+     * El medio de pago tal como va impreso junto a la condición de venta.
+     *
+     * Un por cobrar es «Contado» ante Hacienda, pero todavía nadie pagó: poner
+     * «Efectivo» al lado se lee como que ya se cobró, justo encima del aviso
+     * de POR COBRAR. Mientras esté pendiente se dice cuándo se paga.
+     */
+    public function medioDePagoImpreso(): string
+    {
+        if ($this->tieneCobroPendiente()) {
+            return 'Se paga al retirar';
+        }
+
+        return self::PAYMENT_METHODS[$this->payment_method] ?? '';
+    }
+
     /** Líneas de manifiesto donde aparece esta guía. */
     public function dispatchLines(): HasMany
     {

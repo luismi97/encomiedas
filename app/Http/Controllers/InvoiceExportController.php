@@ -3,10 +3,11 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Carbon;
-use App\Models\Branch;
+use App\Models\CashRegister;
 use App\Models\CompanySetting;
 use App\Models\Invoice;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\CajaService;
 use Illuminate\Http\Request;
 
 class InvoiceExportController extends Controller
@@ -163,30 +164,57 @@ class InvoiceExportController extends Controller
     /**
      * Cómo imprime el mostrador: ancho del rollo y tipo de impresora.
      *
-     * Manda la sede de origen, que es donde se imprime. ?ancho= y ?impresora=
-     * lo fuerzan por URL, para probar en otra impresora sin tocar la sede.
+     * Manda la caja desde la que se imprime. ?ancho= y ?impresora= lo fuerzan
+     * por URL, para probar en otra impresora sin tocar la caja.
      *
      * @return array{ancho:int, matriz:bool, anchoUtil:int}
      */
     private function papel(Request $request, Invoice $invoice): array
     {
-        $sede = $invoice->pickupBranch;
+        $caja = $this->cajaQueImprime($request, $invoice);
 
-        $ancho = $request->integer('ancho') ?: $sede?->receiptPaperWidthMm() ?? 80;
-        $ancho = in_array($ancho, Branch::PAPER_WIDTHS, true) ? $ancho : 80;
+        $ancho = $request->integer('ancho') ?: $caja?->receiptPaperWidthMm() ?? 80;
+        $ancho = in_array($ancho, CashRegister::PAPER_WIDTHS, true) ? $ancho : 80;
 
         $matriz = match ($request->query('impresora')) {
-            Branch::IMPRESORA_MATRIZ  => true,
-            Branch::IMPRESORA_TERMICA => false,
-            default                   => (bool) $sede?->imprimeEnMatriz(),
+            CashRegister::IMPRESORA_MATRIZ  => true,
+            CashRegister::IMPRESORA_TERMICA => false,
+            default                         => (bool) $caja?->imprimeEnMatriz(),
         };
 
         return [
             'ancho'     => $ancho,
             'matriz'    => $matriz,
             // La térmica imprime casi de borde a borde; la de impacto no.
-            'anchoUtil' => $matriz ? Branch::ANCHO_IMPRIMIBLE_MATRIZ[$ancho] : $ancho,
+            'anchoUtil' => $matriz ? CashRegister::ANCHO_IMPRIMIBLE_MATRIZ[$ancho] : $ancho,
         ];
+    }
+
+    /**
+     * La caja frente a la que está quien imprime.
+     *
+     * Primero la del turno que tiene abierto: es donde está parado. Sin turno
+     * —un administrador, o antes de abrir— se usa la sede: si todas sus cajas
+     * activas imprimen igual, no hay duda; si difieren, no se adivina y queda
+     * la térmica de 80, que era el comportamiento de siempre.
+     */
+    private function cajaQueImprime(Request $request, Invoice $invoice): ?CashRegister
+    {
+        $usuario = $request->user();
+
+        if ($caja = app(CajaService::class)->sesionPropiaAbierta($usuario)?->register) {
+            return $caja;
+        }
+
+        $cajas = CashRegister::where('branch_id', $usuario->branch_id ?: $invoice->pickup_branch_id)
+            ->where('is_active', true)
+            ->get();
+
+        $configuraciones = $cajas
+            ->map(fn (CashRegister $c) => $c->receiptPrinterType() . '|' . $c->receiptPaperWidthMm())
+            ->unique();
+
+        return $configuraciones->count() === 1 ? $cajas->first() : null;
     }
 
     /** Proforma en PDF, para descargar o adjuntar. */
