@@ -684,8 +684,13 @@ class ElectronicBillingService
     private function sendInvoiceEmail(ElectronicInvoice $electronicInvoice): void
     {
         try {
-            $email = $electronicInvoice->receptor_data['email']
-                ?? $electronicInvoice->invoice?->recipient_email;
+            // Con receptor identificado el correo es el suyo, aunque falte:
+            // caer al del destinatario le mandaría la factura del remitente a
+            // otra persona. El tiquete, sin receptor, va al destinatario.
+            $receptor = $electronicInvoice->receptor_data ?? [];
+            $email = ! empty($receptor['numero'])
+                ? ($receptor['email'] ?? null)
+                : $electronicInvoice->invoice?->recipient_email;
 
             if (!$email) {
                 Log::info("Hacienda: comprobante {$electronicInvoice->clave} sin correo del receptor, no se envía.");
@@ -725,11 +730,7 @@ class ElectronicBillingService
             return [];
         }
 
-        return [
-            'nombre' => $invoice->recipient_name,
-            'tipo'   => $invoice->recipient_identification_type ?: '01',
-            'numero' => $invoice->recipient_identification,
-            'email'  => $invoice->recipient_email,
-        ];
+        // Destinatario, remitente u otra persona: lo decide la guía.
+        return $invoice->receptorDeFactura();
     }
 }

@@ -178,4 +178,79 @@ class TipoComprobanteTest extends TestCase
             ->assertSet('wantsInvoice', true)
             ->assertSet('recipient_identification', '112340567');
     }
+
+    public function test_facturar_al_remitente_exige_su_identificacion(): void
+    {
+        $this->formulario()
+            ->set('wantsInvoice', true)
+            ->set('bill_to', Invoice::BILL_TO_SENDER)
+            ->call('save')
+            ->assertHasErrors('sender_identification')
+            ->assertHasNoErrors('recipient_identification');
+    }
+
+    public function test_facturar_al_remitente_guarda_sus_datos(): void
+    {
+        $this->formulario()
+            ->set('wantsInvoice', true)
+            ->set('bill_to', Invoice::BILL_TO_SENDER)
+            ->set('sender_identification_type', '02')
+            ->set('sender_identification', '3-101-123456')
+            ->set('sender_email', 'facturas@solano.test')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $invoice = Invoice::firstOrFail();
+        $this->assertSame(Invoice::BILL_TO_SENDER, $invoice->bill_to);
+        $this->assertTrue($invoice->receptorIdentificado());
+        $this->assertSame('3101123456', $invoice->receptorDeFactura()['numero']);
+        $this->assertSame('02', $invoice->receptorDeFactura()['tipo']);
+        $this->assertSame('facturas@solano.test', $invoice->receptorDeFactura()['email']);
+    }
+
+    public function test_facturar_a_otra_persona_exige_nombre_e_identificacion(): void
+    {
+        $this->formulario()
+            ->set('wantsInvoice', true)
+            ->set('bill_to', Invoice::BILL_TO_OTHER)
+            ->call('save')
+            ->assertHasErrors(['billing_name', 'billing_identification']);
+    }
+
+    public function test_facturar_a_otra_persona_guarda_sus_datos(): void
+    {
+        $this->formulario()
+            ->set('wantsInvoice', true)
+            ->set('bill_to', Invoice::BILL_TO_OTHER)
+            ->set('billing_name', 'Importadora Tercera S.A.')
+            ->set('billing_identification_type', '02')
+            ->set('billing_identification', '3101999888')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $invoice = Invoice::firstOrFail();
+        $this->assertSame('Importadora Tercera S.A.', $invoice->receptorDeFactura()['nombre']);
+        $this->assertTrue($invoice->receptorIdentificado());
+
+        // Al editar vuelve a aparecer lo elegido.
+        Livewire::actingAs($this->admin())
+            ->test(InvoiceForm::class, ['invoice' => $invoice])
+            ->assertSet('bill_to', Invoice::BILL_TO_OTHER)
+            ->assertSet('billing_name', 'Importadora Tercera S.A.');
+    }
+
+    /** Si al final no se factura al tercero, sus datos no quedan colgados. */
+    public function test_cambiar_de_otra_persona_al_destinatario_no_guarda_al_tercero(): void
+    {
+        $this->formulario()
+            ->set('wantsInvoice', true)
+            ->set('bill_to', Invoice::BILL_TO_OTHER)
+            ->set('billing_name', 'Importadora Tercera S.A.')
+            ->set('bill_to', Invoice::BILL_TO_RECIPIENT)
+            ->set('recipient_identification', '112340567')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertNull(Invoice::firstOrFail()->billing_name);
+    }
 }

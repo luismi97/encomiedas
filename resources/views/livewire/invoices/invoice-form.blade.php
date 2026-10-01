@@ -76,9 +76,26 @@
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div><label class="label">Nombre</label><input type="text" wire:model="sender_name" class="input"></div>
                 <div><label class="label">Teléfono</label><input type="text" wire:model="sender_phone" class="input"></div>
-                <div><label class="label">Identificación</label><input type="text" wire:model="sender_identification" class="input"></div>
+                <div><label class="label">Correo electrónico</label><input type="email" wire:model="sender_email" class="input @error('sender_email') input-error @enderror"></div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="label">Tipo de identificación</label>
+                    <select wire:model="sender_identification_type" class="input @error('sender_identification_type') input-error @enderror">
+                        <option value="01">01 - Física</option>
+                        <option value="02">02 - Jurídica</option>
+                        <option value="03">03 - DIMEX</option>
+                        <option value="04">04 - NITE</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="label">Identificación</label>
+                    <input type="text" wire:model="sender_identification" class="input @error('sender_identification') input-error @enderror">
+                    @error('sender_identification') <p class="error-text">{{ $message }}</p> @enderror
+                </div>
             </div>
             @error('sender_name') <p class="error-text">{{ $message }}</p> @enderror
+            @error('sender_email') <p class="error-text">{{ $message }}</p> @enderror
         </div>
 
         <div class="card space-y-4">
@@ -115,7 +132,7 @@
                     @error('recipient_identification_type') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
                 <div>
-                    <label class="label">Identificación @unless ($wantsInvoice)<span class="text-gray-400 font-normal">(opcional)</span>@endunless</label>
+                    <label class="label">Identificación @unless ($wantsInvoice && $bill_to === \App\Models\Invoice::BILL_TO_RECIPIENT)<span class="text-gray-400 font-normal">(opcional)</span>@endunless</label>
                     <input type="text" wire:model="recipient_identification" inputmode="numeric" maxlength="20"
                            placeholder="Sin guiones ni espacios"
                            class="input @error('recipient_identification') input-error @enderror">
@@ -129,11 +146,65 @@
                     <span>
                         <span class="font-medium">Emitir Factura Electrónica</span>
                         <span class="block text-sm text-gray-500 dark:text-gray-400">
-                            Requiere la identificación del receptor. Si lo dejás sin marcar se emite un
+                            Requiere la identificación de a quién se factura. Si lo dejás sin marcar se emite un
                             <strong>Tiquete Electrónico</strong>, que no la necesita.
                         </span>
                     </span>
                 </label>
+
+                @if ($wantsInvoice)
+                    <div class="mt-4 space-y-4">
+                        <div>
+                            <span class="label">Facturar a</span>
+                            <div class="flex flex-wrap gap-4">
+                                @foreach (\App\Models\Invoice::BILL_TO as $valor => $etiqueta)
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="radio" wire:model.live="bill_to" value="{{ $valor }}">
+                                        <span>{{ $etiqueta }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                @if ($bill_to === \App\Models\Invoice::BILL_TO_SENDER)
+                                    Se usan la identificación y el correo del remitente.
+                                @elseif ($bill_to === \App\Models\Invoice::BILL_TO_RECIPIENT)
+                                    Se usan la identificación y el correo del destinatario.
+                                @endif
+                            </p>
+                        </div>
+
+                        @if ($bill_to === \App\Models\Invoice::BILL_TO_OTHER)
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="label">Nombre o razón social</label>
+                                    <input type="text" wire:model="billing_name" class="input @error('billing_name') input-error @enderror">
+                                    @error('billing_name') <p class="error-text">{{ $message }}</p> @enderror
+                                </div>
+                                <div>
+                                    <label class="label">Correo electrónico</label>
+                                    <input type="email" wire:model="billing_email" class="input @error('billing_email') input-error @enderror">
+                                    @error('billing_email') <p class="error-text">{{ $message }}</p> @enderror
+                                </div>
+                                <div>
+                                    <label class="label">Tipo de identificación</label>
+                                    <select wire:model="billing_identification_type" class="input @error('billing_identification_type') input-error @enderror">
+                                        <option value="01">01 - Física</option>
+                                        <option value="02">02 - Jurídica</option>
+                                        <option value="03">03 - DIMEX</option>
+                                        <option value="04">04 - NITE</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="label">Identificación</label>
+                                    <input type="text" wire:model="billing_identification" inputmode="numeric" maxlength="20"
+                                           placeholder="Sin guiones ni espacios"
+                                           class="input @error('billing_identification') input-error @enderror">
+                                    @error('billing_identification') <p class="error-text">{{ $message }}</p> @enderror
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                @endif
             </div>
         </div>
 

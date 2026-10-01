@@ -211,6 +211,12 @@
             <div><span class="text-gray-500 block">Repartidor asignado</span>{{ $invoice->assignedTo?->name ?? '— Sin asignar —' }}</div>
             <div><span class="text-gray-500 block">Condición</span>{{ \App\Services\Hacienda\Catalogs::saleConditionLabel() }}</div>
             <div><span class="text-gray-500 block">Comprobante</span>{{ $invoice->billTypeLabel() }}</div>
+            @if ($invoice->wantsInvoice())
+                <div>
+                    <span class="text-gray-500 block">Facturado a ({{ $invoice->billToLabel() }})</span>
+                    {{ $invoice->receptorDeFactura()['nombre'] }} · {{ $invoice->receptorDeFactura()['numero'] ?: 'sin identificación' }}
+                </div>
+            @endif
         </div>
         @if ($invoice->notes)
             <p class="text-sm mt-3"><span class="text-gray-500">Notas:</span> {{ $invoice->notes }}</p>

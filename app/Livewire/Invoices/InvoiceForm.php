@@ -84,6 +84,8 @@ class InvoiceForm extends Component
     public string $sender_name = '';
     public string $sender_phone = '';
     public string $sender_identification = '';
+    public string $sender_identification_type = '01';
+    public string $sender_email = '';
 
     public string $recipient_name = '';
     public string $recipient_phone = '';
@@ -120,6 +122,13 @@ class InvoiceForm extends Component
      * elección explícita: deducirla de si venía la cédula emitía FE sin querer.
      */
     public bool $wantsInvoice = false;
+
+    /** A quién se factura: destinatario, remitente u otra persona. */
+    public string $bill_to = Invoice::BILL_TO_RECIPIENT;
+    public string $billing_name = '';
+    public string $billing_identification_type = '01';
+    public string $billing_identification = '';
+    public string $billing_email = '';
     public $assigned_to = null;
 
     /** @var array<int,array<string,mixed>> */
@@ -142,6 +151,13 @@ class InvoiceForm extends Component
             $this->sender_name = $invoice->sender_name;
             $this->sender_phone = (string) $invoice->sender_phone;
             $this->sender_identification = (string) $invoice->sender_identification;
+            $this->sender_identification_type = $invoice->sender_identification_type ?: '01';
+            $this->sender_email = (string) $invoice->sender_email;
+            $this->bill_to = $invoice->bill_to ?: Invoice::BILL_TO_RECIPIENT;
+            $this->billing_name = (string) $invoice->billing_name;
+            $this->billing_identification_type = $invoice->billing_identification_type ?: '01';
+            $this->billing_identification = (string) $invoice->billing_identification;
+            $this->billing_email = (string) $invoice->billing_email;
             $this->recipient_name = $invoice->recipient_name;
             $this->recipient_phone = (string) $invoice->recipient_phone;
             $this->recipient_identification_type = $invoice->recipient_identification_type ?: '01';
@@ -187,6 +203,13 @@ class InvoiceForm extends Component
     private function normalizeIdentification(): void
     {
         $this->recipient_identification = preg_replace('/\D/', '', (string) $this->recipient_identification);
+        $this->billing_identification = preg_replace('/\D/', '', (string) $this->billing_identification);
+
+        // La del remitente es texto libre (pasaportes, etc.) salvo cuando se
+        // le factura: ahí manda el formato de Hacienda.
+        if ($this->facturaA(Invoice::BILL_TO_SENDER)) {
+            $this->sender_identification = preg_replace('/\D/', '', (string) $this->sender_identification);
+        }
     }
 
     /**
@@ -196,8 +219,18 @@ class InvoiceForm extends Component
     public function updatedWantsInvoice(bool $value): void
     {
         if (!$value) {
-            $this->resetErrorBag(['recipient_identification', 'recipient_identification_type']);
+            $this->resetErrorBag([
+                'recipient_identification', 'recipient_identification_type',
+                'sender_identification', 'sender_identification_type',
+                'billing_name', 'billing_identification', 'billing_identification_type',
+            ]);
         }
+    }
+
+    /** ¿Se emite factura y va a nombre de esta parte? */
+    private function facturaA(string $parte): bool
+    {
+        return $this->wantsInvoice && $this->bill_to === $parte;
     }
 
     /**
@@ -215,6 +248,8 @@ class InvoiceForm extends Component
         $this->sender_name = $cliente->name;
         $this->sender_phone = (string) $cliente->phone;
         $this->sender_identification = (string) $cliente->identification;
+        $this->sender_identification_type = (string) ($cliente->identification_type ?: '01');
+        $this->sender_email = (string) $cliente->email;
 
         if ($cliente->branch_id && ! $this->pickup_branch_id) {
             $this->pickup_branch_id = $cliente->branch_id;
@@ -492,17 +527,28 @@ class InvoiceForm extends Component
             'delivery_branch_id' => ['required', 'different:pickup_branch_id', DeLaEmpresa::en('branches')],
             'sender_name' => 'required|string|max:150',
             'sender_phone' => 'nullable|string|max:30',
-            'sender_identification' => 'nullable|string|max:20',
+            'sender_identification' => $this->facturaA(Invoice::BILL_TO_SENDER)
+                ? ['required', 'regex:/^\d{9,12}$/']
+                : ['nullable', 'string', 'max:20'],
+            'sender_identification_type' => $this->facturaA(Invoice::BILL_TO_SENDER) ? 'required|in:01,02,03,04' : 'nullable',
+            'sender_email' => 'nullable|email',
+            'bill_to' => ['required', Rule::in(array_keys(Invoice::BILL_TO))],
+            'billing_name' => $this->facturaA(Invoice::BILL_TO_OTHER) ? 'required|string|max:150' : 'nullable',
+            'billing_identification' => $this->facturaA(Invoice::BILL_TO_OTHER)
+                ? ['required', 'regex:/^\d{9,12}$/']
+                : 'nullable',
+            'billing_identification_type' => $this->facturaA(Invoice::BILL_TO_OTHER) ? 'required|in:01,02,03,04' : 'nullable',
+            'billing_email' => 'nullable|email',
             'sender_customer_id' => ['nullable', DeLaEmpresa::en('customers')],
             'recipient_customer_id' => ['nullable', DeLaEmpresa::en('customers')],
             'shipment_type' => ['nullable', Rule::in(array_keys(Rate::SHIPMENT_TYPES))],
             'declared_value' => 'nullable|numeric|min:0',
             'recipient_name' => 'required|string|max:150',
             'recipient_phone' => 'nullable|string|max:30',
-            'recipient_identification' => $this->wantsInvoice
+            'recipient_identification' => $this->facturaA(Invoice::BILL_TO_RECIPIENT)
                 ? ['required', 'regex:/^\d{9,12}$/']
                 : ['nullable', 'string', 'max:20'],
-            'recipient_identification_type' => $this->wantsInvoice ? 'required|in:01,02,03,04' : 'nullable',
+            'recipient_identification_type' => $this->facturaA(Invoice::BILL_TO_RECIPIENT) ? 'required|in:01,02,03,04' : 'nullable',
             'recipient_email' => 'nullable|email',
             'assigned_to' => ['nullable', DeLaEmpresa::en('users')],
             'discount_amount' => 'nullable|numeric|min:0',
@@ -529,6 +575,11 @@ class InvoiceForm extends Component
             'recipient_identification.required' => 'Para emitir Factura Electrónica hace falta la identificación del receptor. '
                 . 'Sin ella el comprobante debe ser Tiquete Electrónico.',
             'recipient_identification.regex' => 'La identificación son de 9 a 12 dígitos, sin guiones ni espacios.',
+            'sender_identification.required' => 'Para facturarle al remitente hace falta su identificación.',
+            'sender_identification.regex' => 'La identificación son de 9 a 12 dígitos, sin guiones ni espacios.',
+            'billing_name.required' => 'Indicá a nombre de quién va la factura.',
+            'billing_identification.required' => 'Para emitir Factura Electrónica hace falta la identificación de a quién se factura.',
+            'billing_identification.regex' => 'La identificación son de 9 a 12 dígitos, sin guiones ni espacios.',
             'delivery_branch_id.different' => 'La sede de destino tiene que ser distinta de la de origen: '
                 . 'una encomienda es un traslado entre sedes.',
             'items.*.package_type_id.required' => 'Elegí qué tipo de bulto es (paquete, caja, sobre...).',
@@ -684,6 +735,14 @@ class InvoiceForm extends Component
                 'sender_name' => $data['sender_name'],
                 'sender_phone' => $data['sender_phone'],
                 'sender_identification' => $data['sender_identification'],
+                'sender_identification_type' => filled($data['sender_identification']) ? $this->sender_identification_type : null,
+                'sender_email' => $data['sender_email'] ?: null,
+                'bill_to' => $this->bill_to,
+                // Los datos del tercero solo se guardan si de verdad se le factura.
+                'billing_name' => $this->bill_to === Invoice::BILL_TO_OTHER ? ($data['billing_name'] ?: null) : null,
+                'billing_identification_type' => $this->bill_to === Invoice::BILL_TO_OTHER && filled($data['billing_identification']) ? $this->billing_identification_type : null,
+                'billing_identification' => $this->bill_to === Invoice::BILL_TO_OTHER ? ($data['billing_identification'] ?: null) : null,
+                'billing_email' => $this->bill_to === Invoice::BILL_TO_OTHER ? ($data['billing_email'] ?: null) : null,
                 'recipient_name' => $data['recipient_name'],
                 'recipient_phone' => $data['recipient_phone'],
                 'bill_type' => $this->wantsInvoice ? Invoice::BILL_INVOICE : Invoice::BILL_TICKET,

@@ -39,6 +39,20 @@
 
     <div class="regla"></div>
 
+    {{-- Cuando no se factura al destinatario, el receptor fiscal es otro y
+         tiene que verse quién: es el nombre que va en el comprobante. --}}
+    @if ($guia->receptorIdentificado() && $guia->bill_to !== \App\Models\Invoice::BILL_TO_RECIPIENT)
+        @php $fiscal = $guia->receptorDeFactura(); @endphp
+        <div>
+            <div class="etiqueta">Facturado a</div>
+            <div class="medio">{{ $fiscal['nombre'] }}</div>
+            <div>Id. ({{ $fiscal['tipo'] }}) {{ $fiscal['numero'] }}</div>
+            @if ($fiscal['email'])<div class="clave">{{ $fiscal['email'] }}</div>@endif
+        </div>
+
+        <div class="regla"></div>
+    @endif
+
     <div>
         <div class="etiqueta">Remitente</div>
         <div>{{ $guia->sender_name }}</div>

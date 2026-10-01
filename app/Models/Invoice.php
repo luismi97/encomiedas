@@ -38,6 +38,21 @@ class Invoice extends Model
     ];
 
     /*
+     | A quién se le emite la Factura Electrónica. No siempre paga quien recibe:
+     | muchas veces factura el remitente, o una empresa que no es ninguno de
+     | los dos.
+     */
+    public const BILL_TO_RECIPIENT = 'recipient';
+    public const BILL_TO_SENDER    = 'sender';
+    public const BILL_TO_OTHER     = 'other';
+
+    public const BILL_TO = [
+        self::BILL_TO_RECIPIENT => 'Destinatario',
+        self::BILL_TO_SENDER    => 'Remitente',
+        self::BILL_TO_OTHER     => 'Otra persona',
+    ];
+
+    /*
      | Ciclo de vida de la guía.
      |
      | Los cinco valores originales se conservan tal cual (pending, in_transit,
@@ -169,6 +184,13 @@ class Invoice extends Model
         'sender_name',
         'sender_phone',
         'sender_identification',
+        'sender_identification_type',
+        'sender_email',
+        'bill_to',
+        'billing_name',
+        'billing_identification_type',
+        'billing_identification',
+        'billing_email',
         'recipient_name',
         'recipient_phone',
         'recipient_identification_type',
@@ -627,7 +649,6 @@ class Invoice extends Model
         return self::STATUS_BADGE_CLASSES[$this->status] ?? self::STATUS_BADGE_CLASSES[self::STATUS_CANCELLED];
     }
 
-    /** ¿Tiene datos suficientes del receptor para ser Factura (con cédula) en vez de Tiquete? */
     /**
      * ¿Se emite Factura Electrónica (con receptor identificado) o Tiquete?
      *
@@ -636,7 +657,41 @@ class Invoice extends Model
      */
     public function receptorIdentificado(): bool
     {
-        return $this->bill_type === self::BILL_INVOICE && filled($this->recipient_identification);
+        return $this->bill_type === self::BILL_INVOICE && filled($this->receptorDeFactura()['numero']);
+    }
+
+    /**
+     * Los datos de a quién se factura, según bill_to.
+     *
+     * @return array{nombre:?string, tipo:string, numero:?string, email:?string}
+     */
+    public function receptorDeFactura(): array
+    {
+        return match ($this->bill_to) {
+            self::BILL_TO_SENDER => [
+                'nombre' => $this->sender_name,
+                'tipo'   => $this->sender_identification_type ?: '01',
+                'numero' => $this->sender_identification,
+                'email'  => $this->sender_email,
+            ],
+            self::BILL_TO_OTHER => [
+                'nombre' => $this->billing_name,
+                'tipo'   => $this->billing_identification_type ?: '01',
+                'numero' => $this->billing_identification,
+                'email'  => $this->billing_email,
+            ],
+            default => [
+                'nombre' => $this->recipient_name,
+                'tipo'   => $this->recipient_identification_type ?: '01',
+                'numero' => $this->recipient_identification,
+                'email'  => $this->recipient_email,
+            ],
+        };
+    }
+
+    public function billToLabel(): string
+    {
+        return self::BILL_TO[$this->bill_to] ?? self::BILL_TO[self::BILL_TO_RECIPIENT];
     }
 
     public function wantsInvoice(): bool
