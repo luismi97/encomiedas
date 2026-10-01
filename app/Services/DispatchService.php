@@ -50,10 +50,24 @@ class DispatchService
             throw new RuntimeException("La guía {$guia->code} es de otra ruta y no puede ir en este cierre.");
         }
 
+        $this->exigirPagada($guia);
+
         DispatchGuide::firstOrCreate([
             'dispatch_id' => $manifiesto->id,
             'invoice_id'  => $guia->id,
         ]);
+    }
+
+    /**
+     * Una guía de contado que nadie cobró todavía no sale: el paquete viajaría
+     * y la plata se quedaría sin cobrar en el mostrador de origen.
+     */
+    private function exigirPagada(Invoice $guia): void
+    {
+        if ($guia->esperandoCaja()) {
+            throw new RuntimeException("La guía {$guia->code} es de contado y todavía no se cobró en caja: "
+                . 'el paquete no puede salir hasta que el cliente pague.');
+        }
     }
 
     public function quitarGuia(Dispatch $manifiesto, Invoice $guia): void
@@ -78,6 +92,12 @@ class DispatchService
 
         if ($manifiesto->guides->isEmpty()) {
             throw new RuntimeException('El cierre no tiene guías: no hay nada que despachar.');
+        }
+
+        // Se vuelve a mirar al salir: una guía pudo editarse a contado después
+        // de agregarla al cierre.
+        foreach ($manifiesto->guides as $guia) {
+            $this->exigirPagada($guia);
         }
 
         DB::transaction(function () use ($manifiesto, $usuario) {

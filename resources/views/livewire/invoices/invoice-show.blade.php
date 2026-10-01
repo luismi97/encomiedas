@@ -411,8 +411,23 @@
                         Pendiente de cobro · ₡{{ number_format((float) $invoice->total, 2) }}
                     </h3>
                     <p class="text-sm text-amber-800 dark:text-amber-200 mt-1">
-                        Se cobra al entregar, en la caja de {{ $invoice->deliveryBranch?->name ?? 'destino' }}.
-                        Hace falta un turno abierto ahí para poder entregarla.
+                        Se cobra en la caja de {{ $invoice->deliveryBranch?->name ?? 'destino' }}: al entregar, o
+                        antes, desde «Por cobrar en caja» si quien entrega no cobra.
+                    </p>
+                </div>
+            </div>
+        </div>
+    @elseif ($invoice->esperandoCaja())
+        <div class="card border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20" data-test="esperando-caja">
+            <div class="flex items-start gap-3">
+                <x-icon name="banknotes" class="w-5 h-5 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div>
+                    <h3 class="font-semibold text-amber-900 dark:text-amber-100">
+                        Sin cobrar en caja · ₡{{ number_format((float) $invoice->total, 2) }}
+                    </h3>
+                    <p class="text-sm text-amber-800 dark:text-amber-200 mt-1">
+                        La recibió alguien que no cobra. El cliente paga en la caja de
+                        {{ $invoice->pickupBranch?->name ?? 'origen' }} («Por cobrar en caja») y recién ahí el paquete puede salir.
                     </p>
                 </div>
             </div>

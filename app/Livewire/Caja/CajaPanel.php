@@ -7,6 +7,7 @@ use App\Models\CashMovement;
 use App\Models\CashRegister;
 use App\Models\CashSession;
 use App\Models\Denomination;
+use App\Models\Invoice;
 use App\Services\CajaService;
 use Livewire\Component;
 use RuntimeException;
@@ -31,8 +32,20 @@ class CajaPanel extends Component
     public ?string $feedback = null;
     public string $feedbackType = 'success';
 
+    /** Cobros en caja: filtro por código (se puede escanear la etiqueta). */
+    public string $buscarCobro = '';
+
+    /** invoice_id => medio de pago que eligió el cliente al pagar. */
+    public array $medios = [];
+
+    /** La última guía cobrada acá, para ofrecer imprimir su recibo. */
+    public ?int $ultimaCobradaId = null;
+
     public function mount(CajaService $caja): void
     {
+        // Quien solo recibe paquetes no maneja dinero: no abre caja.
+        abort_unless(auth()->user()->puedeCobrar(), 403, 'Tu usuario no cobra: la caja la opera un cajero.');
+
         $this->seleccionarCajaPorDefecto($caja->sesionPropiaAbierta(auth()->user()));
     }
 
@@ -181,6 +194,38 @@ class CajaPanel extends Component
         $this->notify('success', 'Turno abierto con un fondo de ₡' . number_format((float) $sesion->opening_float, 2) . '.');
     }
 
+    /**
+     * Cobra una guía que esperaba su pago en caja: la de contado que recibió
+     * alguien que no cobra, o el «por cobrar» que ya llegó.
+     */
+    public function cobrar(int $id, CajaService $servicio): void
+    {
+        $this->feedback = null;
+
+        if ($this->bloqueadoPorTurnoAjeno()) {
+            return;
+        }
+
+        if (! $guia = Invoice::find($id)) {
+            $this->notify('error', 'Esa guía ya no existe.');
+
+            return;
+        }
+
+        try {
+            $servicio->cobrarEnCaja($guia, auth()->user(), $this->medios[$id] ?? ($guia->payment_method ?: 'cash'));
+        } catch (RuntimeException $e) {
+            $this->notify('error', $e->getMessage());
+
+            return;
+        }
+
+        unset($this->medios[$id]);
+        $this->ultimaCobradaId = $guia->id;
+        $this->buscarCobro = '';
+        $this->notify('success', "Guía {$guia->code} cobrada: ₡" . number_format((float) $guia->total, 2) . '.');
+    }
+
     public function registrarMovimiento(CajaService $servicio): void
     {
         $this->feedback = null;
@@ -276,6 +321,30 @@ class CajaPanel extends Component
             . ' contra ₡' . number_format((float) $cerrada->counted_cash, 2) . ' contados.');
     }
 
+    /** Lo que espera pago en la sede de este turno, si el turno es propio. */
+    private function paraCobrar(?CashSession $sesion)
+    {
+        if (! $sesion || $this->turnoAjeno()) {
+            return collect();
+        }
+
+        $busqueda = strtoupper(trim($this->buscarCobro));
+
+        $guias = Invoice::paraCobrarEnCaja($sesion->branch_id)
+            ->when($busqueda !== '', fn ($q) => $q->where('code', 'like', '%' . $busqueda . '%'))
+            ->orderBy('created_at')
+            ->limit(50)
+            ->get();
+
+        // El selector arranca en el medio que anotó quien recibió la guía: sin
+        // valor, el navegador mostraría «Efectivo» y se cobraría otro.
+        foreach ($guias as $guia) {
+            $this->medios[$guia->id] ??= $guia->payment_method ?: 'cash';
+        }
+
+        return $guias;
+    }
+
     public function render(CajaService $servicio)
     {
         $sesion = $this->sesion();
@@ -292,6 +361,8 @@ class CajaPanel extends Component
                 ->groupBy(fn ($c) => $c->branch?->name ?? 'Sin sede'),
             // La vista necesita saberlo para no ofrecer botones que van a fallar.
             'turnoAjeno'    => $this->turnoAjeno(),
+            'paraCobrar'    => $this->paraCobrar($sesion),
+            'ultimaCobrada' => $this->ultimaCobradaId ? Invoice::find($this->ultimaCobradaId) : null,
             'sinSedes'      => ! Branch::where('is_active', true)->exists(),
             'puedeCrearCajas' => auth()->user()->puedeConfigurar(),
             'historial'     => CashSession::with(['opener', 'closer', 'register.branch'])

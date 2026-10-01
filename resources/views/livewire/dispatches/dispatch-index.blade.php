@@ -202,7 +202,13 @@
                                 <span class="font-mono">{{ $guia->code }}</span>
                                 <span class="text-sm text-gray-500"> · {{ $guia->recipient_name }} · {{ $guia->items->count() }} paquete(s)</span>
                             </div>
-                            <x-action-button action="agregar({{ $guia->id }})" variant="link">Agregar</x-action-button>
+                            {{-- Se lista igual para que se sepa por qué no sale: el
+                                 paquete está en bodega, pero falta que paguen. --}}
+                            @if ($guia->esperandoCaja())
+                                <span class="badge bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Sin cobrar en caja</span>
+                            @else
+                                <x-action-button action="agregar({{ $guia->id }})" variant="link">Agregar</x-action-button>
+                            @endif
                         </div>
                     @empty
                         <p class="text-sm text-gray-500">No hay guías pendientes para esta ruta.</p>

@@ -307,7 +307,11 @@
                         <span>
                             <span class="font-medium block">Pagado</span>
                             <span class="text-xs text-gray-500 dark:text-gray-400">
-                                El remitente paga ahora. Entra al arqueo de esta caja.
+                                @if (auth()->user()->puedeCobrar())
+                                    El remitente paga ahora. Entra al arqueo de esta caja.
+                                @else
+                                    El remitente paga en caja. El paquete no sale hasta que se cobre.
+                                @endif
                             </span>
                         </span>
                     </label>

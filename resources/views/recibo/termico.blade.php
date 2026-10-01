@@ -62,6 +62,11 @@
             POR COBRAR AL ENTREGAR
             <div class="grande">₡{{ number_format((float) $guia->total, 2) }}</div>
         </div>
+    @elseif ($guia->esperandoCaja())
+        {{-- Lo imprimió quien recibió el paquete, antes de pasar por caja. --}}
+        <div class="centro" style="border:2px solid #000;padding:1.5mm;margin-top:2mm;margin-bottom:2mm;font-weight:bold">
+            PENDIENTE DE PAGO EN CAJA
+        </div>
     @elseif ($guia->esCredito())
         <div class="centro" style="border:1px solid #000;padding:1mm;margin-bottom:2mm;font-weight:bold">
             A CRÉDITO · NO SE COBRÓ EN CAJA

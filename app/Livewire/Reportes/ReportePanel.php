@@ -178,13 +178,15 @@ class ReportePanel extends Component
             'monto'    => round((float) (clone $consulta)->sum('total'), 2),
         ];
 
-        $pagadas    = $resumen($base()->where('sale_condition', Invoice::SALE_CASH)->where('payment_timing', Invoice::TIMING_PREPAID));
+        $pagadas    = $resumen($base()->where('sale_condition', Invoice::SALE_CASH)->where('payment_timing', Invoice::TIMING_PREPAID)->where('awaiting_cashier', false));
+        $enCaja     = $resumen($base()->where('awaiting_cashier', true));
         $cobradas   = $resumen($base()->where('payment_timing', Invoice::TIMING_COLLECT)->whereNotNull('collected_at'));
         $pendientes = $resumen($base()->porCobrarPendientes());
         $credito    = $resumen($base()->where('sale_condition', Invoice::SALE_CREDIT));
 
         $filas = collect([
             ['etiqueta' => 'Pagadas en origen',        'extra' => 'Dinero recibido',  ...$pagadas],
+            ['etiqueta' => 'Contado · sin cobrar en caja', 'extra' => 'NO es dinero aún', ...$enCaja],
             ['etiqueta' => 'Por cobrar · ya cobradas', 'extra' => 'Dinero recibido',  ...$cobradas],
             ['etiqueta' => 'Por cobrar · pendientes',  'extra' => 'NO es dinero aún', ...$pendientes],
             ['etiqueta' => 'A crédito',                'extra' => 'NO es dinero aún', ...$credito],

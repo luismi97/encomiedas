@@ -23,6 +23,7 @@ class UserIndex extends Component
     public $branch_id = null;
     public string $phone = '';
     public bool $is_active = true;
+    public bool $can_collect = true;
 
     protected function rules(): array
     {
@@ -63,6 +64,7 @@ class UserIndex extends Component
         $this->branch_id = $user->branch_id;
         $this->phone = (string) $user->phone;
         $this->is_active = $user->is_active;
+        $this->can_collect = $user->can_collect !== false;
         $this->showForm = true;
     }
 
@@ -88,6 +90,9 @@ class UserIndex extends Component
         }
 
         $data['is_active'] = $this->is_active;
+        // Solo distingue a los cajeros: el administrador siempre cobra y los
+        // demás roles nunca.
+        $data['can_collect'] = $this->role !== User::ROLE_CAJERO || $this->can_collect;
 
         User::updateOrCreate(['id' => $this->editingId], $data);
 
@@ -121,6 +126,7 @@ class UserIndex extends Component
         $this->reset(['editingId', 'name', 'username', 'email', 'password', 'branch_id', 'phone']);
         $this->role = 'repartidor';
         $this->is_active = true;
+        $this->can_collect = true;
         $this->resetErrorBag();
     }
 

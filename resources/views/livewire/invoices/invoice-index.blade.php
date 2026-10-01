@@ -101,6 +101,8 @@
                             <td class="py-3">
                                 @if ($invoice->tieneCobroPendiente())
                                     <span class="badge bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Por cobrar</span>
+                                @elseif ($invoice->esperandoCaja())
+                                    <span class="badge bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Sin cobrar en caja</span>
                                 @elseif ($invoice->esCredito())
                                     <span class="badge bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">Crédito</span>
                                 @else
@@ -186,6 +188,8 @@
                         <span class="font-semibold">&#8353;{{ number_format($invoice->total, 2) }}</span>
                         @if ($invoice->tieneCobroPendiente())
                             <span class="badge bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Por cobrar</span>
+                        @elseif ($invoice->esperandoCaja())
+                            <span class="badge bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Sin cobrar en caja</span>
                         @elseif ($invoice->esCredito())
                             <span class="badge bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">Crédito</span>
                         @endif

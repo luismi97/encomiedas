@@ -65,6 +65,17 @@
                 <div class="flex items-end">
                     <label class="flex items-center gap-2"><input type="checkbox" wire:model="is_active" class="rounded"> Activo</label>
                 </div>
+                @if ($role === \App\Models\User::ROLE_CAJERO)
+                    <div class="sm:col-span-2">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" wire:model="can_collect" class="rounded" data-test="puede-cobrar"> Puede cobrar
+                        </label>
+                        <p class="text-xs text-gray-500 mt-1">
+                            Sin marcar, solo recibe paquetes: no abre caja, y sus guías de contado quedan pendientes
+                            hasta que un cajero las cobre. El paquete no sale mientras no se cobre.
+                        </p>
+                    </div>
+                @endif
 
                 <div class="sm:col-span-2 flex gap-3 pt-2">
                     <x-action-button type="submit" target="save" variant="primary" loadingText="Guardando...">Guardar</x-action-button>
@@ -99,6 +110,9 @@
                                 <span class="badge {{ \App\Models\User::ROLE_BADGE_CLASSES[$user->role] ?? '' }}">
                                     {{ $user->roleLabel() }}
                                 </span>
+                                @if ($user->isCajero() && ! $user->puedeCobrar())
+                                    <div class="text-xs text-gray-500 mt-1">Solo recibe, no cobra</div>
+                                @endif
                             </td>
                             <td class="py-3 text-sm">{{ $user->branch?->name ?? '—' }}</td>
                             <td class="py-3">

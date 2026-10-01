@@ -639,6 +639,12 @@ class InvoiceForm extends Component
             return;
         }
 
+        // Quien no cobra no abre caja: su guía de contado queda esperando el
+        // pago en caja (ver save()) y el cajero la cobra en su turno.
+        if (! auth()->user()->puedeCobrar()) {
+            return;
+        }
+
         // Al editar una guía ya cobrada no se vuelve a cobrar: exigir caja
         // abierta bloquearía corregir un teléfono mal escrito.
         if ($this->invoice?->exists && ! $this->invoice->esCredito() && ! $this->invoice->esPorCobrar()) {
@@ -711,6 +717,19 @@ class InvoiceForm extends Component
                 ? Invoice::TIMING_COLLECT
                 : Invoice::TIMING_PREPAID;
 
+            // De contado y recibida por alguien que no cobra: queda esperando
+            // su pago en caja. Una que ya esperaba sigue esperando aunque la
+            // edite un cajero —se cobra en la caja, no guardando el
+            // formulario—, y una que ya se cobró no vuelve atrás.
+            $yaCobrada = $invoice->exists
+                && $invoice->getOriginal('payment_timing') === Invoice::TIMING_PREPAID
+                && $invoice->getOriginal('sale_condition') === Invoice::SALE_CASH
+                && ! $invoice->getOriginal('awaiting_cashier');
+
+            $invoice->awaiting_cashier = $this->cobro === self::COBRO_PREPAID
+                && ! $yaCobrada
+                && ($invoice->awaiting_cashier || ! auth()->user()->puedeCobrar());
+
             if (!$invoice->exists) {
                 $invoice->created_by = auth()->id();
                 $invoice->status = Invoice::STATUS_PENDING;
@@ -747,16 +766,18 @@ class InvoiceForm extends Component
             // «por cobrar» se cobra en destino al entregar, y una guía a
             // crédito no se cobra: suma al saldo del cliente.
             // El contado ya tiene caja abierta garantizada: acá solo se registra.
-            if ($this->cobro === self::COBRO_PREPAID) {
+            if ($this->cobro === self::COBRO_PREPAID && ! $invoice->awaiting_cashier) {
                 app(CajaService::class)->registrarCobro($invoice, auth()->user());
             }
 
             // Flash y no una propiedad del componente: el redirect de abajo la
             // descartaría y el aviso no llegaría a verse nunca.
-            $aviso = match ($this->cobro) {
-                self::COBRO_COLLECT => 'Guía POR COBRAR: no entra al arqueo de esta caja. '
+            $aviso = match (true) {
+                $invoice->awaiting_cashier => 'Guía de contado PENDIENTE DE PAGO: el cliente tiene que pasar por caja. '
+                    . 'El paquete no puede salir hasta que se cobre.',
+                $this->cobro === self::COBRO_COLLECT => 'Guía POR COBRAR: no entra al arqueo de esta caja. '
                     . 'Se cobra en destino al momento de la entrega.',
-                self::COBRO_CREDIT => 'Guía a crédito: no entra al arqueo. '
+                $this->cobro === self::COBRO_CREDIT => 'Guía a crédito: no entra al arqueo. '
                     . 'Suma al saldo del cliente y se factura en el próximo corte.',
                 default => null,
             };

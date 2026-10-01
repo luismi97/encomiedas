@@ -228,6 +228,56 @@
             @endif
         </div>
 
+        {{-- Lo que espera pago en esta sede: guías de contado que recibió
+             alguien que no cobra, y «por cobrar» que ya llegaron. --}}
+        @unless ($turnoAjeno)
+            <div class="card" data-test="por-cobrar-en-caja">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <h3 class="font-semibold">Por cobrar en caja</h3>
+                    <input type="text" wire:model.live.debounce.300ms="buscarCobro" placeholder="Código o escanear etiqueta"
+                           class="input sm:max-w-[280px]" autocomplete="off">
+                </div>
+
+                @if ($ultimaCobrada)
+                    <div class="flex flex-wrap items-center gap-2 mb-3 text-sm">
+                        <span>Última cobrada: <span class="font-mono">{{ $ultimaCobrada->code }}</span></span>
+                        <a href="{{ route('invoices.recibo', $ultimaCobrada) }}" target="_blank" class="btn-secondary !py-1.5 !px-3 text-sm">
+                            <x-icon name="receipt" class="w-4 h-4" /> Recibo
+                        </a>
+                        <a href="{{ route('invoices.factura', $ultimaCobrada) }}" target="_blank" class="btn-secondary !py-1.5 !px-3 text-sm">
+                            <x-icon name="document" class="w-4 h-4" /> Factura
+                        </a>
+                    </div>
+                @endif
+
+                @forelse ($paraCobrar as $guia)
+                    <div wire:key="cobrar-{{ $guia->id }}"
+                         class="flex flex-wrap items-center justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-700/50">
+                        <div>
+                            <span class="font-mono">{{ $guia->code }}</span>
+                            <span class="text-sm text-gray-500">
+                                · {{ $guia->esperandoCaja() ? $guia->sender_name : $guia->recipient_name }}
+                                · {{ $guia->esperandoCaja() ? 'Contado, recibida en mostrador' : 'Por cobrar, ya llegó' }}
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <strong class="tabular-nums">₡{{ number_format((float) $guia->total, 2) }}</strong>
+                            <select wire:model="medios.{{ $guia->id }}" class="input !py-1.5 w-40">
+                                @foreach (\App\Models\Invoice::PAYMENT_METHODS as $clave => $nombre)
+                                    <option value="{{ $clave }}">{{ $nombre }}</option>
+                                @endforeach
+                            </select>
+                            <x-action-button action="cobrar({{ $guia->id }})" variant="primary" loadingText="Cobrando...">
+                                Cobrar
+                            </x-action-button>
+                        </div>
+                    </div>
+                @empty
+                    <p class="text-sm text-gray-500">No hay guías esperando pago en esta sede.</p>
+                @endforelse
+            </div>
+        @endunless
+
         {{-- Movimientos del turno --}}
         <div class="card">
             <h3 class="font-semibold mb-3">Movimientos del turno</h3>

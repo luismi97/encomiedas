@@ -206,6 +206,7 @@ class Invoice extends Model
             'disposed_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'collected_at' => 'datetime',
+            'awaiting_cashier' => 'boolean',
             'declared_value' => 'decimal:2',
             'insurance_fee' => 'decimal:2',
             'home_delivery_fee' => 'decimal:2',
@@ -288,6 +289,16 @@ class Invoice extends Model
         return $this->payment_timing === self::TIMING_COLLECT && ! $this->esCredito();
     }
 
+    /**
+     * De contado, recibida por alguien que no cobra: el remitente todavía
+     * tiene que pasar por caja. Hasta entonces no es dinero recibido y el
+     * paquete no sale.
+     */
+    public function esperandoCaja(): bool
+    {
+        return (bool) $this->awaiting_cashier;
+    }
+
     /** Un «por cobrar» que todavía no se cobró: es lo que debe pagar quien retira. */
     public function tieneCobroPendiente(): bool
     {
@@ -304,9 +315,31 @@ class Invoice extends Model
      */
     public function scopeCobradas(Builder $query): Builder
     {
+        return $query
+            ->where('awaiting_cashier', false)
+            ->where(fn (Builder $q) => $q
+                ->where('payment_timing', '!=', self::TIMING_COLLECT)
+                ->orWhereNotNull('collected_at'));
+    }
+
+    /**
+     * Lo que el cajero de una sede tiene para cobrar en su mostrador: las de
+     * contado que recibió alguien que no cobra, y los «por cobrar» que ya
+     * llegaron y esperan que alguien los retire.
+     */
+    public function scopeParaCobrarEnCaja(Builder $query, int $sedeId): Builder
+    {
         return $query->where(fn (Builder $q) => $q
-            ->where('payment_timing', '!=', self::TIMING_COLLECT)
-            ->orWhereNotNull('collected_at'));
+            ->where(fn (Builder $q) => $q
+                ->where('awaiting_cashier', true)
+                ->where('pickup_branch_id', $sedeId))
+            ->orWhere(fn (Builder $q) => $q
+                ->where('payment_timing', self::TIMING_COLLECT)
+                ->whereNull('collected_at')
+                ->where('sale_condition', self::SALE_CASH)
+                ->where('delivery_branch_id', $sedeId)
+                ->whereIn('status', [self::STATUS_AT_DESTINATION, self::STATUS_NEAR_DISPOSAL])))
+            ->where('status', '!=', self::STATUS_CANCELLED);
     }
 
     /** Lo contrario: plata prometida que todavía no entró. */
@@ -427,6 +460,10 @@ class Invoice extends Model
     {
         if ($this->tieneCobroPendiente()) {
             return 'Se paga al retirar';
+        }
+
+        if ($this->esperandoCaja()) {
+            return 'Pendiente de pago en caja';
         }
 
         return self::PAYMENT_METHODS[$this->payment_method] ?? '';

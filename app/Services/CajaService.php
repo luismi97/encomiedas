@@ -138,6 +138,54 @@ class CajaService
         ]);
     }
 
+    /**
+     * Cobra en caja una guía que lo estaba esperando.
+     *
+     * Dos casos, los mismos que lista Invoice::paraCobrarEnCaja():
+     *  - de contado, recibida por alguien que no cobra: entra a la caja de
+     *    origen y el paquete ya puede salir;
+     *  - «por cobrar» que ya llegó: entra a la caja de destino y el paquete ya
+     *    se puede entregar sin que quien entrega tenga que cobrar.
+     *
+     * Bajo candado sobre la guía: dos cajeros dándole a «Cobrar» a la vez
+     * meterían el mismo dinero en dos arqueos.
+     */
+    public function cobrarEnCaja(Invoice $guia, User $usuario, string $medio): CashMovement
+    {
+        if (! $usuario->puedeCobrar()) {
+            throw new RuntimeException('Tu usuario no cobra: la guía la tiene que cobrar un cajero.');
+        }
+
+        if (! array_key_exists($medio, Invoice::PAYMENT_METHODS)) {
+            throw new RuntimeException('Elegí cómo pagó el cliente.');
+        }
+
+        return DB::transaction(function () use ($guia, $usuario, $medio) {
+            $guia = Invoice::whereKey($guia->id)->lockForUpdate()->firstOrFail();
+
+            $sede = match (true) {
+                $guia->esperandoCaja()       => $guia->pickup_branch_id,
+                $guia->tieneCobroPendiente() => $guia->delivery_branch_id,
+                default => throw new RuntimeException("La guía {$guia->code} ya está cobrada."),
+            };
+
+            if (! $sesion = $this->sesionPropiaAbierta($usuario, $sede)) {
+                throw new RuntimeException('No tenés una caja abierta en la sede donde se cobra esta guía. '
+                    . 'Abrí tu caja y volvé a intentarlo.');
+            }
+
+            $guia->forceFill(['payment_method' => $medio])->save();
+
+            $movimiento = $this->registrarCobro($guia, $usuario, $sesion);
+
+            $guia->forceFill($guia->esperandoCaja()
+                ? ['awaiting_cashier' => false]
+                : ['collected_at' => now()])->save();
+
+            return $movimiento;
+        });
+    }
+
     /** Entrada o salida de efectivo con su motivo. */
     public function registrarMovimiento(
         CashSession $sesion,

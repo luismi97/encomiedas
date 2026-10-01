@@ -123,6 +123,20 @@ class GuideStatusService
         // Antes de mover nada: si el flete se cobra aquí y no hay caja abierta,
         // el dinero no entraría a ningún arqueo. Se registraba solo un aviso en
         // el log y la plata desaparecía sin dejar rastro.
+        if ($guia->esperandoCaja()) {
+            throw new RuntimeException("La guía {$guia->code} es de contado y todavía no se cobró en caja: "
+                . 'cobrala en caja antes de entregar el paquete.');
+        }
+
+        // Quien no cobra no tiene caja: el cobro lo hace el cajero desde la
+        // caja («Por cobrar en caja») y recién ahí se entrega.
+        if ($guia->tieneCobroPendiente() && ! $usuario->puedeCobrar()) {
+            throw new RuntimeException(
+                'Esta guía es POR COBRAR (₡' . number_format((float) $guia->total, 2) . '). Tu usuario no cobra: '
+                . 'que el cliente pague en caja y después entregá el paquete.'
+            );
+        }
+
         if ($guia->tieneCobroPendiente() && ! $this->cajaDeDestino($guia, $usuario)) {
             throw new RuntimeException(
                 'Esta guía es POR COBRAR (₡' . number_format((float) $guia->total, 2) . ') y no tenés una caja '

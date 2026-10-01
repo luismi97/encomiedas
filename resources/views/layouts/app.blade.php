@@ -79,9 +79,11 @@
             @endif
 
             @if (auth()->user()->puedeOperarCaja())
-                <a href="{{ route('caja.index') }}" class="nav-link {{ request()->routeIs('caja.*') ? 'nav-link-active' : '' }}">
-                    <x-icon name="banknotes" /> <span>Caja</span>
-                </a>
+                @if (auth()->user()->puedeCobrar())
+                    <a href="{{ route('caja.index') }}" class="nav-link {{ request()->routeIs('caja.*') ? 'nav-link-active' : '' }}">
+                        <x-icon name="banknotes" /> <span>Caja</span>
+                    </a>
+                @endif
                 <a href="{{ route('quotes.index') }}" class="nav-link {{ request()->routeIs('quotes.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="clipboard-list" /> <span>Cotizaciones</span>
                 </a>

@@ -81,6 +81,7 @@ class User extends Authenticatable
         'role',
         'company_id',
         'branch_id',
+        'can_collect',
         'phone',
         'is_active',
     ];
@@ -106,6 +107,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'can_collect' => 'boolean',
             'guide_state' => 'array',
         ];
     }
@@ -173,6 +175,19 @@ class User extends Authenticatable
     public function puedeConfigurar(): bool
     {
         return $this->isAdmin();
+    }
+
+    /**
+     * Si maneja dinero: abre caja y cobra.
+     *
+     * En una sede puede haber quien solo recibe paquetes y quien cobra. El que
+     * no cobra igual registra guías de contado, pero quedan esperando su pago
+     * en caja (Invoice::awaiting_cashier) en vez de exigirle un turno abierto.
+     * El administrador siempre puede; repartidor y despachador nunca cobran.
+     */
+    public function puedeCobrar(): bool
+    {
+        return $this->isAdmin() || ($this->isCajero() && $this->can_collect !== false);
     }
 
     /** Un cajero solo ve lo de su sede; el administrador ve todo. */
