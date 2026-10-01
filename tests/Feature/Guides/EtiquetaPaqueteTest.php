@@ -87,16 +87,14 @@ class EtiquetaPaqueteTest extends TestCase
             ->assertSee('Marta Solano');
     }
 
-    /** La etiqueta queda a la vista de cualquiera: sin montos. */
-    public function test_la_etiqueta_no_muestra_cuanto_se_pago(): void
+    /** Lleva el total: quien entrega no tiene el recibo a mano (detalle en EtiquetaPagoTest). */
+    public function test_la_etiqueta_muestra_el_total(): void
     {
         $guia = $this->guia();
 
         $html = $this->actingAs($this->admin)->get(route('invoices.etiqueta', $guia))->getContent();
 
-        $this->assertStringNotContainsString('3450', $html);
-        $this->assertStringNotContainsString('3,450', $html);
-        $this->assertStringNotContainsString('Total', $html);
+        $this->assertStringContainsString('3,450', $html);
     }
 
     /**

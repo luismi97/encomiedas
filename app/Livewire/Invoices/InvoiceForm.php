@@ -186,16 +186,16 @@ class InvoiceForm extends Component
      */
     private function normalizeIdentification(): void
     {
-        if ($this->wantsInvoice) {
-            $this->recipient_identification = preg_replace('/\D/', '', (string) $this->recipient_identification);
-        }
+        $this->recipient_identification = preg_replace('/\D/', '', (string) $this->recipient_identification);
     }
 
-    /** Apagar el toggle limpia lo que solo aplica a la factura. */
+    /**
+     * Apagar el toggle solo quita el error: la cédula se conserva, porque
+     * también sirve para verificar a quien retira el paquete.
+     */
     public function updatedWantsInvoice(bool $value): void
     {
         if (!$value) {
-            $this->recipient_identification = '';
             $this->resetErrorBag(['recipient_identification', 'recipient_identification_type']);
         }
     }
@@ -698,8 +698,10 @@ class InvoiceForm extends Component
                 'delivery_address' => $this->home_delivery ? ($data['delivery_address'] ?: null) : null,
                 'home_delivery_fee' => $this->homeDeliveryFeeAmount,
                 'discount_authorized_by' => (float) $this->discount_amount > 0 ? auth()->id() : null,
-                'recipient_identification_type' => $this->wantsInvoice ? $this->recipient_identification_type : null,
-                'recipient_identification' => $this->wantsInvoice ? $data['recipient_identification'] : null,
+                // Se guarda aunque sea tiquete: el tiquete no la manda a Hacienda
+                // (ver receptorIdentificado) y la entrega la usa para verificar.
+                'recipient_identification_type' => filled($data['recipient_identification']) ? $this->recipient_identification_type : null,
+                'recipient_identification' => $data['recipient_identification'] ?: null,
                 'recipient_email' => $data['recipient_email'],
                 'notes' => $this->notes,
                 'discount_amount' => $data['discount_amount'] ?: 0,

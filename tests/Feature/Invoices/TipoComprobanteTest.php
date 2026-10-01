@@ -106,19 +106,44 @@ class TipoComprobanteTest extends TestCase
             ->assertHasErrors('recipient_identification');
     }
 
-    public function test_apagar_el_toggle_limpia_la_identificacion(): void
+    /** Con tiquete la cédula es opcional, pero si se digita se guarda. */
+    public function test_un_tiquete_guarda_la_identificacion_opcional(): void
     {
         $this->formulario()
-            ->set('wantsInvoice', true)
-            ->set('recipient_identification', '112340567')
-            ->set('wantsInvoice', false)
-            ->assertSet('recipient_identification', '')
+            ->set('recipient_identification_type', '01')
+            ->set('recipient_identification', '1-1234-0567')
             ->call('save')
             ->assertHasNoErrors();
 
         $invoice = Invoice::firstOrFail();
         $this->assertSame(Invoice::BILL_TICKET, $invoice->bill_type);
+        $this->assertSame('112340567', $invoice->recipient_identification);
+        $this->assertSame('01', $invoice->recipient_identification_type);
+        $this->assertFalse($invoice->receptorIdentificado());
+    }
+
+    public function test_un_tiquete_sin_identificacion_no_guarda_tipo(): void
+    {
+        $this->formulario()->call('save')->assertHasNoErrors();
+
+        $invoice = Invoice::firstOrFail();
         $this->assertNull($invoice->recipient_identification);
+        $this->assertNull($invoice->recipient_identification_type);
+    }
+
+    public function test_apagar_el_toggle_conserva_la_identificacion(): void
+    {
+        $this->formulario()
+            ->set('wantsInvoice', true)
+            ->set('recipient_identification', '112340567')
+            ->set('wantsInvoice', false)
+            ->assertSet('recipient_identification', '112340567')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $invoice = Invoice::firstOrFail();
+        $this->assertSame(Invoice::BILL_TICKET, $invoice->bill_type);
+        $this->assertSame('112340567', $invoice->recipient_identification);
     }
 
     /** Una identificación suelta sin marcar factura no debe convertirlo en FE. */

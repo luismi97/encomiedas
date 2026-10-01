@@ -101,6 +101,28 @@
             @error('recipient_name') <p class="error-text">{{ $message }}</p> @enderror
             @error('recipient_email') <p class="error-text">{{ $message }}</p> @enderror
 
+            {{-- Siempre a la vista: sirve para verificar a quien retira aunque
+                 no se emita factura. Solo la factura la vuelve obligatoria. --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="label">Tipo de identificación</label>
+                    <select wire:model="recipient_identification_type" class="input @error('recipient_identification_type') input-error @enderror">
+                        <option value="01">01 - Física</option>
+                        <option value="02">02 - Jurídica</option>
+                        <option value="03">03 - DIMEX</option>
+                        <option value="04">04 - NITE</option>
+                    </select>
+                    @error('recipient_identification_type') <p class="error-text">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="label">Identificación @unless ($wantsInvoice)<span class="text-gray-400 font-normal">(opcional)</span>@endunless</label>
+                    <input type="text" wire:model="recipient_identification" inputmode="numeric" maxlength="20"
+                           placeholder="Sin guiones ni espacios"
+                           class="input @error('recipient_identification') input-error @enderror">
+                    @error('recipient_identification') <p class="error-text">{{ $message }}</p> @enderror
+                </div>
+            </div>
+
             <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                 <label class="flex items-start gap-3 cursor-pointer">
                     <input type="checkbox" wire:model.live="wantsInvoice" class="checkbox mt-0.5">
@@ -112,28 +134,6 @@
                         </span>
                     </span>
                 </label>
-
-                @if ($wantsInvoice)
-                    <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="label">Tipo de identificación</label>
-                            <select wire:model="recipient_identification_type" class="input @error('recipient_identification_type') input-error @enderror">
-                                <option value="01">01 - Física</option>
-                                <option value="02">02 - Jurídica</option>
-                                <option value="03">03 - DIMEX</option>
-                                <option value="04">04 - NITE</option>
-                            </select>
-                            @error('recipient_identification_type') <p class="error-text">{{ $message }}</p> @enderror
-                        </div>
-                        <div>
-                            <label class="label">Identificación</label>
-                            <input type="text" wire:model="recipient_identification" inputmode="numeric" maxlength="12"
-                                   placeholder="Sin guiones ni espacios"
-                                   class="input @error('recipient_identification') input-error @enderror">
-                            @error('recipient_identification') <p class="error-text">{{ $message }}</p> @enderror
-                        </div>
-                    </div>
-                @endif
             </div>
         </div>
 

@@ -305,6 +305,12 @@ class Invoice extends Model
         return $this->esPorCobrar() && $this->collected_at === null;
     }
 
+    /** El flete ya entró a una caja: ni por cobrar, ni esperando caja, ni a crédito. */
+    public function estaPagada(): bool
+    {
+        return ! $this->tieneCobroPendiente() && ! $this->esperandoCaja() && ! $this->esCredito();
+    }
+
     /**
      * Guías cuyo dinero de verdad se recibió.
      *

@@ -8,8 +8,8 @@
        Etiqueta que se PEGA AL PAQUETE, distinta del recibo del cliente.
 
        Lo que manda acá es lo que se necesita ver con el bulto en la mano: la
-       ruta, a quién va y el código de barras. El detalle de montos no va: la
-       etiqueta queda a la vista de cualquiera que manipule el paquete.
+       ruta, a quién va y el código de barras. Lleva además si está pagada y
+       el desglose del flete, para que quien entrega no dependa del recibo.
     */
     @page {
         size: {{ $ancho }}mm auto;
@@ -92,6 +92,27 @@
         letter-spacing: 1px;
     }
     .cobrar .monto { font-size: {{ $ancho >= 76 ? '20px' : '16px' }}; }
+
+    /* Pagado, a crédito o esperando caja: recuadro y no bloque negro, para
+       que no compita con el aviso de cobro, que es el que no se puede pasar. */
+    .pago {
+        border: 2px solid #000;
+        padding: 1mm;
+        margin-top: 1.5mm;
+        font-weight: bold;
+        font-size: {{ $ancho >= 76 ? '14px' : '12px' }};
+        letter-spacing: 1px;
+    }
+
+    .montos { width: 100%; border-collapse: collapse; margin-top: 1mm; }
+    .montos td { padding: 0.3mm 0; vertical-align: top; }
+    .montos .der { text-align: right; white-space: nowrap; }
+    .montos .total td {
+        border-top: 1px solid #000;
+        padding-top: 0.6mm;
+        font-weight: bold;
+        font-size: {{ $ancho >= 76 ? '13px' : '11px' }};
+    }
 
     .direccion { font-size: {{ $ancho >= 76 ? '11px' : '10px' }}; }
     .tipo-bulto { font-size: {{ $ancho >= 76 ? '13px' : '11px' }}; }
@@ -211,7 +232,8 @@
         @endif
 
         {{-- Lo primero que tiene que ver quien entrega: si no cobra, la plata
-             se pierde. --}}
+             se pierde. Mismo orden que el recibo: un por cobrar o uno que
+             espera caja no está pagado aunque la venta sea de contado. --}}
         @if ($guia->tieneCobroPendiente())
             <div class="centro cobrar">
                 POR COBRAR
@@ -219,7 +241,34 @@
                     ₡{{ number_format((float) $guia->total, 2) }}
                 </div>
             </div>
+        @elseif ($guia->esperandoCaja())
+            <div class="centro pago">PENDIENTE DE PAGO EN CAJA</div>
+        @elseif ($guia->esCredito())
+            <div class="centro pago">A CRÉDITO</div>
+        @else
+            <div class="centro pago">PAGADO</div>
         @endif
+
+        {{-- Desglose del flete: quien entrega o reclama ve de dónde sale el
+             total sin tener que buscar el recibo. --}}
+        <table class="montos">
+            <tr><td>Bultos</td><td class="der">{{ number_format((float) $guia->subtotal, 2) }}</td></tr>
+            @if ((float) $guia->insurance_fee > 0)
+                <tr><td>Seguro</td><td class="der">{{ number_format((float) $guia->insurance_fee, 2) }}</td></tr>
+            @endif
+            @if ((float) $guia->home_delivery_fee > 0)
+                <tr><td>Domicilio</td><td class="der">{{ number_format((float) $guia->home_delivery_fee, 2) }}</td></tr>
+            @endif
+            @if ((float) $guia->discount_amount > 0)
+                <tr><td>Descuento</td><td class="der">-{{ number_format((float) $guia->discount_amount, 2) }}</td></tr>
+            @endif
+            <tr><td>Impuesto</td><td class="der">{{ number_format((float) $guia->tax_total, 2) }}</td></tr>
+            <tr class="total">
+                <td>{{ $guia->estaPagada() ? 'TOTAL PAGADO' : 'TOTAL' }}</td>
+                <td class="der">₡{{ number_format((float) $guia->total, 2) }}</td>
+            </tr>
+            <tr><td>Pago</td><td class="der">{{ $guia->esCredito() ? 'Crédito' : $guia->medioDePagoImpreso() }}</td></tr>
+        </table>
 
         @php
             $hayFragil = $porBulto ? $soloEste?->esFragil() : collect($bultos)->contains(fn ($b) => $b?->esFragil());
