@@ -37,12 +37,17 @@ class CompanySetting extends Model
         'default_cabys_code',
         'insurance_percent',
         'discount_authorization_code',
+        'offline_mode',
     ];
+
+    /** Iteraciones del verificador de la clave de descuentos sin conexión. */
+    private const OFFLINE_CODE_ITERATIONS = 210000;
 
     protected function casts(): array
     {
         return [
             'enabled' => 'boolean',
+            'offline_mode' => 'boolean',
             'atv_username' => 'encrypted',
             'atv_password' => 'encrypted',
             'certificate_pin' => 'encrypted',
@@ -256,6 +261,54 @@ class CompanySetting extends Model
         }
 
         return is_string($clave) && $clave !== '' && hash_equals($esperada, $clave);
+    }
+
+    /**
+     * Verificador de la clave de descuentos para la pantalla sin conexión, o
+     * null si no hay clave.
+     *
+     * La clave se guarda cifrada y solo el servidor la descifra; el navegador,
+     * sin red, no tiene a quién preguntarle. Viaja un PBKDF2-SHA256 que Web
+     * Crypto sí puede recalcular. Con muchas iteraciones a propósito: una clave
+     * corta es atacable desde la consola por quien tenga el equipo, y es lo
+     * único que encarece cada intento.
+     *
+     * Se deriva la primera vez que se pide y se guarda; la huella de la clave
+     * en el propio verificador detecta cuándo la cambiaron. Como la clave está
+     * cifrada y no hasheada, las empresas que ya la tenían no tienen que
+     * volver a guardarla.
+     *
+     * @return array{iterations:int, salt:string, hash:string}|null
+     */
+    public function verificadorDeDescuento(): ?array
+    {
+        $clave = (string) $this->decryptedOrNull('discount_authorization_code');
+
+        if ($clave === '') {
+            return null;
+        }
+
+        $huella = substr(hash_hmac('sha256', $clave, (string) config('app.key')), 0, 16);
+        $partes = explode(':', (string) $this->discount_code_verifier);
+
+        if (count($partes) !== 4 || $partes[3] !== $huella) {
+            $salt = random_bytes(16);
+            $partes = [
+                self::OFFLINE_CODE_ITERATIONS,
+                bin2hex($salt),
+                bin2hex(hash_pbkdf2('sha256', $clave, $salt, self::OFFLINE_CODE_ITERATIONS, 32, true)),
+                $huella,
+            ];
+
+            // forceFill: no es un dato que se edite desde un formulario.
+            $this->forceFill(['discount_code_verifier' => implode(':', $partes)])->saveQuietly();
+        }
+
+        return [
+            'iterations' => (int) $partes[0],
+            'salt'       => $partes[1],
+            'hash'       => $partes[2],
+        ];
     }
 
     public function isReady(): bool

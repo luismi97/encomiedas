@@ -13,6 +13,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Sin grupo de middleware a proposito: ver routes/deploy.php.
         then: function () {
             Route::middleware([])->group(base_path('routes/deploy.php'));
+
+            // Latido del modo sin conexión. Sin grupo web a propósito: mide si
+            // hay RED hasta el servidor, y la sesión necesita la base.
+            Route::get('/__ping', \App\Http\Controllers\PingController::class);
         },
     )
     ->withMiddleware(function (Middleware $middleware) {

@@ -5,6 +5,7 @@
     /* Misma paleta que los otros PDF: DomPDF no soporta flexbox ni degradados. */
     @page { margin: 28px 30px; }
     body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #111827; }
+    .domicilio { margin-top: 2px; font-weight: bold; font-size: 10px; }
     .header { background-color: #1d4ed8; color: #ffffff; padding: 14px 18px; }
     .header h1 { margin: 0 0 3px 0; font-size: 18px; color: #ffffff; }
     .header .muted { color: #dbeafe; font-size: 10px; }
@@ -54,7 +55,14 @@
                 @php $guia = $linea->invoice; @endphp
                 <tr>
                     <td>{{ $guia?->code }}</td>
-                    <td>{{ $guia?->recipient_name }}</td>
+                    <td>
+                        {{ $guia?->recipient_name }}
+                        {{-- Quien descarga en destino tiene que saber que este
+                             paquete no se queda en la sede: sale a reparto. --}}
+                        @if ($guia?->esADomicilio())
+                            <div class="domicilio">A DOMICILIO: {{ $guia->delivery_address }}</div>
+                        @endif
+                    </td>
                     <td>{{ $guia?->deliveryBranch?->name }}</td>
                     <td class="text-right">{{ $guia?->items->count() }}</td>
                     <td class="text-right">{{ number_format((float) $guia?->items->sum('weight'), 2) }} kg</td>
@@ -66,7 +74,10 @@
     </table>
 
     <div class="totals">
-        {{ $dispatch->lines->count() }} guía(s) · {{ $dispatch->totalPaquetes() }} paquete(s) ·
+        {{ $dispatch->lines->count() }} guía(s)
+        @php $aDomicilio = $dispatch->lines->filter(fn ($l) => $l->invoice?->esADomicilio())->count(); @endphp
+        @if ($aDomicilio) ({{ $aDomicilio }} a domicilio) @endif
+        · {{ $dispatch->totalPaquetes() }} paquete(s) ·
         {{ $dispatch->pesoTotal() }} kg · valor declarado ₡{{ number_format($dispatch->valorDeclaradoTotal(), 2) }}
     </div>
 

@@ -80,6 +80,7 @@
                             <div class="text-xs text-gray-500 mt-1">
                                 {{ $guia->items->count() }} paquete(s) · {{ $guia->deliveryBranch?->name }}
                             </div>
+                            <x-domicilio :guia="$guia" class="mt-1" />
                         </div>
                         <span class="badge shrink-0 {{ \App\Models\Invoice::STATUS_BADGE_CLASSES[$guia->status] ?? '' }}">
                             {{ $guia->statusLabel() }}

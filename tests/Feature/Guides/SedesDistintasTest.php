@@ -6,6 +6,7 @@ use App\Livewire\Dispatches\DispatchIndex;
 use App\Livewire\Invoices\InvoiceForm;
 use App\Livewire\Rates\RateIndex;
 use App\Models\Branch;
+use App\Models\CashSession;
 use App\Models\Invoice;
 use App\Models\Rate;
 use App\Models\Tax;
@@ -127,7 +128,9 @@ class SedesDistintasTest extends TestCase
     /** El código guía se arma con los dos prefijos: iguales no distingue nada. */
     public function test_el_codigo_guia_siempre_lleva_dos_prefijos_distintos(): void
     {
-        // Esta guía sale DESDE Limón: la caja que cuenta es la de esa sede.
+        // Esta guía sale DESDE Limón: la caja que cuenta es la de esa sede. Y
+        // nadie tiene dos turnos a la vez, así que primero se cierra el de San José.
+        CashSession::where('opened_by', $this->admin->id)->update(['status' => CashSession::STATUS_CLOSED, 'closed_at' => now()]);
         $this->abrirCajaDe($this->lim, $this->admin);
 
         $this->formularioGuia()

@@ -151,7 +151,10 @@
                             <tr wire:key="linea-{{ $linea->id }}"
                                 class="border-b border-gray-100 dark:border-gray-700/50 {{ $linea->incident === 'faltante' ? 'bg-red-50 dark:bg-red-900/20' : '' }}">
                                 <td class="py-3 font-mono">{{ $linea->invoice?->code }}</td>
-                                <td class="py-3 text-sm">{{ $linea->invoice?->recipient_name }}</td>
+                                <td class="py-3 text-sm">
+                                    {{ $linea->invoice?->recipient_name }}
+                                    <x-domicilio :guia="$linea->invoice" class="mt-1" />
+                                </td>
                                 <td class="py-3 text-sm">{{ $linea->invoice?->items->count() }}</td>
                                 <td class="py-3">
                                     @if ($linea->incident === 'faltante' && $linea->received_at)
@@ -201,6 +204,7 @@
                             <div>
                                 <span class="font-mono">{{ $guia->code }}</span>
                                 <span class="text-sm text-gray-500"> · {{ $guia->recipient_name }} · {{ $guia->items->count() }} paquete(s)</span>
+                                <x-domicilio :guia="$guia" class="mt-1" />
                             </div>
                             {{-- Se lista igual para que se sepa por qué no sale: el
                                  paquete está en bodega, pero falta que paguen. --}}

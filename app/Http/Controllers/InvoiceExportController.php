@@ -22,30 +22,9 @@ class InvoiceExportController extends Controller
             $query->where('assigned_to', $user->id);
         }
 
-        if ($request->filled('from')) {
-            // Rango sobre la columna cruda: whereDate() anula el índice.
-            $query->where('created_at', '>=', Carbon::parse((string) $request->string('from'))->startOfDay());
-        }
-        if ($request->filled('to')) {
-            $query->where('created_at', '<=', Carbon::parse((string) $request->string('to'))->endOfDay());
-        }
-        if ($request->filled('status')) {
-            $query->where('status', $request->string('status'));
-        }
-        if ($request->filled('branch_id')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('pickup_branch_id', $request->integer('branch_id'))
-                    ->orWhere('delivery_branch_id', $request->integer('branch_id'));
-            });
-        }
-        if ($request->filled('search')) {
-            $term = $request->string('search');
-            $query->where(function ($q) use ($term) {
-                $q->where('code', 'like', "%{$term}%")
-                    ->orWhere('recipient_name', 'like', "%{$term}%")
-                    ->orWhere('sender_name', 'like', "%{$term}%");
-            });
-        }
+        // Los mismos filtros que el listado (Invoice::filtrar): el PDF tiene
+        // que traer exactamente lo que se ve en pantalla.
+        $query->filtrar($request->only(['from', 'to', 'status', 'branch_id', 'search', 'entrega', 'cobro', 'medio', 'creada_por']));
 
         $invoices = $query->latest()->get();
 

@@ -361,6 +361,8 @@ class CajaPanel extends Component
                 ->groupBy(fn ($c) => $c->branch?->name ?? 'Sin sede'),
             // La vista necesita saberlo para no ofrecer botones que van a fallar.
             'turnoAjeno'    => $this->turnoAjeno(),
+            // Su turno abierto en otra caja: para abrir esta, primero lo cierra.
+            'turnoPropioEnOtra' => $sesion ? null : $servicio->sesionPropiaAbierta(auth()->user())?->load('register.branch'),
             'paraCobrar'    => $this->paraCobrar($sesion),
             'ultimaCobrada' => $this->ultimaCobradaId ? Invoice::find($this->ultimaCobradaId) : null,
             'sinSedes'      => ! Branch::where('is_active', true)->exists(),

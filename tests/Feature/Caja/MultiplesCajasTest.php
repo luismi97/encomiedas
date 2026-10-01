@@ -138,6 +138,71 @@ class MultiplesCajasTest extends TestCase
         $servicio->abrir($caja, $this->cajero('Beto', 'beto'), 5000);
     }
 
+    /** Un cajero con dos turnos abiertos no sabría a cuál arqueo entra cada cobro. */
+    public function test_un_cajero_no_abre_dos_cajas_a_la_vez(): void
+    {
+        $primera = $this->sj->cashRegisters()->firstOrFail();
+        $segunda = $this->sj->cashRegisters()->create(['name' => 'Mostrador 2', 'is_active' => true]);
+        $ana = $this->cajero('Ana', 'ana');
+        $servicio = app(CajaService::class);
+
+        $servicio->abrir($primera, $ana, 10000);
+
+        try {
+            $servicio->abrir($segunda, $ana, 5000);
+            $this->fail('Abrió una segunda caja con la primera todavía abierta.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('Ya tenés abierta la caja «' . Branch::CAJA_PRINCIPAL . '»', $e->getMessage());
+        }
+
+        $this->assertSame(1, CashSession::where('opened_by', $ana->id)->count());
+    }
+
+    /** Tampoco en otra sede: el turno es de la persona, no de la sucursal. */
+    public function test_tampoco_abre_una_caja_en_otra_sede(): void
+    {
+        $lim = Branch::create(['name' => 'Limón', 'prefix' => 'LIM',
+            'sucursal_code' => '006', 'terminal_code' => '00001', 'is_active' => true]);
+        $ana = $this->cajero('Ana', 'ana');
+
+        app(CajaService::class)->abrir($this->sj->cashRegisters()->firstOrFail(), $ana, 10000);
+
+        $this->expectExceptionMessage('Cerrala antes de abrir otra');
+        app(CajaService::class)->abrir($lim->cashRegisters()->firstOrFail(), $ana, 0);
+    }
+
+    public function test_cerrada_la_suya_puede_abrir_otra(): void
+    {
+        $primera = $this->sj->cashRegisters()->firstOrFail();
+        $segunda = $this->sj->cashRegisters()->create(['name' => 'Mostrador 2', 'is_active' => true]);
+        $ana = $this->cajero('Ana', 'ana');
+        $servicio = app(CajaService::class);
+
+        $turno = $servicio->abrir($primera, $ana, 10000);
+        $servicio->cerrar($turno->fresh(), $ana, []);
+
+        $this->assertTrue($servicio->abrir($segunda, $ana, 5000)->estaAbierta());
+    }
+
+    /** En pantalla se avisa antes de intentarlo, y no se ofrece abrir. */
+    public function test_el_panel_avisa_que_primero_cierre_la_suya(): void
+    {
+        $primera = $this->sj->cashRegisters()->firstOrFail();
+        $segunda = $this->sj->cashRegisters()->create(['name' => 'Mostrador 2', 'is_active' => true]);
+        $ana = $this->cajero('Ana', 'ana');
+
+        app(CajaService::class)->abrir($primera, $ana, 10000);
+
+        Livewire::actingAs($ana)->test(CajaPanel::class)
+            ->set('registerId', $segunda->id)
+            ->assertSeeHtml('data-test="turno-propio-en-otra"')
+            ->assertDontSeeHtml('data-test="fondo-inicial"')
+            ->call('abrir')
+            ->assertSee('Cerrala antes de abrir otra');
+
+        $this->assertNull($segunda->fresh()->sesionAbierta());
+    }
+
     /** Llegar y encontrar el turno de un compañero metería el cobro en su gaveta. */
     public function test_el_panel_ofrece_una_caja_libre_y_no_la_del_companero(): void
     {

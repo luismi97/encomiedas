@@ -13,6 +13,7 @@ use App\Models\ShippingRoute;
 use App\Models\Tax;
 use App\Services\CajaService;
 use App\Services\CreditoService;
+use App\Services\RegistroDeGuia;
 use App\Services\Tarifario;
 use Illuminate\Validation\Rule;
 use App\Models\User;
@@ -727,8 +728,7 @@ class InvoiceForm extends Component
         $this->validarCajaAbierta();
 
         DB::transaction(function () use ($data) {
-            $invoice = $this->invoice ?: new Invoice();
-            $invoice->fill([
+            $invoice = app(RegistroDeGuia::class)->guardar($this->invoice, [
                 'pickup_branch_id' => $data['pickup_branch_id'],
                 'delivery_branch_id' => $data['delivery_branch_id'],
                 'shipping_route_id' => $data['shipping_route_id'] ?: null,
@@ -769,67 +769,10 @@ class InvoiceForm extends Component
                 'subtotal' => $this->subtotal,
                 'tax_total' => $this->taxTotal,
                 'total' => $this->total,
-            ]);
-            $invoice->sale_condition = $this->cobro === self::COBRO_CREDIT
-                ? Invoice::SALE_CREDIT
-                : Invoice::SALE_CASH;
-
-            $invoice->payment_timing = $this->cobro === self::COBRO_COLLECT
-                ? Invoice::TIMING_COLLECT
-                : Invoice::TIMING_PREPAID;
-
-            // De contado y recibida por alguien que no cobra: queda esperando
-            // su pago en caja. Una que ya esperaba sigue esperando aunque la
-            // edite un cajero —se cobra en la caja, no guardando el
-            // formulario—, y una que ya se cobró no vuelve atrás.
-            $yaCobrada = $invoice->exists
-                && $invoice->getOriginal('payment_timing') === Invoice::TIMING_PREPAID
-                && $invoice->getOriginal('sale_condition') === Invoice::SALE_CASH
-                && ! $invoice->getOriginal('awaiting_cashier');
-
-            $invoice->awaiting_cashier = $this->cobro === self::COBRO_PREPAID
-                && ! $yaCobrada
-                && ($invoice->awaiting_cashier || ! auth()->user()->puedeCobrar());
-
-            if (!$invoice->exists) {
-                $invoice->created_by = auth()->id();
-                $invoice->status = Invoice::STATUS_PENDING;
-            }
-            $invoice->save();
-
-            $invoice->items()->delete();
-            foreach ($data['items'] as $item) {
-                $invoice->items()->create([
-                    'package_type_id' => $item['package_type_id'],
-                    'size' => $item['size'],
-                    'weight' => $item['weight'],
-                    'length_cm' => $item['length_cm'],
-                    'width_cm' => $item['width_cm'],
-                    'height_cm' => $item['height_cm'],
-                    'description' => $item['description'],
-                    'price' => $item['price'],
-                ]);
-            }
-
-            $invoice->taxes()->delete();
-            foreach (Tax::whereIn('id', $this->selectedTaxes)->get() as $tax) {
-                $base = $this->subtotal - (float) $this->discount_amount;
-                $invoice->taxes()->create([
-                    'tax_id' => $tax->id,
-                    'name' => $tax->name,
-                    'percent' => $tax->percent,
-                    'hacienda_code' => $tax->hacienda_code,
-                    'amount' => round($base * $tax->percent / 100, 2),
-                ]);
-            }
-
-            // A la caja de origen solo entra lo que se paga aquí y ahora. Un
-            // «por cobrar» se cobra en destino al entregar, y una guía a
-            // crédito no se cobra: suma al saldo del cliente.
-            // El contado ya tiene caja abierta garantizada: acá solo se registra.
-            if ($this->cobro === self::COBRO_PREPAID && ! $invoice->awaiting_cashier) {
-                app(CajaService::class)->registrarCobro($invoice, auth()->user());
-            }
+                'cobro' => $this->cobro,
+                'items' => $data['items'],
+                'tax_ids' => $this->selectedTaxes,
+            ], auth()->user());
 
             // Flash y no una propiedad del componente: el redirect de abajo la
             // descartaría y el aviso no llegaría a verse nunca.

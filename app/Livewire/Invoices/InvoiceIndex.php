@@ -6,6 +6,7 @@ use App\Livewire\Concerns\ScrollInfinito;
 use App\Models\ActivityLog;
 use App\Models\Branch;
 use App\Models\Invoice;
+use App\Models\User;
 use App\Services\GuideStatusService;
 use RuntimeException;
 use Illuminate\Support\Carbon;
@@ -22,6 +23,18 @@ class InvoiceIndex extends Component
     public $branchId = null;
     public string $search = '';
 
+    /** '' todas · 'domicilio' · 'sede' (retira en la sucursal). */
+    public string $entrega = '';
+
+    /** Ver Invoice::FILTROS_COBRO. */
+    public string $cobro = '';
+
+    /** Medio de pago: cash, card, sinpe... */
+    public string $medio = '';
+
+    /** Usuario que registró la guía. */
+    public $creadaPor = null;
+
     public function mount(): void
     {
         $this->from = today()->toDateString();
@@ -30,7 +43,7 @@ class InvoiceIndex extends Component
 
     public function updating($name): void
     {
-        if (in_array($name, ['period', 'from', 'to', 'status', 'branchId', 'search'], true)) {
+        if (in_array($name, ['period', 'from', 'to', 'status', 'branchId', 'search', 'entrega', 'cobro', 'medio', 'creadaPor'], true)) {
             $this->reiniciarScroll();
         }
     }
@@ -58,33 +71,14 @@ class InvoiceIndex extends Component
 
     public function baseQuery()
     {
-        $query = Invoice::query()->with(['pickupBranch', 'deliveryBranch', 'assignedTo']);
+        $query = Invoice::query()->with(['pickupBranch', 'deliveryBranch', 'assignedTo', 'creator']);
 
         $user = auth()->user();
         if ($user->isRepartidor()) {
             $query->where('assigned_to', $user->id);
         }
 
-        if ($this->from) {
-            // Rango sobre la columna cruda: whereDate() la envuelve en DATE()
-            // y anula el índice, obligando a recorrer la tabla entera.
-            $query->where('created_at', '>=', Carbon::parse($this->from)->startOfDay());
-        }
-        if ($this->to) {
-            $query->where('created_at', '<=', Carbon::parse($this->to)->endOfDay());
-        }
-        if ($this->status) {
-            $query->where('status', $this->status);
-        }
-        if ($this->branchId) {
-            $query->where(function ($q) {
-                $q->where('pickup_branch_id', $this->branchId)
-                    ->orWhere('delivery_branch_id', $this->branchId);
-            });
-        }
-        // El buscador vive en el modelo: el listado, la exportación y cualquier
-        // otra pantalla tienen que entender lo mismo por «buscar».
-        $query->buscar($this->search);
+        $query->filtrar($this->filtros());
 
         return $query->latest();
     }
@@ -132,6 +126,22 @@ class InvoiceIndex extends Component
         session()->flash('success', 'Estado actualizado a "' . $invoice->statusLabel() . '".');
     }
 
+    /** Los filtros tal como los entiende Invoice::filtrar() y la exportación. */
+    public function filtros(): array
+    {
+        return [
+            'from' => $this->from, 'to' => $this->to, 'status' => $this->status,
+            'branch_id' => $this->branchId, 'search' => $this->search, 'entrega' => $this->entrega,
+            'cobro' => $this->cobro, 'medio' => $this->medio, 'creada_por' => $this->creadaPor,
+        ];
+    }
+
+    public function limpiarFiltros(): void
+    {
+        $this->reset(['status', 'branchId', 'search', 'entrega', 'cobro', 'medio', 'creadaPor']);
+        $this->reiniciarScroll();
+    }
+
     public function render()
     {
         $tanda = $this->tanda($this->baseQuery());
@@ -141,6 +151,11 @@ class InvoiceIndex extends Component
             'scroll'   => $tanda,
             'branches' => Branch::orderBy('name')->get(),
             'statuses' => Invoice::STATUSES,
+            // Quienes registran guías: también los inactivos, porque sus
+            // guías siguen ahí y alguien puede necesitar revisarlas.
+            'usuarios' => User::whereIn('role', [User::ROLE_ADMIN, User::ROLE_CAJERO])->orderBy('name')->get(['id', 'name', 'is_active']),
+            'filtrosCobro' => Invoice::FILTROS_COBRO,
+            'mediosDePago' => Invoice::PAYMENT_METHODS,
         ])->layout('layouts.app', ['title' => 'Facturas / Encomiendas']);
     }
 }

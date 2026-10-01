@@ -110,6 +110,11 @@ Route::middleware('auth')->group(function () {
      */
     Route::middleware('role:admin,cajero')->group(function () {
         Route::get('/invoices-create', InvoiceForm::class)->name('invoices.create');
+
+        // Guías sin conexión (ver GuiasOfflineController y MODO-OFFLINE.md).
+        Route::get('/guias-offline', [\App\Http\Controllers\GuiasOfflineController::class, 'page'])->name('offline.page');
+        Route::get('/guias-offline/data', [\App\Http\Controllers\GuiasOfflineController::class, 'data'])->name('offline.data');
+        Route::post('/guias-offline/sync', [\App\Http\Controllers\GuiasOfflineController::class, 'sync'])->name('offline.sync');
         Route::get('/invoices/{invoice}/edit', InvoiceForm::class)->name('invoices.edit');
 
         Route::get('/caja', CajaPanel::class)->name('caja.index');

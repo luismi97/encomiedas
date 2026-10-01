@@ -11,7 +11,7 @@
             @endforeach
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             @if ($period === 'range')
                 <div><label class="label">Desde</label><input type="date" wire:model.live="from" class="input"></div>
                 <div><label class="label">Hasta</label><input type="date" wire:model.live="to" class="input"></div>
@@ -35,10 +35,51 @@
                 </select>
             </div>
             <div>
+                <label class="label">Entrega</label>
+                <select wire:model.live="entrega" class="input" data-test="filtro-entrega">
+                    <option value="">Todas</option>
+                    <option value="domicilio">A domicilio</option>
+                    <option value="sede">Retira en sede</option>
+                </select>
+            </div>
+            <div>
+                <label class="label">Registrada por</label>
+                <select wire:model.live="creadaPor" class="input" data-test="filtro-usuario">
+                    <option value="">Todos</option>
+                    @foreach ($usuarios as $u)
+                        <option value="{{ $u->id }}">{{ $u->name }}{{ $u->is_active ? '' : ' (inactivo)' }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="label">Cobro</label>
+                <select wire:model.live="cobro" class="input" data-test="filtro-cobro">
+                    <option value="">Todos</option>
+                    @foreach ($filtrosCobro as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
+                <label class="label">Medio de pago</label>
+                <select wire:model.live="medio" class="input" data-test="filtro-medio">
+                    <option value="">Todos</option>
+                    @foreach ($mediosDePago as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div>
                 <label class="label">Buscar</label>
                 <input type="text" wire:model.live.debounce.400ms="search" class="input" placeholder="Código, remitente, receptor...">
             </div>
         </div>
+
+        @if ($status || $branchId || $search || $entrega || $cobro || $medio || $creadaPor)
+            <button type="button" wire:click="limpiarFiltros" class="text-sm text-brand-600 dark:text-brand-300 hover:underline">
+                Limpiar filtros
+            </button>
+        @endif
 
         <div class="flex flex-wrap gap-3 pt-1">
             {{-- El cajero es quien recibe la paquetería en el mostrador: la
@@ -48,7 +89,7 @@
                 <a href="{{ route('invoices.create') }}" class="btn-primary"><x-icon name="plus" class="w-4 h-4" /> Nueva guía</a>
         <x-ayuda posicion="izquierda">Registra una encomienda nueva: ruta, remitente, destinatario y bultos. Al guardar se asigna el código de guía y se imprime la etiqueta.</x-ayuda>
             @endif
-            <a href="{{ route('invoices.export', ['from' => $from, 'to' => $to, 'status' => $status, 'branch_id' => $branchId, 'search' => $search]) }}"
+            <a href="{{ route('invoices.export', ['from' => $from, 'to' => $to, 'status' => $status, 'branch_id' => $branchId, 'search' => $search, 'entrega' => $entrega, 'cobro' => $cobro, 'medio' => $medio, 'creada_por' => $creadaPor]) }}"
                class="btn-secondary" target="_blank">
                 <x-icon name="document" class="w-4 h-4" /> Exportar PDF
             </a>
@@ -82,6 +123,9 @@
                                     {{ $invoice->code }}
                                 </a>
                                 <div class="text-xs text-gray-500">{{ $invoice->created_at->format('d/m/Y H:i') }}</div>
+                                @if ($invoice->creator)
+                                    <div class="text-xs text-gray-500">por {{ $invoice->creator->name }}</div>
+                                @endif
                             </td>
                             <td class="py-3 text-sm whitespace-nowrap">
                                 <span class="font-mono">{{ $invoice->pickupBranch?->prefix }}</span>
@@ -94,6 +138,7 @@
                             <td class="py-3 text-sm">
                                 <div>{{ $invoice->sender_name }}</div>
                                 <div class="text-gray-500">&rarr; {{ $invoice->recipient_name }}</div>
+                                <x-domicilio :guia="$invoice" class="mt-1" />
                             </td>
                             <td class="py-3">
                                 <span class="badge {{ $invoice->statusBadgeClasses() }}">{{ $invoice->statusLabel() }}</span>
@@ -106,7 +151,7 @@
                                 @elseif ($invoice->esCredito())
                                     <span class="badge bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">Crédito</span>
                                 @else
-                                    <span class="text-sm text-gray-500">Pagado</span>
+                                    <span class="text-sm text-gray-500">Pagado · {{ \App\Models\Invoice::PAYMENT_METHODS[$invoice->payment_method] ?? '' }}</span>
                                 @endif
                             </td>
                             <td class="py-3 text-right font-semibold tabular-nums whitespace-nowrap">
@@ -184,6 +229,7 @@
                         <span class="font-mono">{{ $invoice->pickupBranch?->prefix }} &rarr; {{ $invoice->deliveryBranch?->prefix }}</span>
                         · {{ $invoice->recipient_name }}
                     </div>
+                    <x-domicilio :guia="$invoice" class="mt-1" />
                     <div class="mt-1 flex items-center justify-between">
                         <span class="font-semibold">&#8353;{{ number_format($invoice->total, 2) }}</span>
                         @if ($invoice->tieneCobroPendiente())

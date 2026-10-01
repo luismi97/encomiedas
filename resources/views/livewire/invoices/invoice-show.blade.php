@@ -13,7 +13,10 @@
                     <div class="text-gray-500 dark:text-gray-400">Devuelta: {{ $invoice->returned_at->format('d/m/Y H:i') }}</div>
                 @endif
             </div>
-            <span class="badge {{ $invoice->statusBadgeClasses() }} text-base px-4 py-2">{{ $invoice->statusLabel() }}</span>
+            <div class="flex flex-col items-end gap-2">
+                <span class="badge {{ $invoice->statusBadgeClasses() }} text-base px-4 py-2">{{ $invoice->statusLabel() }}</span>
+                <x-domicilio :guia="$invoice" :direccion="false" />
+            </div>
         </div>
 
         <div class="mt-4 flex flex-wrap gap-3">
@@ -197,6 +200,15 @@
             <h3 class="font-semibold mb-2 flex items-center gap-2"><x-icon name="inbox" class="w-5 h-5 text-gray-400" /> Receptor</h3>
             <p>{{ $invoice->recipient_name }}</p>
             @if ($invoice->recipient_phone)<p class="text-sm text-gray-500">Tel: {{ $invoice->recipient_phone }}</p>@endif
+            @if ($invoice->esADomicilio())
+                <div class="mt-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800" data-test="direccion-domicilio">
+                    <div class="text-sm font-semibold text-purple-800 dark:text-purple-200">Entrega a domicilio</div>
+                    <div>{{ $invoice->delivery_address }}</div>
+                    @if ((float) $invoice->home_delivery_fee > 0)
+                        <div class="text-sm text-gray-500">Cargo: ₡{{ number_format((float) $invoice->home_delivery_fee, 2) }}</div>
+                    @endif
+                </div>
+            @endif
             @if ($invoice->recipient_identification)<p class="text-sm text-gray-500">Identificación ({{ $invoice->recipient_identification_type }}): {{ $invoice->recipient_identification }}</p>@endif
             @if ($invoice->recipient_email)<p class="text-sm text-gray-500">{{ $invoice->recipient_email }}</p>@endif
             <p class="text-sm text-gray-500 mt-2">Sucursal de entrega: <strong>{{ $invoice->deliveryBranch->name }}</strong></p>
@@ -262,6 +274,14 @@
         <div class="flex justify-end mt-4">
             <div class="w-full sm:w-72 space-y-1">
                 <div class="flex justify-between"><span>Subtotal</span><span data-test="guia-subtotal">₡{{ number_format($invoice->subtotal, 2) }}</span></div>
+                {{-- Los mismos cargos que desglosa la factura impresa: si aquí
+                     solo sale el total, en ventanilla no hay cómo explicarlo. --}}
+                @if ((float) $invoice->insurance_fee > 0)
+                    <div class="flex justify-between"><span>Seguro (declarado ₡{{ number_format((float) $invoice->declared_value, 2) }})</span><span data-test="guia-seguro">₡{{ number_format((float) $invoice->insurance_fee, 2) }}</span></div>
+                @endif
+                @if ((float) $invoice->home_delivery_fee > 0)
+                    <div class="flex justify-between"><span>Entrega a domicilio</span><span data-test="guia-domicilio">₡{{ number_format((float) $invoice->home_delivery_fee, 2) }}</span></div>
+                @endif
                 <div class="flex justify-between"><span>Descuento</span><span data-test="guia-descuento">-₡{{ number_format($invoice->discount_amount, 2) }}</span></div>
                 @foreach ($invoice->taxes as $tax)
                     <div class="flex justify-between text-sm"><span>{{ $tax->name }} ({{ number_format($tax->percent, 2) }}%)</span><span>₡{{ number_format($tax->amount, 2) }}</span></div>

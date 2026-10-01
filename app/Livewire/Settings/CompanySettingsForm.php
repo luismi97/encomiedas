@@ -16,6 +16,9 @@ class CompanySettingsForm extends Component
     use WithFileUploads;
 
     public bool $enabled = false;
+
+    /** Modo sin conexión: los cajeros siguen creando guías si se cae el internet. */
+    public bool $offline_mode = false;
     public string $environment = 'sandbox';
     public string $name = '';
     public string $commercial_name = '';
@@ -85,6 +88,7 @@ class CompanySettingsForm extends Component
         $settings = CompanySetting::instance();
 
         $this->enabled = (bool) $settings->enabled;
+        $this->offline_mode = (bool) $settings->offline_mode;
         $this->environment = $settings->environment ?: 'sandbox';
         $this->name = (string) $settings->name;
         $this->commercial_name = (string) $settings->commercial_name;
@@ -262,6 +266,7 @@ class CompanySettingsForm extends Component
 
         $settings->fill([
             'enabled' => $this->enabled,
+            'offline_mode' => $this->offline_mode,
             'environment' => $data['environment'],
             'name' => $data['name'],
             'commercial_name' => $data['commercial_name'],

@@ -39,6 +39,24 @@ class CajaService
                 );
             }
 
+            // Un turno por persona: con dos abiertos, cada cobro cae en el que
+            // el sistema elija y ninguno de los dos arqueos cuadra.
+            $propia = CashSession::where('opened_by', $usuario->id)
+                ->where('status', CashSession::STATUS_OPEN)
+                ->lockForUpdate()
+                ->first();
+
+            if ($propia) {
+                $propia->loadMissing('register.branch');
+
+                throw new RuntimeException(
+                    "Ya tenés abierta la caja «{$propia->register?->name}»"
+                    . ($propia->register?->branch ? " en {$propia->register->branch->name}" : '')
+                    . ' desde el ' . $propia->opened_at->format('d/m/Y H:i')
+                    . '. Cerrala antes de abrir otra.'
+                );
+            }
+
             if ($fondoInicial < 0) {
                 throw new RuntimeException('El fondo inicial no puede ser negativo.');
             }

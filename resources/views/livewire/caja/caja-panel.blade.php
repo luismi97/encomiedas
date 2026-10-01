@@ -86,6 +86,28 @@
                 </div>
             </div>
         </div>
+    @elseif (! $sesion && $turnoPropioEnOtra)
+        {{-- Un turno por persona: con dos abiertos, cada cobro caería en el que
+             el sistema eligiera y ninguno de los dos arqueos cuadraría. --}}
+        <div class="card border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20" data-test="turno-propio-en-otra">
+            <div class="flex items-start gap-3">
+                <x-icon name="warning" class="w-5 h-5 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div>
+                    <h2 class="text-lg font-semibold text-amber-900 dark:text-amber-100">Ya tenés una caja abierta</h2>
+                    <p class="mt-1 text-sm text-amber-800 dark:text-amber-200">
+                        Tu turno en «{{ $turnoPropioEnOtra->register?->name }}»@if ($turnoPropioEnOtra->register?->branch) ({{ $turnoPropioEnOtra->register->branch->name }})@endif
+                        sigue abierto desde el {{ $turnoPropioEnOtra->opened_at->format('d/m/Y H:i') }}.
+                        Cerralo antes de abrir otra caja.
+                    </p>
+                    <div class="mt-3">
+                        <button type="button" class="btn-secondary !py-2 !px-3 text-sm"
+                                wire:click="$set('registerId', {{ $turnoPropioEnOtra->cash_register_id }})">
+                            Ir a mi caja abierta
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     @elseif (! $sesion)
         <div class="card">
             {{-- El @if va en su propia línea: pegado a una letra («turno@if»)
@@ -215,6 +237,12 @@
                     <div>
                         <label class="label">Nota de cierre</label>
                         <textarea wire:model="closingNote" rows="2" class="input" placeholder="Explicación de la diferencia, si la hay"></textarea>
+                    </div>
+
+                    {{-- Lo rellena el watchdog: solo este navegador sabe qué tiene en cola. --}}
+                    <div data-offline-caja wire:ignore class="hidden flex items-start gap-2 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/40 text-amber-900 dark:text-amber-100 text-sm">
+                        <x-icon name="warning" class="w-4 h-4 mt-0.5 shrink-0" />
+                        <span data-texto></span>
                     </div>
 
                     <div class="flex gap-3">

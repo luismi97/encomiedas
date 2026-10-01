@@ -31,6 +31,7 @@ class DatosConfigurablesTest extends TestCase
                 'id', 'created_at', 'updated_at',
                 'certificate_path', // lo escribe la subida del archivo, no se digita
                 'company_id',       // lo pone el aislamiento, no una persona
+                'discount_code_verifier', // se deriva de la clave de descuentos
             ]));
 
         $faltantes = $columnas->reject(

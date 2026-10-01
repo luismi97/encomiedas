@@ -187,6 +187,8 @@ class Invoice extends Model
         'sender_identification_type',
         'sender_email',
         'bill_to',
+        'client_uuid',
+        'offline_reference',
         'billing_name',
         'billing_identification_type',
         'billing_identification',
@@ -447,6 +449,100 @@ class Invoice extends Model
     public function esADomicilio(): bool
     {
         return (bool) $this->home_delivery;
+    }
+
+    /*
+     | Filtros del listado de guías. Cómo se cobró cada una, en las palabras
+     | del mostrador y no en las columnas: «por cobrar» es una combinación de
+     | tres (condición, momento y si ya se cobró).
+     */
+    public const FILTROS_COBRO = [
+        'contado'        => 'Contado (pagado en origen)',
+        'esperando_caja' => 'Contado pendiente de pago en caja',
+        'por_cobrar'     => 'Por cobrar (pendiente)',
+        'cobrada_destino'=> 'Por cobrar (ya cobrada en destino)',
+        'credito'        => 'A crédito',
+    ];
+
+    public function scopeCobro(Builder $query, ?string $cobro): Builder
+    {
+        return match ($cobro) {
+            'contado' => $query->where('sale_condition', self::SALE_CASH)
+                ->where('payment_timing', self::TIMING_PREPAID)
+                ->where('awaiting_cashier', false),
+            'esperando_caja' => $query->where('awaiting_cashier', true),
+            'por_cobrar' => $query->where('sale_condition', self::SALE_CASH)
+                ->where('payment_timing', self::TIMING_COLLECT)
+                ->whereNull('collected_at'),
+            'cobrada_destino' => $query->where('sale_condition', self::SALE_CASH)
+                ->where('payment_timing', self::TIMING_COLLECT)
+                ->whereNotNull('collected_at'),
+            'credito' => $query->where('sale_condition', self::SALE_CREDIT),
+            default => $query,
+        };
+    }
+
+    /** Medio de pago (efectivo, tarjeta, SINPE...). */
+    public function scopeMedioDePago(Builder $query, ?string $medio): Builder
+    {
+        return array_key_exists((string) $medio, self::PAYMENT_METHODS)
+            ? $query->where('payment_method', $medio)
+            : $query;
+    }
+
+    /** Quién la registró en el mostrador. */
+    public function scopeCreadaPor(Builder $query, $usuarioId): Builder
+    {
+        return $usuarioId ? $query->where('created_by', (int) $usuarioId) : $query;
+    }
+
+    /**
+     * Todos los filtros del listado de guías juntos.
+     *
+     * Lo usan el listado y su exportación a PDF. Antes cada uno filtraba por
+     * su cuenta —y la exportación ni siquiera buscaba igual—, así que el PDF
+     * podía traer guías distintas de las que se veían en pantalla.
+     *
+     * @param  array{from?:?string,to?:?string,status?:?string,branch_id?:mixed,search?:?string,entrega?:?string,cobro?:?string,medio?:?string,creada_por?:mixed}  $f
+     */
+    public function scopeFiltrar(Builder $query, array $f): Builder
+    {
+        if (! empty($f['from'])) {
+            // Rango sobre la columna cruda: whereDate() la envuelve en DATE()
+            // y anula el índice, obligando a recorrer la tabla entera.
+            $query->where('created_at', '>=', \Illuminate\Support\Carbon::parse($f['from'])->startOfDay());
+        }
+        if (! empty($f['to'])) {
+            $query->where('created_at', '<=', \Illuminate\Support\Carbon::parse($f['to'])->endOfDay());
+        }
+        if (! empty($f['status'])) {
+            $query->where('status', $f['status']);
+        }
+        if (! empty($f['branch_id'])) {
+            $query->where(fn ($q) => $q->where('pickup_branch_id', $f['branch_id'])
+                ->orWhere('delivery_branch_id', $f['branch_id']));
+        }
+
+        return $query
+            ->buscar($f['search'] ?? null)
+            ->entrega($f['entrega'] ?? null)
+            ->cobro($f['cobro'] ?? null)
+            ->medioDePago($f['medio'] ?? null)
+            ->creadaPor($f['creada_por'] ?? null);
+    }
+
+    /**
+     * Filtro por forma de entrega: 'domicilio' o 'sede'. Vacío no filtra.
+     *
+     * Vive acá para que el listado y su exportación entiendan lo mismo.
+     */
+    public function scopeEntrega(Builder $query, ?string $entrega): Builder
+    {
+        return match ($entrega) {
+            'domicilio' => $query->where('home_delivery', true),
+            'sede'      => $query->where('home_delivery', false),
+            default     => $query,
+        };
     }
 
     /** Dónde se entrega: la dirección del cliente o la sucursal de destino. */

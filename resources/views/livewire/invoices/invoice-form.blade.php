@@ -2,6 +2,19 @@
     
     <x-flash />
 
+    {{-- ¿Este equipo puede seguir recibiendo encomiendas si se cae el
+         internet? Lo pinta el watchdog (offline/watchdog.blade.php). --}}
+    @if (! $invoice && \App\Support\ModoOffline::habilitado())
+        <div data-offline-status wire:ignore class="flex items-center gap-2 text-sm">
+            <span data-listo class="hidden inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-medium bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Listo para trabajar sin conexión
+            </span>
+            <span data-preparando class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Preparando el modo sin conexión…
+            </span>
+        </div>
+    @endif
+
     <form wire:submit="save" class="space-y-6">
         <div class="card space-y-4">
             <h2 class="text-lg font-semibold">Ruta</h2>

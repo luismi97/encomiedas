@@ -18,6 +18,20 @@
                 </select>
             </div>
 
+            <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" wire:model="offline_mode" class="rounded w-5 h-5 mt-0.5">
+                    <span>
+                        <span class="font-medium">Modo sin conexión</span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400">
+                            Si se cae el internet, los cajeros siguen recibiendo encomiendas en el navegador y se suben
+                            solas al volver la conexión. Guarda las tarifas y los clientes de crédito en cada equipo.
+                            La etiqueta del paquete se imprime cuando la guía se sincroniza.
+                        </span>
+                    </span>
+                </label>
+            </div>
+
             <h3 class="font-semibold text-lg border-b border-gray-200 dark:border-gray-700 pb-2">Datos de la empresa</h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label class="label">Razón social</label><input type="text" wire:model="name" class="input"></div>

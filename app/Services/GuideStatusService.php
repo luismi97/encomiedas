@@ -249,8 +249,12 @@ class GuideStatusService
             'branch_id'   => $guia->pickup_branch_id,
             'user_id'     => $usuario?->id ?? $guia->created_by,
             'source'      => GuideStatusHistory::SOURCE_MANUAL,
-            'note'        => 'Encomienda recibida en sede origen.',
-            'happened_at' => now(),
+            'note'        => $guia->offline_reference
+                ? "Encomienda recibida en sede origen sin conexión ({$guia->offline_reference})."
+                : 'Encomienda recibida en sede origen.',
+            // La de la guía y no now(): una hecha sin conexión se recibió
+            // cuando se recibió, no cuando volvió el internet.
+            'happened_at' => $guia->created_at ?? now(),
         ]);
     }
 

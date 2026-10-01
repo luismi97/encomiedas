@@ -8,6 +8,9 @@
     <title>{{ $title ?? config('app.name') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
+    @auth
+        @include('offline.watchdog')
+    @endauth
 </head>
 <body class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 text-base">
 
@@ -207,6 +210,16 @@
         @endif
 
         <main class="p-4 sm:p-6">
+            {{-- Lo rellena el watchdog del modo sin conexión: guías por subir,
+                 etiquetas por imprimir y rechazadas. Solo lo sabe este navegador. --}}
+            <div data-offline-aviso class="hidden mb-4 flex items-start justify-between gap-3 flex-wrap p-4 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/40 text-amber-900 dark:text-amber-100 text-base">
+                <span class="flex items-start gap-3">
+                    <x-icon name="warning" class="w-5 h-5 mt-0.5 shrink-0" />
+                    <span data-texto></span>
+                </span>
+                <a href="/guias-offline" class="font-semibold underline whitespace-nowrap">Ver guías sin conexión</a>
+            </div>
+
             @if (session('success'))
                 <div class="mb-4 flex items-start gap-3 p-4 rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/40 text-green-800 dark:text-green-200 text-base">
                     <x-icon name="check-circle" class="w-5 h-5 mt-0.5" />
