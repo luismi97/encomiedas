@@ -389,6 +389,21 @@ class Invoice extends Model
      * inicial que queda en pie, limitado a tres cifras para que no traiga media
      * tabla. Los nombres los resuelve el índice de texto completo.
      */
+    /**
+     * El número de un comprobante provisional, tal como se guarda, o null si
+     * el texto no tiene esa forma.
+     *
+     * Los hay de dos épocas: P-SJ-7K3M9QX2 (al azar, los actuales) y OFF-SJ-7 (un
+     * consecutivo por navegador, los primeros). Se aceptan escritos como los
+     * dicte el cliente: en minúscula o con espacios en vez de guiones.
+     */
+    public static function referenciaProvisional(?string $texto): ?string
+    {
+        $limpio = strtoupper(preg_replace('/[\s_]+/', '-', trim((string) $texto)));
+
+        return preg_match('/^(P|OFF)-[A-Z0-9]{1,6}-[A-Z0-9]{1,12}$/', $limpio) ? $limpio : null;
+    }
+
     public function scopeBuscar(Builder $query, ?string $termino): Builder
     {
         $termino = trim((string) $termino);
@@ -399,6 +414,12 @@ class Invoice extends Model
 
         return $query->where(function (Builder $q) use ($termino) {
             $q->where('code', 'like', $termino . '%');
+
+            // El cliente que se fue con el comprobante sin conexión vuelve con
+            // ese número, no con el código guía.
+            if ($referencia = self::referenciaProvisional($termino)) {
+                $q->orWhere('offline_reference', $referencia);
+            }
 
             if (ctype_digit($termino) && mb_strlen($termino) >= 3) {
                 $q->orWhere('code', 'like', '%' . $termino);
@@ -612,9 +633,14 @@ class Invoice extends Model
     }
 
     /** Estados a los que se puede mover ahora, con su etiqueta. */
-    public function siguientesEstados(): array
+    /**
+     * Con un usuario, solo los que ese usuario puede hacer: anular es del
+     * administrador y al cajero no se le ofrece el botón.
+     */
+    public function siguientesEstados(?User $usuario = null): array
     {
         return collect(self::TRANSITIONS[$this->status] ?? [])
+            ->reject(fn (string $e) => $e === self::STATUS_CANCELLED && $usuario && ! $usuario->puedeAnular())
             ->mapWithKeys(fn (string $e) => [$e => self::STATUSES[$e]])
             ->all();
     }

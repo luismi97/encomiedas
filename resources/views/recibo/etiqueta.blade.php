@@ -198,6 +198,9 @@
              recepción, en el despacho y en la entrega. --}}
         <div class="centro barras">{!! $barras !!}</div>
         <div class="centro codigo">{{ $guia->code }}</div>
+        @if ($guia->offline_reference)
+            <div class="centro" style="font-size: 9px;">Provisional: {{ $guia->offline_reference }}</div>
+        @endif
 
         <div class="regla"></div>
 

@@ -47,6 +47,7 @@
                 <th class="text-right">Paquetes</th>
                 <th class="text-right">Peso</th>
                 <th class="text-right">Valor decl.</th>
+                <th>Cobro</th>
                 <th>Recibido</th>
             </tr>
         </thead>
@@ -67,6 +68,20 @@
                     <td class="text-right">{{ $guia?->items->count() }}</td>
                     <td class="text-right">{{ number_format((float) $guia?->items->sum('weight'), 2) }} kg</td>
                     <td class="text-right">₡{{ number_format((float) $guia?->declared_value, 2) }}</td>
+                    {{-- Quien recibe en destino no entrega sin cobrar lo que diga
+                         POR COBRAR, y lo cobra por ese monto. --}}
+                    <td>
+                        @if (! $guia)
+                        @elseif ($guia->tieneCobroPendiente())
+                            <strong>POR COBRAR ₡{{ number_format((float) $guia->total, 2) }}</strong>
+                        @elseif ($guia->esperandoCaja())
+                            <strong>SIN COBRAR</strong>
+                        @elseif ($guia->esCredito())
+                            Crédito
+                        @else
+                            Pagado
+                        @endif
+                    </td>
                     <td>@if ($linea->incident === 'faltante'){{ $linea->received_at ? 'FALTANTE (apareció)' : 'FALTANTE' }}@else{{ $linea->received_at ? 'Sí' : '☐' }}@endif</td>
                 </tr>
             @endforeach
@@ -79,6 +94,10 @@
         @if ($aDomicilio) ({{ $aDomicilio }} a domicilio) @endif
         · {{ $dispatch->totalPaquetes() }} paquete(s) ·
         {{ $dispatch->pesoTotal() }} kg · valor declarado ₡{{ number_format($dispatch->valorDeclaradoTotal(), 2) }}
+        @php $porCobrar = $dispatch->lines->filter(fn ($l) => $l->invoice?->tieneCobroPendiente()); @endphp
+        @if ($porCobrar->isNotEmpty())
+            <br><strong>Por cobrar en destino: {{ $porCobrar->count() }} guía(s) · ₡{{ number_format((float) $porCobrar->sum(fn ($l) => $l->invoice->total), 2) }}</strong>
+        @endif
     </div>
 
     @if ($dispatch->notes)

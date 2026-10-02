@@ -8,7 +8,7 @@
     </div>
 
     @if ($showForm)
-        <div class="card">
+        <div wire:key="formulario-{{ $editingId ?? 'nuevo' }}" x-data x-init="mostrarFormulario($el)" class="card">
             <h2 class="text-lg font-semibold mb-4">{{ $editingId ? 'Editar impuesto' : 'Nuevo impuesto' }}</h2>
             <form wire:submit="save" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

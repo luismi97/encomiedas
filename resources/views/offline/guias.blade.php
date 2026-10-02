@@ -785,6 +785,20 @@
     // Se imprime en un iframe y no en una ventana nueva: sin conexión, un
     // bloqueador de ventanas emergentes dejaría al cliente sin papel.
     // Estilos en línea: este documento no tiene el CSS de la aplicación.
+    // Dónde seguir la encomienda con el número provisional. El cliente se va
+    // con este papel y no vuelve a saber nada hasta que se sincronice: el
+    // portal lo reconoce y, en cuanto la guía sube, le muestra la definitiva.
+    // Un snapshot viejo no trae la dirección: se omite en vez de inventarla.
+    function rastreo(ref) {
+        var e = function (t) { var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; };
+        var url = snap.empresa && snap.empresa.rastreo ? snap.empresa.rastreo.replace('__REF__', encodeURIComponent(ref)) : null;
+        return '<div class="r"></div>'
+            + '<div class="c" style="margin-top:2mm">Consérvelo. Con este número puede seguir su encomienda'
+            + (url ? ' en:</div><div class="c" style="font-size:10px;word-break:break-all;margin-top:1mm"><b>' + e(url) + '</b></div>'
+                   : '.</div>')
+            + '<div class="c" style="font-size:9px;margin-top:1mm">Aparece en cuanto la sucursal recupere internet.</div>';
+    }
+
     function imprimirProvisional(g, c, cli) {
         var p = snap.papel || { ancho: 80, matriz: false, ancho_util: 80 };
         var e = function (t) { var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; };
@@ -822,7 +836,7 @@
             + fila('Impuesto', colones(c.impuesto))
             + '<tr class="g"><td>TOTAL</td><td style="text-align:right">' + e(colones(c.total)) + '</td></tr></table>'
             + '<div class="box">' + e(estado) + (cli ? '<br>' + e(cli.name) : '') + '</div>'
-            + '<div class="c" style="margin-top:3mm">Consérvelo: con este número se ubica su encomienda.</div>'
+            + rastreo(g.offline_reference)
             + '</body></html>';
 
         var iframe = document.createElement('iframe');

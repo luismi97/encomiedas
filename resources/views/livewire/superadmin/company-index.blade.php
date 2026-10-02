@@ -37,7 +37,7 @@
     </div>
 
     @if ($showForm)
-        <div class="card" data-test="formulario-empresa">
+        <div wire:key="formulario-{{ $editingId ?? 'nuevo' }}" x-data x-init="mostrarFormulario($el)" class="card" data-test="formulario-empresa">
             <h2 class="text-lg font-semibold mb-1">{{ $editingId ? 'Editar empresa' : 'Nueva empresa' }}</h2>
             @unless ($editingId)
                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">

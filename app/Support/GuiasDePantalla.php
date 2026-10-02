@@ -59,7 +59,7 @@ class GuiasDePantalla
                     ['titulo' => 'El recorrido', 'texto' => 'La bitácora de abajo dice quién movió la guía, cuándo y desde qué sede. No se edita ni se borra: es lo que sostiene el rastreo.'],
                     ['titulo' => 'Cambiar el estado', 'texto' => 'Solo se ofrecen los pasos válidos desde el estado actual. Todos piden confirmación y ninguno se deshace.'],
                     ['titulo' => 'Entregar', 'texto' => 'Pide el nombre de quien retira y la firma. Por eso no se puede entregar desde el listado: hace falta ese dato.'],
-                    ['titulo' => 'Anular', 'texto' => 'Exige un motivo y solo se puede antes de que la guía salga. Una encomienda que ya viaja se devuelve, que es otra cosa.'],
+                    ['titulo' => 'Anular', 'texto' => 'Solo lo hace el administrador. Exige un motivo y solo se puede antes de que la guía salga. Una encomienda que ya viaja se devuelve, que es otra cosa.'],
                 ],
             ],
 

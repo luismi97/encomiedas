@@ -46,6 +46,21 @@ class UserIndex extends Component
         ];
     }
 
+    /**
+     * Pasar a cajero arranca cobrando.
+     *
+     * La casilla conservaba lo que traía el usuario, así que al editar a alguien y
+     * cambiarle el rol a cajero podía quedar desmarcada sin que nadie la tocara, y
+     * esa persona no podía abrir caja. Quien no cobra es la excepción: se desmarca
+     * a propósito.
+     */
+    public function updatedRole(string $rol): void
+    {
+        if ($rol === User::ROLE_CAJERO) {
+            $this->can_collect = true;
+        }
+    }
+
     public function create(): void
     {
         $this->resetForm();

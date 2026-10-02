@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Branch;
-use App\Support\CompanyContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -17,9 +16,10 @@ use RuntimeException;
  * con un COUNT sobre invoices parece más simple hasta que dos sedes emiten en
  * el mismo segundo y las dos leen el mismo número.
  *
- * Y es por empresa: dos empresas distintas usan «SJ» para su sede de San José,
- * y sin separarlas la guía número 1 de la segunda empresa saldría numerada
- * donde quedó la primera —o chocaría contra el índice único—.
+ * Y es GLOBAL, compartido por todas las empresas (guide_code_sequences): un
+ * código guía identifica una sola encomienda en todo el sistema. Fue por
+ * empresa hasta octubre de 2026; dos empresas con una sede «SJ» emitían las dos
+ * SJ-LIM-00005. Cada empresa ve ahora saltos en su numeración, y es a propósito.
  */
 class GuideCodeGenerator
 {
@@ -33,7 +33,6 @@ class GuideCodeGenerator
         return $this->reservarConsecutivo(
             $prefijoOrigen,
             $prefijoDestino,
-            $origen->company_id,
             fn (int $numero) => $prefijoOrigen . '-' . $prefijoDestino . '-' . str_pad((string) $numero, $ancho, '0', STR_PAD_LEFT),
         );
     }
@@ -53,19 +52,15 @@ class GuideCodeGenerator
 
     /**
      * Reserva el siguiente código libre de la ruta. La fila se bloquea para que
-     * dos transacciones simultáneas no lean el mismo valor.
+     * dos transacciones simultáneas —de esta empresa o de otra— no lean el mismo
+     * valor.
      *
      * @param callable(int):string $formato
      */
-    private function reservarConsecutivo(string $origen, string $destino, ?int $companyId, callable $formato): string
+    private function reservarConsecutivo(string $origen, string $destino, callable $formato): string
     {
-        // La sede manda sobre el contexto: el consecutivo tiene que ser el de la
-        // empresa dueña de la guía aunque quien la cree sea un proceso de fondo.
-        $companyId ??= CompanyContext::id();
-
-        return DB::transaction(function () use ($origen, $destino, $companyId, $formato) {
-            $fila = DB::table('guide_sequences')
-                ->where('company_id', $companyId)
+        return DB::transaction(function () use ($origen, $destino, $formato) {
+            $fila = DB::table('guide_code_sequences')
                 ->where('origin_prefix', $origen)
                 ->where('destination_prefix', $destino)
                 ->lockForUpdate()
@@ -75,8 +70,7 @@ class GuideCodeGenerator
                 // insertOrIgnore y no insert: si otra transacción creó la fila
                 // entre el select y esto, el índice único la rechaza en vez de
                 // reventar, y se relee.
-                DB::table('guide_sequences')->insertOrIgnore([
-                    'company_id'         => $companyId,
+                DB::table('guide_code_sequences')->insertOrIgnore([
                     'origin_prefix'      => $origen,
                     'destination_prefix' => $destino,
                     'last_number'        => 0,
@@ -84,8 +78,7 @@ class GuideCodeGenerator
                     'updated_at'         => now(),
                 ]);
 
-                $fila = DB::table('guide_sequences')
-                    ->where('company_id', $companyId)
+                $fila = DB::table('guide_code_sequences')
                     ->where('origin_prefix', $origen)
                     ->where('destination_prefix', $destino)
                     ->lockForUpdate()
@@ -94,27 +87,24 @@ class GuideCodeGenerator
 
             $siguiente = (int) $fila->last_number + 1;
 
-            // Si el contador quedó detrás de las guías que ya existen, el código
-            // que toca ya está usado y el índice único tumba la creación: el
-            // mostrador se queda sin poder recibir encomiendas en esa ruta. Se
-            // salta al siguiente libre y el contador queda al día. Es una
-            // consulta por índice y, con el contador sano, una sola.
+            // Si el contador quedó detrás de las guías que ya existen —en
+            // cualquier empresa—, el código que toca ya está usado. Se salta al
+            // siguiente libre y el contador queda al día. DB::table y no el
+            // modelo: el ámbito por empresa escondería justamente las guías
+            // ajenas con las que no se puede chocar.
             $saltados = 0;
 
-            while (DB::table('invoices')
-                ->where('company_id', $companyId)
-                ->where('code', $formato($siguiente))
-                ->exists()) {
+            while (DB::table('invoices')->where('code', $formato($siguiente))->exists()) {
                 $siguiente++;
                 $saltados++;
             }
 
             if ($saltados > 0) {
-                Log::warning("Contador de guías atrasado en la ruta {$origen}-{$destino} (empresa {$companyId}): "
+                Log::warning("Contador de guías atrasado en la ruta {$origen}-{$destino}: "
                     . "se saltaron {$saltados} códigos ya usados y se siguió en el {$siguiente}.");
             }
 
-            DB::table('guide_sequences')
+            DB::table('guide_code_sequences')
                 ->where('id', $fila->id)
                 ->update(['last_number' => $siguiente, 'updated_at' => now()]);
 

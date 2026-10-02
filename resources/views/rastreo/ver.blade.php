@@ -2,6 +2,12 @@
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div class="p-6 border-b border-gray-200 dark:border-gray-700">
             <div class="font-mono text-sm text-gray-500 dark:text-gray-400">{{ $guia->code }}</div>
+            @if ($referencia ?? null)
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300" data-test="rastreo-referencia">
+                    Su comprobante provisional <span class="font-mono">{{ $referencia }}</span> ya tiene código de guía:
+                    <strong class="font-mono">{{ $guia->code }}</strong>. Puede seguir consultando con cualquiera de los dos.
+                </p>
+            @endif
             <div class="flex flex-wrap items-center gap-3 mt-1">
                 <h1 class="text-2xl font-semibold">{{ $guia->statusLabel() }}</h1>
                 <span class="badge {{ \App\Models\Invoice::STATUS_BADGE_CLASSES[$guia->status] ?? '' }}">

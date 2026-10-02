@@ -22,6 +22,9 @@ use RuntimeException;
  */
 class GuideStatusService
 {
+    public const SOLO_ADMIN_ANULA = 'Solo un administrador puede anular guías. '
+        . 'Si hay que anularla, avisale con el motivo y él la anula.';
+
     /**
      * @param  string  $source  manual | scan | system
      *
@@ -37,6 +40,12 @@ class GuideStatusService
     ): Invoice {
         if ($guia->status === $nuevoEstado) {
             return $guia;
+        }
+
+        // Aquí y no solo en anular(): cualquier camino que llegue a «Anulado»
+        // pasa por este método, y la regla no puede depender de cuál se usó.
+        if ($nuevoEstado === Invoice::STATUS_CANCELLED && $usuario && ! $usuario->puedeAnular()) {
+            throw new RuntimeException(self::SOLO_ADMIN_ANULA);
         }
 
         if (! $guia->puedePasarA($nuevoEstado)) {
@@ -76,6 +85,10 @@ class GuideStatusService
      */
     public function anular(Invoice $guia, User $usuario, string $motivo): Invoice
     {
+        if (! $usuario->puedeAnular()) {
+            throw new RuntimeException(self::SOLO_ADMIN_ANULA);
+        }
+
         if (trim($motivo) === '') {
             throw new RuntimeException('Toda anulación necesita un motivo.');
         }

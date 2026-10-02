@@ -50,6 +50,37 @@ class RastreoController extends Controller
             fn () => $this->guiasConEseCodigo($code, $slug)
         );
 
+        // No es un código guía: puede ser el número del comprobante provisional
+        // que se llevó un cliente atendido sin conexión. Se busca la guía
+        // definitiva en que se convirtió al volver el internet.
+        $referencia = $coincidencias->isEmpty() ? Invoice::referenciaProvisional($code) : null;
+
+        if ($referencia) {
+            $coincidencias = CompanyContext::sinAlcance(
+                fn () => $this->guiasConEseCodigo($referencia, $slug, 'offline_reference')
+            );
+
+            if ($coincidencias->isEmpty()) {
+                return view('rastreo.buscar', [
+                    'codigo' => $code,
+                    'error'  => "«{$referencia}» es un comprobante provisional: la encomienda se recibió "
+                        . 'mientras la sucursal estaba sin internet. Todavía no aparece porque la sucursal '
+                        . 'no ha recuperado la conexión. Volvé a consultar en unas horas con este mismo número.',
+                ]);
+            }
+
+            // Las referencias de la primera época eran un consecutivo por
+            // equipo y se pueden repetir dentro de una misma empresa. Mostrar
+            // una cualquiera sería mostrar el paquete de otro.
+            if ($coincidencias->pluck('company_id')->unique()->count() < $coincidencias->count()) {
+                return view('rastreo.buscar', [
+                    'codigo' => $code,
+                    'error'  => "Hay más de una encomienda con el número provisional «{$referencia}». "
+                        . 'Consultá con el código de guía (lo tiene la sucursal) o llamá a la sucursal.',
+                ]);
+            }
+        }
+
         if ($coincidencias->isEmpty()) {
             return view('rastreo.buscar', [
                 'codigo' => $code,
@@ -74,6 +105,9 @@ class RastreoController extends Controller
 
         return view('rastreo.ver', [
             'guia'       => $guia,
+            // Se llegó con el número provisional: se le explica al cliente que
+            // su encomienda ya tiene código guía definitivo.
+            'referencia' => $referencia,
             'empresa'    => $guia->company,
             'recorrido'  => $guia->statusHistories,
             // Nombre parcial: confirma al destinatario sin exponerlo.
@@ -89,8 +123,8 @@ class RastreoController extends Controller
     }
 
     /**
-     * Las guías con ese código: una si la empresa viene en la URL, todas las
-     * que coincidan si no.
+     * Las guías con ese código —o con esa referencia provisional, según la
+     * columna—: una si la empresa viene en la URL, todas las que coincidan si no.
      *
      * El límite no es cosmético: sin él, un código repetido en cincuenta
      * empresas cargaría cincuenta guías con sus relaciones para una pantalla
@@ -98,7 +132,7 @@ class RastreoController extends Controller
      *
      * @return Collection<int,Invoice>
      */
-    private function guiasConEseCodigo(string $code, ?string $slug): Collection
+    private function guiasConEseCodigo(string $code, ?string $slug, string $columna = 'code'): Collection
     {
         $empresa = $slug ? Company::where('slug', $slug)->first() : null;
 
@@ -113,7 +147,7 @@ class RastreoController extends Controller
                 'deliveryBranch:id,name,prefix',
                 'statusHistories.branch:id,name',
             ])
-            ->where('code', $code)
+            ->where($columna, $code)
             ->when($empresa, fn ($q) => $q->where('company_id', $empresa->id))
             ->limit(10)
             ->get();

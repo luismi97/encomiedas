@@ -16,7 +16,7 @@
  * pantalla offline: /js/* se sirve CACHE-FIRST y un equipo que solo abre la
  * pantalla sin conexión se quedaría con la versión vieja.
  */
-const CACHE = 'enc-guias-offline-v1';
+const CACHE = 'enc-guias-offline-v2';
 const PAGE = '/guias-offline';
 const PRECACHE = ['/js/guias-offline.js'];
 

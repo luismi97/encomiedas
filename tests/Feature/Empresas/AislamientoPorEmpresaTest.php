@@ -133,46 +133,50 @@ class AislamientoPorEmpresaTest extends TestCase
     }
 
     /**
-     * Cada empresa numera sus guías desde uno.
+     * Un código guía identifica una sola encomienda en todo el sistema.
      *
-     * El consecutivo va impreso en la etiqueta y el cliente lo lee: que la
-     * primera guía de un transportista salga con el número 48 porque otro ya
-     * emitió 47 sería, como mínimo, una conversación incómoda.
+     * Fue por empresa: dos transportistas con una sede «SJ» emitían los dos
+     * SJ-SJ-00001 y el rastreo público tenía que preguntar de cuál era. Ahora el
+     * consecutivo lo comparten todas las empresas; cada una ve saltos en su
+     * numeración, y es a propósito.
      */
-    public function test_el_consecutivo_de_guias_arranca_de_cero_en_cada_empresa(): void
+    public function test_dos_empresas_no_emiten_el_mismo_codigo(): void
     {
         $generador = app(GuideCodeGenerator::class);
 
         $sedeMia = $this->sede('Mi sede', 'SJ');
         $primeraMia = $generador->generar($sedeMia, $sedeMia);
-        $segundaMia = $generador->generar($sedeMia, $sedeMia);
 
         $primeraAjena = CompanyContext::para($this->otra, function () use ($generador) {
-            // Mismo prefijo a propósito: es el choque que tiene que estar permitido.
+            // Mismo prefijo a propósito: es el caso en que antes chocaban.
             $sede = $this->sede('Sede ajena', 'SJ');
 
             return $generador->generar($sede, $sede);
         });
 
+        $segundaMia = $generador->generar($sedeMia, $sedeMia);
+
         $this->assertSame('SJ-SJ-00001', $primeraMia);
-        $this->assertSame('SJ-SJ-00002', $segundaMia);
-        $this->assertSame('SJ-SJ-00001', $primeraAjena, 'La segunda empresa heredó el consecutivo de la primera.');
+        $this->assertSame('SJ-SJ-00002', $primeraAjena, 'La segunda empresa repitió el código de la primera.');
+        $this->assertSame('SJ-SJ-00003', $segundaMia);
     }
 
-    /** El mismo código de guía puede existir en las dos. */
-    public function test_dos_empresas_pueden_tener_la_misma_guia(): void
+    /**
+     * Una guía de otra empresa con el código que tocaba —emitida antes de que el
+     * consecutivo fuera global— se salta, aunque el ámbito por empresa no la
+     * deje ver.
+     */
+    public function test_se_salta_un_codigo_que_ya_uso_otra_empresa(): void
     {
-        $mia = $this->admin('mio@t.test');
-        $sedeMia = $this->sede('Mi sede', 'SJ');
-        $this->guia('SJ-SJ-00001', $sedeMia, $sedeMia, $mia);
-
         CompanyContext::para($this->otra, function () {
             $admin = $this->admin('ajeno@t.test');
             $sede = $this->sede('Sede ajena', 'SJ');
             $this->guia('SJ-SJ-00001', $sede, $sede, $admin);
         });
 
-        $this->assertSame(2, Invoice::withoutGlobalScopes()->where('code', 'SJ-SJ-00001')->count());
+        $sedeMia = $this->sede('Mi sede', 'SJ');
+
+        $this->assertSame('SJ-SJ-00002', app(GuideCodeGenerator::class)->generar($sedeMia, $sedeMia));
     }
 
     /**

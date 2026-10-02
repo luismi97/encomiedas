@@ -22,7 +22,7 @@
     </div>
 
     @if ($showForm)
-        <div class="card">
+        <div wire:key="formulario-{{ $editingId ?? 'nuevo' }}" x-data x-init="mostrarFormulario($el)" class="card">
             <h2 class="text-lg font-semibold mb-4">Nuevo cierre de envío</h2>
             <form wire:submit="save" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 @if ($rutas->isNotEmpty())
@@ -139,6 +139,7 @@
                             <th class="py-2">Guía</th>
                             <th class="py-2">Destinatario</th>
                             <th class="py-2">Paquetes</th>
+                            <th class="py-2">Cobro</th>
                             <th class="py-2">Estado</th>
                             <th class="py-2 text-right">Acciones</th>
                         </tr>
@@ -156,6 +157,7 @@
                                     <x-domicilio :guia="$linea->invoice" class="mt-1" />
                                 </td>
                                 <td class="py-3 text-sm">{{ $linea->invoice?->items->count() }}</td>
+                                <td class="py-3"><x-cobro :guia="$linea->invoice" /></td>
                                 <td class="py-3">
                                     @if ($linea->incident === 'faltante' && $linea->received_at)
                                         {{-- Apareció después: la guía ya está en destino, pero el
@@ -183,7 +185,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="py-6 text-center text-gray-500">Este cierre todavía no tiene guías.</td></tr>
+                            <tr><td colspan="6" class="py-6 text-center text-gray-500">Este cierre todavía no tiene guías.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -208,11 +210,12 @@
                             </div>
                             {{-- Se lista igual para que se sepa por qué no sale: el
                                  paquete está en bodega, pero falta que paguen. --}}
-                            @if ($guia->esperandoCaja())
-                                <span class="badge bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Sin cobrar en caja</span>
-                            @else
-                                <x-action-button action="agregar({{ $guia->id }})" variant="link">Agregar</x-action-button>
-                            @endif
+                            <div class="flex items-center gap-3 shrink-0">
+                                <x-cobro :guia="$guia" />
+                                @unless ($guia->esperandoCaja())
+                                    <x-action-button action="agregar({{ $guia->id }})" variant="link">Agregar</x-action-button>
+                                @endunless
+                            </div>
                         </div>
                     @empty
                         <p class="text-sm text-gray-500">No hay guías pendientes para esta ruta.</p>

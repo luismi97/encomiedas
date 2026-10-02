@@ -247,5 +247,19 @@
     <x-barcode-scanner />
 
     @livewireScripts
+
+    {{-- Llevar a la vista el formulario de alta/edición recién abierto.
+         El formulario se dibuja arriba del listado; quien toca «Editar» en una
+         fila de abajo no lo ve aparecer y cree que el botón no hizo nada. Cada
+         formulario lo llama desde su x-init (ver las vistas *-index). --}}
+    <script>
+        window.mostrarFormulario = function (el) {
+            // El encabezado es fijo: sin margen, el título quedaría debajo.
+            el.style.scrollMarginTop = '5rem';
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            el.querySelector('input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea')
+                ?.focus({ preventScroll: true });
+        };
+    </script>
 </body>
 </html>

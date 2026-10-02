@@ -18,7 +18,6 @@
  *   enc_offline_cola          guías por subir
  *   enc_offline_fallidas      rechazadas para siempre (se ven y se descartan a mano)
  *   enc_offline_listas        sincronizadas cuya etiqueta todavía no se imprimió
- *   enc_offline_seq           consecutivo LOCAL del comprobante provisional
  */
 (function (global) {
     'use strict';
@@ -29,7 +28,6 @@
         cola: 'enc_offline_cola',
         fallidas: 'enc_offline_fallidas',
         listas: 'enc_offline_listas',
-        seq: 'enc_offline_seq',
     };
 
     var URL_DATA = '/guias-offline/data';
@@ -94,11 +92,37 @@
                 .catch(function () { return false; });
         },
 
-        /** Número del comprobante provisional: OFF-<prefijo>-<n>. */
+        /**
+         * Número del comprobante provisional: P-<prefijo>-<8 al azar>.
+         *
+         * Con él rastrea el cliente que ya se fue del mostrador, así que tiene
+         * que ser único en la empresa. Antes era un consecutivo guardado en
+         * este navegador (OFF-SJ-7) y se repetía entre dos equipos de la misma
+         * sede o al borrar los datos del navegador.
+         *
+         * 8 y no 6: con 30^6 la chance de que dos coincidan llega a ~7 % a las
+         * 10.000 guías sin conexión; con 30^8, a ~0,008 %. Si llegaran a
+         * coincidir, el portal pregunta en vez de mostrar una.
+         *
+         * Sin 0/O, 1/I/L ni U: se dicta por teléfono y se lee en papel térmico.
+         */
         siguienteReferencia: function (prefijo) {
-            var n = parseInt(localStorage.getItem(K.seq) || '0', 10) + 1;
-            localStorage.setItem(K.seq, String(n));
-            return 'OFF-' + (prefijo || 'X') + '-' + n;
+            var letras = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+            var cola = '';
+            while (cola.length < 8) {
+                var azar = new Uint8Array(16);
+                if (global.crypto && crypto.getRandomValues) {
+                    crypto.getRandomValues(azar);
+                } else {
+                    for (var i = 0; i < azar.length; i++) azar[i] = Math.floor(Math.random() * 256);
+                }
+                for (var j = 0; j < azar.length && cola.length < 8; j++) {
+                    // 240 = 8 × 30: lo que pasa de ahí se descarta para que
+                    // ninguna letra salga más que otra.
+                    if (azar[j] < 240) cola += letras[azar[j] % letras.length];
+                }
+            }
+            return 'P-' + (prefijo || 'X') + '-' + cola;
         },
 
         /** Encola una guía. Relee antes de escribir: puede haber otra pestaña. */

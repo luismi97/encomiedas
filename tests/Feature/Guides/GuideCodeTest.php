@@ -83,12 +83,12 @@ class GuideCodeTest extends TestCase
         $this->assertSame('SJ-LIM-00001', $this->guia($this->sj, $this->lim)->fresh()->code);
         $this->assertSame('SJ-LIM-00002', $this->guia($this->sj, $this->lim)->fresh()->code);
 
-        DB::table('guide_sequences')->update(['last_number' => 0]);
+        DB::table('guide_code_sequences')->update(['last_number' => 0]);
 
         $this->assertSame('SJ-LIM-00003', $this->guia($this->sj, $this->lim)->fresh()->code);
 
         // Y el contador queda al día: la siguiente no vuelve a recorrer.
-        $this->assertSame(3, (int) DB::table('guide_sequences')->value('last_number'));
+        $this->assertSame(3, (int) DB::table('guide_code_sequences')->value('last_number'));
         $this->assertSame('SJ-LIM-00004', $this->generador()->generar($this->sj, $this->lim));
     }
 
@@ -163,7 +163,7 @@ class GuideCodeTest extends TestCase
 
         $this->assertCount(25, array_unique($codigos));
         $this->assertSame('SJ-LIM-00025', end($codigos));
-        $this->assertSame(25, (int) DB::table('guide_sequences')
+        $this->assertSame(25, (int) DB::table('guide_code_sequences')
             ->where('origin_prefix', 'SJ')->where('destination_prefix', 'LIM')->value('last_number'));
     }
 
@@ -182,5 +182,27 @@ class GuideCodeTest extends TestCase
             url('/rastreo/' . $this->empresa->slug . '/SJ-LIM-00001'),
             $guia->trackingUrl()
         );
+    }
+
+    /**
+     * Al pasar al consecutivo global, cada ruta arranca donde iba la empresa más
+     * adelantada: volver a emitir un número que ya está impreso en un paquete de
+     * otra empresa es justo lo que el cambio quiere evitar.
+     */
+    public function test_el_consecutivo_global_arranca_donde_iba_la_empresa_mas_adelantada(): void
+    {
+        $otra = \App\Models\Company::create(['name' => 'Otra', 'slug' => 'otra', 'is_active' => true]);
+
+        DB::table('guide_sequences')->insert([
+            ['company_id' => $this->empresa->id, 'origin_prefix' => 'SJ', 'destination_prefix' => 'LIM', 'last_number' => 12],
+            ['company_id' => $otra->id, 'origin_prefix' => 'SJ', 'destination_prefix' => 'LIM', 'last_number' => 47],
+            ['company_id' => $otra->id, 'origin_prefix' => 'LIM', 'destination_prefix' => 'SJ', 'last_number' => 3],
+        ]);
+        DB::table('guide_code_sequences')->delete();
+
+        (require database_path('migrations/2026_10_01_000004_consecutivo_global_de_guias.php'))->up();
+
+        $this->assertSame('SJ-LIM-00048', $this->generador()->generar($this->sj, $this->lim));
+        $this->assertSame('LIM-SJ-00004', $this->generador()->generar($this->lim, $this->sj));
     }
 }

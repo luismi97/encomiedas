@@ -30,6 +30,11 @@
         <div class="etiqueta">Código de guía</div>
         <div class="grande">{{ $guia->code }}</div>
         <div>{{ $guia->created_at->format('d/m/Y H:i') }}</div>
+        @if ($guia->offline_reference)
+            {{-- El cliente atendido sin conexión se fue con ese número: así
+                 se relaciona el papel provisional con esta guía. --}}
+            <div class="nota">Comprobante provisional: {{ $guia->offline_reference }}</div>
+        @endif
     </div>
 
     <div class="centro qr" style="margin: 2mm 0;">

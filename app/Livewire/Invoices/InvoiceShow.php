@@ -107,6 +107,12 @@ class InvoiceShow extends Component
 
     public function openCancelForm(): void
     {
+        if (! auth()->user()->puedeAnular()) {
+            session()->flash('error', GuideStatusService::SOLO_ADMIN_ANULA);
+
+            return;
+        }
+
         $this->cancelReason = '';
         $this->showCancelForm = true;
     }

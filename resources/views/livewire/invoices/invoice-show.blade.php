@@ -6,6 +6,12 @@
             <div>
                 <div class="text-2xl font-bold" data-test="codigo-guia">{{ $invoice->code }}</div>
                 <div class="text-gray-500 dark:text-gray-400">Creada: {{ $invoice->created_at->format('d/m/Y H:i') }}</div>
+                @if ($invoice->offline_reference)
+                    <div class="text-gray-500 dark:text-gray-400" data-test="referencia-provisional">
+                        Recibida sin conexión · comprobante provisional
+                        <span class="font-mono text-gray-700 dark:text-gray-200">{{ $invoice->offline_reference }}</span>
+                    </div>
+                @endif
                 @if ($invoice->delivered_at)
                     <div class="text-gray-500 dark:text-gray-400">Entregada: {{ $invoice->delivered_at->format('d/m/Y H:i') }}</div>
                 @endif
@@ -22,7 +28,7 @@
         <div class="mt-4 flex flex-wrap gap-3">
             {{-- Los botones salen del propio ciclo de estados: la pantalla ya no
                  decide qué se puede hacer, lo decide el modelo. --}}
-            @foreach ($invoice->siguientesEstados() as $estado => $etiqueta)
+            @foreach ($invoice->siguientesEstados(auth()->user()) as $estado => $etiqueta)
                 @php
                     $variante = match ($estado) {
                         \App\Models\Invoice::STATUS_DELIVERED => 'success',

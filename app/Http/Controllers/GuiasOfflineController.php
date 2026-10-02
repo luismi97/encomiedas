@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\CajaService;
 use App\Services\CreditoService;
 use App\Services\RegistroDeGuia;
+use App\Support\CompanyContext;
 use App\Support\ModoOffline;
 use Carbon\Carbon;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -101,6 +102,12 @@ class GuiasOfflineController extends Controller
                 'nombre'   => $empresa->commercial_name ?: $empresa->name,
                 'cedula'   => $empresa->identification_number,
                 'telefono' => $empresa->phone,
+                // Para imprimir en el comprobante provisional dónde seguir la
+                // encomienda. «__REF__» se reemplaza por el número provisional.
+                'rastreo'  => ($slug = CompanyContext::actual()?->slug)
+                    ? route('rastreo.empresa', ['empresa' => $slug, 'code' => '__REF__'])
+                    : route('rastreo.ver', ['code' => '__REF__']),
+                'rastreo_corto' => route('rastreo.buscar'),
             ],
 
             'papel' => $this->papel($usuario, $caja),

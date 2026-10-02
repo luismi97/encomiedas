@@ -81,10 +81,11 @@ test.describe('Operación de una empresa nueva', () => {
     await expect(page.locator('body')).not.toContainText('3500');
   });
 
-  test('el consecutivo de cada empresa arranca en uno', async ({ page }) => {
+  test('dos empresas no emiten el mismo código de guía', async ({ page }) => {
     await entrarComoSuperadmin(page);
     const primera = await crearEmpresa(page, { prefijo: 'SJO' });
     const segunda = await crearEmpresa(page, { prefijo: 'SJO' });
+    const codigos = [];
 
     for (const empresa of [primera, segunda]) {
       await salir(page);
@@ -98,11 +99,16 @@ test.describe('Operación de una empresa nueva', () => {
         precio: 1000,
       });
 
-      // Mismos prefijos en las dos empresas, y las dos numeran desde uno: que
-      // la guía de un cliente salga con el número 48 porque otro ya emitió 47
-      // sería, como mínimo, una conversación incómoda.
-      await expect(page.locator('body')).toContainText('SJO-LIM-00001');
+      await expect(page).toHaveURL(/\/invoices\/\d+/);
+      codigos.push((await page.locator('[data-test="codigo-guia"]').innerText()).trim());
     }
+
+    // Mismos prefijos en las dos empresas, y aun así códigos distintos: el
+    // consecutivo es uno solo para todo el sistema, así que un código guía
+    // identifica una sola encomienda (y el rastreo no tiene que preguntar).
+    expect(codigos[0]).toMatch(/^SJO-LIM-\d{5}$/);
+    expect(codigos[1]).toMatch(/^SJO-LIM-\d{5}$/);
+    expect(codigos[1]).not.toBe(codigos[0]);
   });
 
   test('el portal público no encuentra un código inventado', async ({ page }) => {

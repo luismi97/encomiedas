@@ -171,6 +171,16 @@ class User extends Authenticatable
         return $this->isAdmin() || $this->isCajero();
     }
 
+    /**
+     * Anula guías. Solo el administrador: anular borra un cobro de la
+     * operación y una guía anulada no vuelve. El cajero que se equivocó le
+     * pide al administrador que la anule, y queda a nombre de quien lo hizo.
+     */
+    public function puedeAnular(): bool
+    {
+        return $this->isAdmin();
+    }
+
     /** Configura el sistema: sedes, tarifas, impuestos, usuarios, Hacienda. */
     public function puedeConfigurar(): bool
     {

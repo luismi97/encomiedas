@@ -207,4 +207,62 @@ class AnulacionYEntregaTest extends TestCase
             ->assertSee('Evidencia de entrega')
             ->assertSee('Carlos Umaña');
     }
+
+    // ── Solo el administrador anula ───────────────────────────────────
+
+    private function cajero(): User
+    {
+        return User::create([
+            'name' => 'Yolanda Cajera', 'username' => 'yolanda', 'email' => 'yolanda@t.test',
+            'password' => bcrypt('x'), 'role' => User::ROLE_CAJERO, 'is_active' => true,
+            'branch_id' => $this->sj->id,
+        ]);
+    }
+
+    public function test_un_cajero_no_puede_anular(): void
+    {
+        $guia = $this->guia();
+
+        try {
+            $this->servicio()->anular($guia, $this->cajero(), 'Me equivoqué de destino');
+            $this->fail('Un cajero anuló una guía.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Solo un administrador', $e->getMessage());
+        }
+
+        $this->assertSame(Invoice::STATUS_PENDING, $guia->fresh()->status);
+        $this->assertNull($guia->fresh()->cancelled_at);
+    }
+
+    /** Por cualquier camino: el cambio de estado genérico tampoco lo deja. */
+    public function test_tampoco_por_el_cambio_de_estado_generico(): void
+    {
+        $this->expectExceptionMessage('Solo un administrador');
+
+        $this->servicio()->cambiar($this->guia(), Invoice::STATUS_CANCELLED, $this->cajero());
+    }
+
+    public function test_al_cajero_no_se_le_ofrece_el_boton(): void
+    {
+        $guia = $this->guia();
+
+        Livewire::actingAs($this->cajero())
+            ->test(InvoiceShow::class, ['invoice' => $guia])
+            ->assertSee('Listo para envío')
+            ->assertDontSeeHtml('wire:click="updateStatus(&#039;cancelled&#039;)"')
+            // Y si llama la acción a mano, no se abre el formulario.
+            ->call('updateStatus', Invoice::STATUS_CANCELLED)
+            ->assertSet('showCancelForm', false)
+            ->set('cancelReason', 'Forzado desde la consola')
+            ->call('anular');
+
+        $this->assertSame(Invoice::STATUS_PENDING, $guia->fresh()->status);
+    }
+
+    public function test_el_administrador_si_ve_el_boton(): void
+    {
+        Livewire::actingAs($this->usuario)
+            ->test(InvoiceShow::class, ['invoice' => $this->guia()])
+            ->assertSeeHtml('wire:click="updateStatus(&#039;cancelled&#039;)"');
+    }
 }

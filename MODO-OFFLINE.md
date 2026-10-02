@@ -12,10 +12,12 @@ piezas, mismo contrato de sincronización.
 Sin internet, el cajero sigue en el navegador y registra la guía completa:
 ruta, remitente, destinatario, bultos con el precio del tarifario, seguro,
 domicilio, descuento con clave, y cobro de contado, por cobrar o a crédito. Se
-imprime un **comprobante provisional** (`OFF-SJ-7`) y la guía queda en el
+imprime un **comprobante provisional** (`P-SJ-7K3M9QX2`) y la guía queda en el
 navegador. Al volver la red se sube sola y queda **idéntica a una hecha en
 línea**: mismo código guía, misma bitácora, mismo cobro en caja, mismo
-comprobante electrónico al entregarse.
+comprobante electrónico al entregarse. La guía definitiva queda **asociada al
+número provisional**, y el cliente sigue rastreando con él (ver «La guía
+provisional» más abajo).
 
 Lo que **no** hace sin conexión:
 
@@ -73,7 +75,6 @@ cortacircuito a los 4 rebotes por minuto.
 | `enc_offline_cola` | Guías por subir |
 | `enc_offline_fallidas` | Rechazadas para siempre; se ven en la pantalla y se reintentan o descartan a mano |
 | `enc_offline_listas` | Sincronizadas cuya etiqueta no se marcó como pegada |
-| `enc_offline_seq` | Consecutivo **local** del comprobante provisional |
 
 ## Contrato de `sync()`
 
@@ -107,6 +108,30 @@ agregar un rechazo nuevo: si un administrador lo puede arreglar, es `error`.
 6. **Al cambiar `public/js/guias-offline.js` o el HTML de la pantalla, subir
    la versión del cache en `public/sw-guias.js`.** Se sirven desde cache y un
    equipo que solo los abre sin red se queda con la versión vieja.
+
+## La guía provisional
+
+El cliente atendido sin conexión se va con un papel que no tiene código guía:
+el definitivo (`SJ-LIM-00005`) lo asigna el servidor al sincronizar, cuando el
+cliente ya no está. Por eso el número provisional es una **identidad que dura**:
+
+- **Formato `P-<sede>-<8 al azar>`** (`EncOffline.siguienteReferencia()`), sin
+  0/O, 1/I/L ni U. Es al azar y no un consecutivo porque lo generan equipos sin
+  conexión entre sí: un consecutivo por navegador (`OFF-SJ-7`, los primeros) se
+  repetía entre dos cajas de la misma sede o al borrar el navegador. Con 30^8 la
+  chance de coincidir es ~0,008 % a las 10.000 guías.
+- **Se guarda en la guía** (`invoices.offline_reference`, con índice por
+  empresa) y la bitácora lo menciona en su primera fila.
+- **El portal público lo acepta** donde va el código guía
+  (`RastreoController`, `Invoice::referenciaProvisional()`), escrito como lo
+  dicte el cliente: minúsculas o espacios valen. Encuentra la definitiva y le
+  explica que ya tiene código. Si todavía no se sincronizó, dice eso en vez de
+  «no encontramos». Si dos guías comparten el número (solo posible con los
+  viejos `OFF-…`), no muestra ninguna.
+- **El comprobante provisional imprime la dirección de rastreo** con el número
+  ya puesto (`empresa.rastreo` del snapshot, con `__REF__`).
+- **El mostrador la encuentra** buscando el número en el listado de guías, y lo
+  ve en el detalle, en el recibo y en la etiqueta definitivos.
 
 ## Caja, crédito y descuentos
 

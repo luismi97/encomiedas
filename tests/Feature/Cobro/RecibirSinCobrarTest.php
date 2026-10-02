@@ -253,6 +253,34 @@ class RecibirSinCobrarTest extends TestCase
         $this->assertFalse($this->cajera->fresh()->puedeCobrar());
     }
 
+    public function test_un_cajero_nuevo_viene_marcado_para_cobrar(): void
+    {
+        $admin = User::create(['name'=>'Admin','username'=>'admin','email'=>'adm@t.test','password'=>bcrypt('x'),
+            'role'=>User::ROLE_ADMIN,'is_active'=>true]);
+
+        Livewire::actingAs($admin)
+            ->test(UserIndex::class)
+            ->call('create')
+            ->set('role', User::ROLE_CAJERO)
+            ->assertSet('can_collect', true)
+            ->assertSeeHtml('data-test="puede-cobrar"');
+    }
+
+    /** Cambiarle el rol a cajero a alguien no hereda una casilla desmarcada. */
+    public function test_pasar_a_cajero_marca_la_casilla(): void
+    {
+        $admin = User::create(['name'=>'Admin','username'=>'admin','email'=>'adm@t.test','password'=>bcrypt('x'),
+            'role'=>User::ROLE_ADMIN,'is_active'=>true]);
+
+        Livewire::actingAs($admin)
+            ->test(UserIndex::class)
+            ->call('edit', $this->cajera->id)
+            ->set('can_collect', false)
+            ->set('role', User::ROLE_REPARTIDOR)
+            ->set('role', User::ROLE_CAJERO)
+            ->assertSet('can_collect', true);
+    }
+
     /** El administrador siempre cobra, aunque la casilla quede desmarcada. */
     public function test_el_administrador_siempre_cobra(): void
     {

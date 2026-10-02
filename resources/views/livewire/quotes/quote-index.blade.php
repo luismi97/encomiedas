@@ -24,7 +24,7 @@
     </div>
 
     @if ($showForm)
-        <div class="card space-y-5">
+        <div wire:key="formulario-{{ $editingId ?? 'nuevo' }}" x-data x-init="mostrarFormulario($el)" class="card space-y-5">
             <h2 class="text-lg font-semibold">{{ $editingId ? 'Editar cotización' : 'Nueva cotización' }}</h2>
 
             <form wire:submit="save" class="space-y-5">

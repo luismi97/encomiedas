@@ -3,6 +3,7 @@
         <h1 class="text-xl font-semibold mb-1">Consultar una encomienda</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
             Digite el código de guía que aparece en su recibo, por ejemplo <span class="font-mono">SJ-LIM-00005</span>.
+            Si le dieron un comprobante provisional, sirve también ese número (empieza con <span class="font-mono">P-</span>).
         </p>
 
         @if ($error)
