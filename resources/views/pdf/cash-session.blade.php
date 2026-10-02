@@ -26,6 +26,17 @@
 </style>
 </head>
 <body>
+    @php
+        $variosDias = $sesion->opened_at && ! $sesion->opened_at->isSameDay($sesion->closed_at ?? now());
+        $efectivo = $sesion->movements->where('payment_method', 'cash');
+        $desglose = [
+            'cobros'   => (float) $efectivo->where('type', 'sale')->sum('amount'),
+            'entradas' => (float) $efectivo->where('type', 'in')->sum('amount'),
+            'salidas'  => (float) $efectivo->where('type', 'out')->sum('amount'),
+        ];
+        $calculado = round((float) $sesion->opening_float + $desglose['cobros'] + $desglose['entradas'] - $desglose['salidas'], 2);
+        $abierto = $sesion->closed_at === null;
+    @endphp
     <div class="header">
         <h1>Cierre de caja · turno #{{ $sesion->id }}</h1>
         <div class="muted">{{ $company->commercial_name ?: $company->name }} · {{ $sesion->register?->name }} — {{ $sesion->branch?->name }}</div>
@@ -53,18 +64,28 @@
             @empty
                 <tr><td colspan="3">Sin cobros en el turno.</td></tr>
             @endforelse
+            @if ($porMedio->count() > 1)
+                <tr>
+                    <td><strong>Total cobrado</strong></td>
+                    <td class="text-right"><strong>{{ $porMedio->sum('cantidad') }}</strong></td>
+                    <td class="text-right"><strong>₡{{ number_format((float) $porMedio->sum('total'), 2) }}</strong></td>
+                </tr>
+            @endif
         </tbody>
     </table>
+    <div style="font-size:9px;color:#4b5563;margin-top:3px;">Solo el efectivo entra a la gaveta: tarjeta, SINPE y transferencia no se cuentan en el arqueo.</div>
 
     <h2>Movimientos del turno</h2>
     <table class="data">
         <thead>
-            <tr><th>Hora</th><th>Tipo</th><th>Referencia</th><th>Medio</th><th class="text-right">Monto</th></tr>
+            <tr><th>{{ $variosDias ? 'Fecha' : 'Hora' }}</th><th>Tipo</th><th>Referencia</th><th>Medio</th><th class="text-right">Monto</th></tr>
         </thead>
         <tbody>
             @forelse ($sesion->movements as $m)
                 <tr>
-                    <td>{{ $m->happened_at?->format('H:i') }}</td>
+                    {{-- Un turno que dura varios días con solo la hora parece
+                         desordenado: 09:04 viene después de 22:25 porque es otro día. --}}
+                    <td>{{ $m->happened_at?->format($variosDias ? 'd/m H:i' : 'H:i') }}</td>
                     <td>{{ $m->typeLabel() }}</td>
                     <td>{{ $m->reference ?: $m->reason }}</td>
                     <td>{{ $m->paymentMethodLabel() }}</td>
@@ -94,16 +115,42 @@
         </table>
     @endif
 
+    {{-- De dónde sale el esperado, para poder rehacer la cuenta a mano. --}}
     <table class="resumen">
-        <tr><td>Efectivo esperado</td><td>₡{{ number_format((float) $sesion->expected_cash, 2) }}</td></tr>
-        <tr><td>Efectivo contado</td><td>₡{{ number_format((float) $sesion->counted_cash, 2) }}</td></tr>
-        <tr class="total">
-            <td>{{ (float) $sesion->discrepancy < 0 ? 'Faltante' : ((float) $sesion->discrepancy > 0 ? 'Sobrante' : 'Diferencia') }}</td>
-            <td class="{{ abs((float) $sesion->discrepancy) < 0.01 ? 'dif-ok' : 'dif-mal' }}">
-                ₡{{ number_format(abs((float) $sesion->discrepancy), 2) }}
-            </td>
-        </tr>
+        <tr><td>Fondo inicial</td><td>₡{{ number_format((float) $sesion->opening_float, 2) }}</td></tr>
+        <tr><td>+ Cobros en efectivo</td><td>₡{{ number_format($desglose['cobros'], 2) }}</td></tr>
+        @if ($desglose['entradas'] > 0)
+            <tr><td>+ Entradas</td><td>₡{{ number_format($desglose['entradas'], 2) }}</td></tr>
+        @endif
+        @if ($desglose['salidas'] > 0)
+            <tr><td>− Salidas</td><td>−₡{{ number_format($desglose['salidas'], 2) }}</td></tr>
+        @endif
+        @if ($abierto)
+            {{-- El esperado se guarda al cerrar: con el turno abierto se calcula
+                 acá, y no hay contado ni diferencia que mostrar todavía. --}}
+            <tr class="total"><td>Efectivo esperado a hoy</td><td>₡{{ number_format($calculado, 2) }}</td></tr>
+        @else
+            <tr><td>Efectivo esperado</td><td>₡{{ number_format((float) $sesion->expected_cash, 2) }}</td></tr>
+            <tr><td>Efectivo contado</td><td>₡{{ number_format((float) $sesion->counted_cash, 2) }}</td></tr>
+            <tr class="total">
+                <td>{{ (float) $sesion->discrepancy < 0 ? 'Faltante' : ((float) $sesion->discrepancy > 0 ? 'Sobrante' : 'Diferencia') }}</td>
+                <td class="{{ abs((float) $sesion->discrepancy) < 0.01 ? 'dif-ok' : 'dif-mal' }}">
+                    ₡{{ number_format(abs((float) $sesion->discrepancy), 2) }}
+                </td>
+            </tr>
+        @endif
     </table>
+
+    @if ($abierto)
+        <div style="margin-top:10px;color:#a1352a;font-weight:bold;">Turno abierto: todavía no tiene arqueo.</div>
+    @elseif (abs($calculado - (float) $sesion->expected_cash) >= 0.01)
+        {{-- Los movimientos ya no suman lo que se esperaba al cerrar: algo se
+             tocó después del arqueo. Se avisa en vez de esconderlo. --}}
+        <div style="margin-top:10px;color:#a1352a;font-weight:bold;">
+            Atención: los movimientos suman ₡{{ number_format($calculado, 2) }}, pero al cerrar se esperaban
+            ₡{{ number_format((float) $sesion->expected_cash, 2) }}. Revisar qué cambió después del cierre.
+        </div>
+    @endif
 
     @if ($sesion->closing_note)
         <div style="margin-top:14px;"><strong>Nota de cierre:</strong> {{ $sesion->closing_note }}</div>

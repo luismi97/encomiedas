@@ -130,6 +130,20 @@ class CajaService
         }
 
         // Idempotente: reabrir y guardar una guía no debe duplicar su cobro.
+        //
+        // En CUALQUIER turno, no solo en el abierto: RegistroDeGuia llama aquí
+        // cada vez que se guarda una guía de contado, también al editarla. Una
+        // cobrada ayer y editada hoy se cobraba otra vez en el turno de hoy, y
+        // ese arqueo esperaba un dinero que nunca entró: faltante por el total.
+        $anterior = CashMovement::where('invoice_id', $guia->id)
+            ->where('type', CashMovement::TYPE_SALE)
+            ->where('cash_session_id', '!=', $sesion->id)
+            ->first();
+
+        if ($anterior) {
+            return $anterior;
+        }
+
         $existente = CashMovement::where('cash_session_id', $sesion->id)
             ->where('invoice_id', $guia->id)
             ->where('type', CashMovement::TYPE_SALE)
