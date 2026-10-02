@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { visitar } from './apoyo.js';
 import {
+  cerrarCaja,
   abrirCaja,
   abrirGuia,
   agregarAlCierre,
@@ -230,6 +231,10 @@ test.describe('Manifiestos y entregas', () => {
 
     // El arqueo de origen no la vio pasar: solo tiene su fondo inicial.
     expect(await efectivoEsperado(page)).toBe(20000);
+
+    // Una persona tiene un solo turno abierto a la vez: cierra el de origen
+    // antes de atender en destino, como haría quien cambia de ventanilla.
+    await cerrarCaja(page, { cuadrado: true });
 
     // La caja de destino arranca en cero.
     await abrirCaja(page, { sede: empresa.destino, fondo: 0 });

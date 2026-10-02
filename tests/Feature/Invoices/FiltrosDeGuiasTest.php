@@ -120,4 +120,80 @@ class FiltrosDeGuiasTest extends TestCase
         $this->assertStringContainsString($this->guias['porcobrar']->code, $html);
         $this->assertStringNotContainsString($this->guias['sinpe']->code, $html);
     }
+
+    // ── Buscar por código no depende de los filtros ───────────────────
+
+    /** La guía de ayer no aparecía porque el período arranca en «Hoy». */
+    public function test_buscar_por_codigo_encuentra_una_guia_de_ayer(): void
+    {
+        $vieja = $this->guias['credito'];
+        $vieja->forceFill(['created_at' => now()->subDay()])->save();
+
+        Livewire::actingAs($this->admin)->test(InvoiceIndex::class)
+            ->assertDontSee($vieja->code)
+            ->set('search', $vieja->code)
+            ->assertSee($vieja->code)
+            ->assertSeeHtml('data-test="busqueda-sin-filtros"');
+    }
+
+    public function test_buscar_por_codigo_ignora_los_demas_filtros(): void
+    {
+        $guia = $this->guias['credito'];
+        $guia->forceFill(['created_at' => now()->subMonths(3)])->save();
+
+        $filtros = [
+            'from' => today()->toDateString(), 'to' => today()->toDateString(),
+            'status' => Invoice::STATUS_DELIVERED, 'cobro' => 'por_cobrar', 'medio' => 'sinpe',
+            'creada_por' => $this->cajera->id, 'entrega' => 'domicilio',
+        ];
+
+        $this->assertSame(['credito'], $this->quedan($filtros + ['search' => $guia->code]));
+        // La cola numérica también es buscar por guía.
+        $cola = substr($guia->code, -5);
+        $this->assertContains('credito', $this->quedan($filtros + ['search' => $cola]));
+    }
+
+    /** Por nombre sí se respetan: «Hoy» sigue mandando. */
+    public function test_buscar_por_nombre_respeta_los_filtros(): void
+    {
+        $this->guias['credito']->forceFill(['created_at' => now()->subDay()])->save();
+        $hoy = ['from' => today()->toDateString(), 'to' => today()->toDateString()];
+
+        $this->assertSame([], $this->quedan($hoy + ['search' => 'Destinatario credito']));
+        $this->assertFalse(Invoice::esBusquedaDeGuia('Marta Solano'));
+    }
+
+    /** A medio escribir no se sueltan los filtros: traería toda la historia. */
+    public function test_un_numero_corto_no_suelta_los_filtros(): void
+    {
+        $this->assertFalse(Invoice::esBusquedaDeGuia('5'));
+        $this->assertFalse(Invoice::esBusquedaDeGuia('05'));
+        $this->assertFalse(Invoice::esBusquedaDeGuia('SJ'));
+        $this->assertTrue(Invoice::esBusquedaDeGuia('005'));
+        $this->assertTrue(Invoice::esBusquedaDeGuia('SJ-LIM'));
+        $this->assertTrue(Invoice::esBusquedaDeGuia('sj-lim-00005'));
+        $this->assertTrue(Invoice::esBusquedaDeGuia('P-SJ-7K3M9QX2'));
+    }
+
+    /** El cajero sigue viendo solo lo de su sede aunque busque sin filtros. */
+    public function test_la_sede_del_cajero_sigue_mandando(): void
+    {
+        $alajuela = Branch::create(['name' => 'Alajuela', 'prefix' => 'ALA', 'sucursal_code' => '002', 'terminal_code' => '00001', 'is_active' => true]);
+        $heredia = Branch::create(['name' => 'Heredia', 'prefix' => 'HER', 'sucursal_code' => '003', 'terminal_code' => '00001', 'is_active' => true]);
+        $ajena = Invoice::create([
+            'status' => Invoice::STATUS_PENDING, 'pickup_branch_id' => $alajuela->id, 'delivery_branch_id' => $heredia->id,
+            'sender_name' => 'Otro', 'recipient_name' => 'Otra', 'subtotal' => 1000, 'discount_amount' => 0,
+            'tax_total' => 0, 'total' => 1000, 'created_by' => $this->admin->id,
+        ])->fresh();
+
+        // Por el enlace de la fila y no por el código: el código buscado
+        // aparece siempre en la propia casilla de búsqueda.
+        Livewire::actingAs($this->cajera)->test(InvoiceIndex::class)
+            ->set('search', $ajena->code)
+            ->assertDontSeeHtml('href="' . route('invoices.show', $ajena) . '"');
+
+        Livewire::actingAs($this->admin)->test(InvoiceIndex::class)
+            ->set('search', $ajena->code)
+            ->assertSeeHtml('href="' . route('invoices.show', $ajena) . '"');
+    }
 }

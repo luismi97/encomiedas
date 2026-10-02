@@ -48,7 +48,29 @@ export async function visitar(page, ruta) {
   await esperarLivewire(page);
 }
 
+/**
+ * Esconde el recorrido de ayuda («Guía de pantalla»).
+ *
+ * Se abre solo la primera vez que cada usuario entra a cada pantalla, y las
+ * pruebas crean usuarios nuevos todo el tiempo: su tarjeta fija abajo tapa
+ * botones como «Guardar» y Playwright espera el clic hasta vencer. El recorrido
+ * tiene sus propias pruebas en PHP (tests/Feature/Ayuda); acá estorba.
+ */
+async function sinRecorridoDeAyuda(page) {
+  if (page.__sinRecorrido) return;
+  page.__sinRecorrido = true;
+
+  await page.addInitScript(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+      const estilo = document.createElement('style');
+      estilo.textContent = '[aria-labelledby="guia-titulo"]{display:none!important}';
+      document.head.appendChild(estilo);
+    });
+  });
+}
+
 export async function entrar(page, correo, clave) {
+  await sinRecorridoDeAyuda(page);
   await page.goto('/login');
   await page.fill('input[name="login"]', correo);
   await page.fill('input[name="password"]', clave);

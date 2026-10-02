@@ -72,6 +72,11 @@
             <div>
                 <label class="label">Buscar</label>
                 <input type="text" wire:model.live.debounce.400ms="search" class="input" placeholder="Código, remitente, receptor...">
+                @if (\App\Models\Invoice::esBusquedaDeGuia($search))
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-test="busqueda-sin-filtros">
+                        Buscando por código en todas las fechas, sin los demás filtros.
+                    </p>
+                @endif
             </div>
         </div>
 

@@ -526,8 +526,39 @@ class Invoice extends Model
      *
      * @param  array{from?:?string,to?:?string,status?:?string,branch_id?:mixed,search?:?string,entrega?:?string,cobro?:?string,medio?:?string,creada_por?:mixed}  $f
      */
+    /**
+     * ¿El texto buscado es un código de guía?
+     *
+     * Quien busca una guía por su código la quiere a ella, sea del día que sea:
+     * con el período en «Hoy» por defecto, una guía de ayer no aparecía y
+     * parecía que no existía. Cuenta como código lo que trae guiones y nada más
+     * que letras y números (SJ-LIM-00005, SJ-LIM, ENC-000123), la cola numérica
+     * (00005) y el número de un comprobante provisional (P-SJ-7K3M9QX2).
+     */
+    public static function esBusquedaDeGuia(?string $termino): bool
+    {
+        $termino = trim((string) $termino);
+
+        // Lo que buscar() ignora por corto tampoco suelta los filtros: con «5»
+        // a medio escribir el listado traería todas las guías de la historia.
+        if (! BusquedaDeTexto::esBuscable($termino)) {
+            return false;
+        }
+
+        return self::referenciaProvisional($termino) !== null
+            || preg_match('/^[A-Za-z0-9]+-[A-Za-z0-9-]*$/', $termino) === 1
+            || (ctype_digit($termino) && mb_strlen($termino) >= 3);
+    }
+
     public function scopeFiltrar(Builder $query, array $f): Builder
     {
+        // Buscando una guía por su código, los filtros no la esconden. El ámbito
+        // por sede del cajero (BranchScope) sigue aplicando: es global, no un
+        // filtro de pantalla.
+        if (self::esBusquedaDeGuia($f['search'] ?? null)) {
+            return $query->buscar($f['search']);
+        }
+
         if (! empty($f['from'])) {
             // Rango sobre la columna cruda: whereDate() la envuelve en DATE()
             // y anula el índice, obligando a recorrer la tabla entera.

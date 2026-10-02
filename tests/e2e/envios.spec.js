@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 import { esperarLivewire, visitar } from './apoyo.js';
 import { abrirCaja, abrirGuia, crearGuia, crearSede, crearTarifa, empresaOperando, monto } from './flujos.js';
 
+/** «SJO-LIM-00042» → 42 */
+const numero = (codigo) => Number(codigo.split('-').pop());
+
 /**
  * Envíos: qué se manda y cómo se identifica.
  *
@@ -115,14 +118,17 @@ test.describe('Envíos', () => {
       sinImpuestos: true,
     });
 
-    expect(guia.codigo).toBe('SJO-LIM-00001');
+    // El número es de un consecutivo compartido por todas las empresas: depende
+    // de lo que ya emitieron las demás, así que se comprueba la forma.
+    expect(guia.codigo).toMatch(/^SJO-LIM-\d{5}$/);
   });
 
   /**
-   * El consecutivo es por ruta, no por empresa.
+   * El consecutivo es por ruta.
    *
-   * Cada par de sedes lleva su propia numeración: la primera guía de vuelta es
-   * la número 1 aunque de ida ya vayan tres.
+   * Cada par de sedes lleva su propia numeración, compartida por todas las
+   * empresas (un código identifica una sola encomienda en el sistema). Dentro
+   * de una ruta, dos guías seguidas llevan números seguidos.
    */
   test('cada ruta lleva su propio consecutivo', async ({ page }) => {
     const empresa = await empresaOperando(page);
@@ -131,10 +137,10 @@ test.describe('Envíos', () => {
     const ida1 = await crearGuia(page, { origen: empresa.origen, destino: empresa.destino, precio: 1000, sinImpuestos: true });
     const ida2 = await crearGuia(page, { origen: empresa.origen, destino: empresa.destino, precio: 1000, sinImpuestos: true });
 
-    expect(ida1.codigo).toBe('SJO-LIM-00001');
-    expect(ida2.codigo).toBe('SJO-LIM-00002');
+    expect(ida1.codigo).toMatch(/^SJO-LIM-\d{5}$/);
+    expect(numero(ida2.codigo)).toBe(numero(ida1.codigo) + 1);
 
-    // La vuelta arranca de nuevo. Se cobra por cobrar porque la caja abierta es
+    // La vuelta lleva su propia numeración. Se cobra por cobrar porque la caja abierta es
     // la de origen y esta guía sale de la otra sede.
     const vuelta = await crearGuia(page, {
       origen: empresa.destino,
@@ -144,7 +150,7 @@ test.describe('Envíos', () => {
       sinImpuestos: true,
     });
 
-    expect(vuelta.codigo).toBe('LIM-SJO-00001');
+    expect(vuelta.codigo).toMatch(/^LIM-SJO-\d{5}$/);
   });
 
   /** Una tercera sede abre una tercera numeración. */
@@ -156,8 +162,8 @@ test.describe('Envíos', () => {
     const aLimon = await crearGuia(page, { origen: empresa.origen, destino: empresa.destino, precio: 1000, sinImpuestos: true });
     const aPerez = await crearGuia(page, { origen: empresa.origen, destino: 'Pérez Zeledón', precio: 1000, sinImpuestos: true });
 
-    expect(aLimon.codigo).toBe('SJO-LIM-00001');
-    expect(aPerez.codigo).toBe('SJO-PZ-00001');
+    expect(aLimon.codigo).toMatch(/^SJO-LIM-\d{5}$/);
+    expect(aPerez.codigo).toMatch(/^SJO-PZ-\d{5}$/);
   });
 
   /**

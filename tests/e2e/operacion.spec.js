@@ -64,17 +64,20 @@ test.describe('Operación de una empresa nueva', () => {
       precio: 3500,
     });
 
-    // El código guía se arma con los dos prefijos y el consecutivo de ESTA
-    // empresa: la primera guía de un cliente nuevo es la número uno.
-    await expect(page.locator('body')).toContainText('SJO-LIM-00001');
+    // El código guía se arma con los dos prefijos y un consecutivo que es uno
+    // solo para todo el sistema: el número depende de lo que ya emitieron las
+    // demás empresas, así que se lee de la pantalla en vez de suponerlo.
+    await expect(page).toHaveURL(/\/invoices\/\d+/);
+    const codigo = (await page.locator('[data-test="codigo-guia"]').innerText()).trim();
+    expect(codigo).toMatch(/^SJO-LIM-\d{5}$/);
 
     await visitar(page, '/invoices');
-    await expect(page.locator('body')).toContainText('SJO-LIM-00001');
+    await expect(page.locator('body')).toContainText(codigo);
     await expect(page.locator('body')).toContainText('Jose Fernandez');
 
     // Y el destinatario la puede seguir sin entrar al sistema.
-    await page.goto(`/rastreo/${empresa.slug}/SJO-LIM-00001`);
-    await expect(page.locator('body')).toContainText('SJO-LIM-00001');
+    await page.goto(`/rastreo/${empresa.slug}/${codigo}`);
+    await expect(page.locator('body')).toContainText(codigo);
     await expect(page.locator('body')).toContainText('Jose F.');
     // El portal es público: nada de datos personales completos ni montos.
     await expect(page.locator('body')).not.toContainText('Jose Fernandez');
