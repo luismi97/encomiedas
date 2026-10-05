@@ -17,10 +17,9 @@ use Tests\Concerns\AbreLaCaja;
 use Tests\TestCase;
 
 /**
- * Una encomienda es un traslado ENTRE sedes.
- *
- * Origen y destino iguales no es un envío, y además rompe el código guía, que
- * se arma con los dos prefijos: SJ-SJ-00001 no significa nada.
+ * Origen y destino pueden ser la misma sede: paquetes que alguien deja y otro
+ * recoge ahí mismo. Lo que sigue exigiendo sedes distintas es lo que viaja en
+ * camión (cierres de envío y rutas).
  */
 class SedesDistintasTest extends TestCase
 {
@@ -59,16 +58,34 @@ class SedesDistintasTest extends TestCase
             ->set('items.0.price', 3000);
     }
 
-    public function test_no_se_crea_una_guia_de_una_sede_a_si_misma(): void
+    public function test_se_crea_una_guia_de_una_sede_a_si_misma(): void
     {
         $this->formularioGuia()
             ->set('pickup_branch_id', $this->sj->id)
             ->set('delivery_branch_id', $this->sj->id)
             ->call('save')
-            ->assertHasErrors('delivery_branch_id')
-            ->assertSee('tiene que ser distinta de la de origen');
+            ->assertHasNoErrors();
 
-        $this->assertSame(0, Invoice::count());
+        $guia = Invoice::firstOrFail();
+        $this->assertSame('SJ-SJ-00001', $guia->code);
+        $this->assertTrue($guia->esMismaSede());
+    }
+
+    /** No viaja en ningún camión: se entrega sin pasar por un cierre. */
+    public function test_una_guia_de_la_misma_sede_se_entrega_sin_despacharse(): void
+    {
+        $this->formularioGuia()
+            ->set('pickup_branch_id', $this->sj->id)
+            ->set('delivery_branch_id', $this->sj->id)
+            ->call('save');
+
+        $guia = Invoice::firstOrFail();
+        $this->assertTrue($guia->puedePasarA(Invoice::STATUS_DELIVERED));
+        $this->assertArrayNotHasKey(Invoice::STATUS_DISPATCHED, $guia->siguientesEstados($this->admin));
+
+        $guia = app(\App\Services\GuideStatusService::class)->entregar($guia, $this->admin, 'Ana Mora');
+
+        $this->assertSame(Invoice::STATUS_DELIVERED, $guia->status);
     }
 
     public function test_una_guia_entre_sedes_distintas_si_se_crea(): void
@@ -82,7 +99,7 @@ class SedesDistintasTest extends TestCase
         $this->assertSame('SJ-LIM-00001', Invoice::firstOrFail()->code);
     }
 
-    public function test_una_tarifa_no_puede_ser_de_una_sede_a_si_misma(): void
+    public function test_una_tarifa_puede_ser_de_una_sede_a_si_misma(): void
     {
         Livewire::actingAs($this->admin)
             ->test(RateIndex::class)
@@ -93,10 +110,9 @@ class SedesDistintasTest extends TestCase
             ->set('max_weight', 5)
             ->set('price', 3000)
             ->call('save')
-            ->assertHasErrors('destination_branch_id')
-            ->assertSee('no existen envíos de una sede a sí misma');
+            ->assertHasNoErrors();
 
-        $this->assertSame(0, Rate::count());
+        $this->assertSame(1, Rate::count());
     }
 
     /** Una tarifa base sin sedes declaradas sigue siendo válida. */

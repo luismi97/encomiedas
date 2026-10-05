@@ -46,7 +46,7 @@
                     <label class="label">Sucursal de recogida</label>
                     <select wire:model.live="pickup_branch_id" class="input">
                         <option value="">Seleccione...</option>
-                        @foreach ($branches as $branch)
+                        @foreach ($sedesDeOrigen as $branch)
                             <option value="{{ $branch->id }}">{{ $branch->name }}</option>
                         @endforeach
                     </select>
@@ -103,7 +103,7 @@
                 </div>
                 <div>
                     <label class="label">Identificación</label>
-                    <input type="text" wire:model="sender_identification" class="input @error('sender_identification') input-error @enderror">
+                    <input type="text" wire:model.blur="sender_identification" class="input @error('sender_identification') input-error @enderror">
                     @error('sender_identification') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
             </div>
@@ -146,7 +146,7 @@
                 </div>
                 <div>
                     <label class="label">Identificación @unless ($wantsInvoice && $bill_to === \App\Models\Invoice::BILL_TO_RECIPIENT)<span class="text-gray-400 font-normal">(opcional)</span>@endunless</label>
-                    <input type="text" wire:model="recipient_identification" inputmode="numeric" maxlength="20"
+                    <input type="text" wire:model.blur="recipient_identification" inputmode="numeric" maxlength="20"
                            placeholder="Sin guiones ni espacios"
                            class="input @error('recipient_identification') input-error @enderror">
                     @error('recipient_identification') <p class="error-text">{{ $message }}</p> @enderror
@@ -209,12 +209,42 @@
                                 </div>
                                 <div>
                                     <label class="label">Identificación</label>
-                                    <input type="text" wire:model="billing_identification" inputmode="numeric" maxlength="20"
+                                    <input type="text" wire:model.blur="billing_identification" inputmode="numeric" maxlength="20"
                                            placeholder="Sin guiones ni espacios"
                                            class="input @error('billing_identification') input-error @enderror">
                                     @error('billing_identification') <p class="error-text">{{ $message }}</p> @enderror
                                 </div>
                             </div>
+                        @endif
+
+                        {{-- Al salir del campo de cédula de a quién se factura se consulta
+                             Hacienda; el botón repite la consulta a mano. --}}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                            <div>
+                                <label class="label">Actividad económica del receptor <span class="text-gray-400 font-normal">(opcional)</span></label>
+                                @if ($actividadesHacienda)
+                                    <select wire:model="billing_activity_code" class="input">
+                                        <option value="">Sin actividad</option>
+                                        @foreach ($actividadesHacienda as $actividad)
+                                            <option value="{{ $actividad['code'] }}">{{ $actividad['code'] }} · {{ \Illuminate\Support\Str::limit($actividad['description'], 50) }}</option>
+                                        @endforeach
+                                    </select>
+                                @else
+                                    <input type="text" wire:model="billing_activity_code" maxlength="7" placeholder="Ej. 492300"
+                                           class="input @error('billing_activity_code') input-error @enderror">
+                                @endif
+                                @error('billing_activity_code') <p class="error-text">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <button type="button" wire:click="buscarEnHacienda" wire:loading.attr="disabled" wire:target="buscarEnHacienda"
+                                        class="btn-secondary !py-2 !px-3 text-sm">
+                                    <span wire:loading.remove wire:target="buscarEnHacienda">Buscar cédula en Hacienda</span>
+                                    <span wire:loading wire:target="buscarEnHacienda">Buscando…</span>
+                                </button>
+                            </div>
+                        </div>
+                        @if ($avisoHacienda)
+                            <p class="text-sm text-amber-700 dark:text-amber-300">{{ $avisoHacienda }}</p>
                         @endif
                     </div>
                 @endif
@@ -303,7 +333,14 @@
                             </select>
                             @error('items.'.$index.'.package_type_id') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
-                        <div class="lg:col-span-3">
+                        {{-- Varios bultos iguales en una sola línea: dos sobres no
+                             necesitan dos líneas. --}}
+                        <div class="lg:col-span-2">
+                            <label class="label">Cantidad</label>
+                            <input type="number" min="1" step="1" inputmode="numeric" wire:model.live.debounce.400ms="items.{{ $index }}.quantity" class="input @error('items.'.$index.'.quantity') input-error @enderror">
+                            @error('items.'.$index.'.quantity') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+                        <div class="lg:col-span-2">
                             <label class="label">Tamaño</label>
                             <select wire:model="items.{{ $index }}.size" class="input @error('items.'.$index.'.size') input-error @enderror">
                                 <option value="S">Pequeño</option>
@@ -328,15 +365,20 @@
                                 <input type="number" step="0.1" inputmode="decimal" wire:model.blur="items.{{ $index }}.height_cm" placeholder="Alto" class="input input-compacto">
                             </div>
                         </div>
-                        <div class="col-span-2 lg:col-span-3">
+                        <div class="col-span-2 lg:col-span-2">
                             <label class="label">Descripción</label>
                             <input type="text" wire:model="items.{{ $index }}.description" class="input @error('items.'.$index.'.description') input-error @enderror">
                             @error('items.'.$index.'.description') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
                         <div class="lg:col-span-2">
-                            <label class="label">Precio (₡)</label>
+                            <label class="label">{{ (int) ($item['quantity'] ?? 1) > 1 ? 'Precio c/u (₡)' : 'Precio (₡)' }}</label>
                             <input type="number" step="0.01" wire:model.live="items.{{ $index }}.price" class="input @error('items.'.$index.'.price') input-error @enderror">
                             @error('items.'.$index.'.price') <p class="error-text">{{ $message }}</p> @enderror
+                            @if ((int) ($item['quantity'] ?? 1) > 1 && filled($item['price'] ?? null))
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    Línea: ₡{{ number_format((float) $item['price'] * (int) $item['quantity'], 2) }}
+                                </p>
+                            @endif
                         </div>
                         <div class="lg:col-span-1">
                             @if (count($items) > 1)

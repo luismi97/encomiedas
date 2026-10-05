@@ -8,8 +8,8 @@
        Etiqueta que se PEGA AL PAQUETE, distinta del recibo del cliente.
 
        Lo que manda acá es lo que se necesita ver con el bulto en la mano: la
-       ruta, a quién va y el código de barras. Lleva además si está pagada y
-       el desglose del flete, para que quien entrega no dependa del recibo.
+       ruta, a quién va y el código de barras. Lleva si está pagada o por
+       cobrar, pero NINGÚN monto: la etiqueta la ve todo el que toca el bulto.
     */
     @page {
         size: {{ $ancho }}mm auto;
@@ -66,7 +66,6 @@
     .bultos { width: 100%; border-collapse: collapse; margin-top: 1.5mm; }
     .bultos td { padding: 0.6mm 0; vertical-align: top; border-bottom: 1px dotted #999; }
     .bultos tr:last-child td { border-bottom: none; }
-    .bultos .n { width: 5mm; font-weight: bold; }
     .bultos .der { text-align: right; white-space: nowrap; }
 
     .domicilio {
@@ -91,7 +90,6 @@
         font-size: {{ $ancho >= 76 ? '16px' : '13px' }};
         letter-spacing: 1px;
     }
-    .cobrar .monto { font-size: {{ $ancho >= 76 ? '20px' : '16px' }}; }
 
     /* Pagado, a crédito o esperando caja: recuadro y no bloque negro, para
        que no compita con el aviso de cobro, que es el que no se puede pasar. */
@@ -102,16 +100,6 @@
         font-weight: bold;
         font-size: {{ $ancho >= 76 ? '14px' : '12px' }};
         letter-spacing: 1px;
-    }
-
-    .montos { width: 100%; border-collapse: collapse; margin-top: 1mm; }
-    .montos td { padding: 0.3mm 0; vertical-align: top; }
-    .montos .der { text-align: right; white-space: nowrap; }
-    .montos .total td {
-        border-top: 1px solid #000;
-        padding-top: 0.6mm;
-        font-weight: bold;
-        font-size: {{ $ancho >= 76 ? '13px' : '11px' }};
     }
 
     .direccion { font-size: {{ $ancho >= 76 ? '11px' : '10px' }}; }
@@ -139,9 +127,10 @@
            grande y en negrita. Acá todo va en negrita, sin serifas y nada por
            debajo de 12 px.
         */
+        /* Margen de seguridad, como el recibo (ver recibo/_estilos). */
         body {
             width: {{ $anchoUtil }}mm;
-            padding: 2mm 0;
+            padding: 2mm 1mm 2mm {{ \App\Models\CashRegister::MARGEN_IZQUIERDO_MATRIZ_MM }}mm;
             font-family: Tahoma, Verdana, Arial, sans-serif;
             font-size: {{ $ancho >= 76 ? '14px' : '13px' }};
             font-weight: bold;
@@ -204,27 +193,20 @@
 
         <div class="regla"></div>
 
+        {{-- Sin «bulto 5 de 8» ni números de línea: se confundían con la
+             cantidad («¿es el paquete 5 o son 5 paquetes?»). --}}
         @if ($porBulto)
-            <div class="centro bulto">
-                BULTO {{ $indice + 1 }} DE {{ count($bultos) }}
-                @if ($soloEste?->packageType)
-                    <div class="tipo-bulto">
-                        {{ mb_strtoupper($soloEste->packageType->name, 'UTF-8') }}
-                    </div>
-                @endif
-            </div>
+            @if ($soloEste)
+                <div class="centro bulto">
+                    {{ mb_strtoupper($soloEste->nombreDelBulto(), 'UTF-8') }}
+                </div>
+            @endif
         @else
-            <div class="centro bulto">
-                {{ count($bultos) }} {{ count($bultos) === 1 ? 'BULTO' : 'BULTOS' }}
-            </div>
-
-            {{-- Una línea por paquete: es lo único que cambia entre ellos. --}}
             <table class="bultos">
-                @foreach ($bultos as $i => $b)
+                @foreach ($bultos as $b)
                     <tr>
-                        <td class="n">{{ $i + 1 }}</td>
                         <td>
-                            {{ $b?->nombreDelBulto() ?? 'Bulto' }}
+                            {{ $b?->nombreConCantidad() ?? 'Bulto' }}
                             @if ($b?->description) · {{ $b->description }} @endif
                             @if ($b?->esFragil()) <strong>· FRÁGIL</strong> @endif
                         </td>
@@ -235,15 +217,10 @@
         @endif
 
         {{-- Lo primero que tiene que ver quien entrega: si no cobra, la plata
-             se pierde. Mismo orden que el recibo: un por cobrar o uno que
-             espera caja no está pagado aunque la venta sea de contado. --}}
+             se pierde. Solo el estado, sin montos: el cobro lo hace la caja,
+             que ve el total en pantalla. --}}
         @if ($guia->tieneCobroPendiente())
-            <div class="centro cobrar">
-                POR COBRAR
-                <div class="monto">
-                    ₡{{ number_format((float) $guia->total, 2) }}
-                </div>
-            </div>
+            <div class="centro cobrar">POR COBRAR</div>
         @elseif ($guia->esperandoCaja())
             <div class="centro pago">PENDIENTE DE PAGO EN CAJA</div>
         @elseif ($guia->esCredito())
@@ -251,27 +228,6 @@
         @else
             <div class="centro pago">PAGADO</div>
         @endif
-
-        {{-- Desglose del flete: quien entrega o reclama ve de dónde sale el
-             total sin tener que buscar el recibo. --}}
-        <table class="montos">
-            <tr><td>Bultos</td><td class="der">{{ number_format((float) $guia->subtotal, 2) }}</td></tr>
-            @if ((float) $guia->insurance_fee > 0)
-                <tr><td>Seguro</td><td class="der">{{ number_format((float) $guia->insurance_fee, 2) }}</td></tr>
-            @endif
-            @if ((float) $guia->home_delivery_fee > 0)
-                <tr><td>Domicilio</td><td class="der">{{ number_format((float) $guia->home_delivery_fee, 2) }}</td></tr>
-            @endif
-            @if ((float) $guia->discount_amount > 0)
-                <tr><td>Descuento</td><td class="der">-{{ number_format((float) $guia->discount_amount, 2) }}</td></tr>
-            @endif
-            <tr><td>Impuesto</td><td class="der">{{ number_format((float) $guia->tax_total, 2) }}</td></tr>
-            <tr class="total">
-                <td>{{ $guia->estaPagada() ? 'TOTAL PAGADO' : 'TOTAL' }}</td>
-                <td class="der">₡{{ number_format((float) $guia->total, 2) }}</td>
-            </tr>
-            <tr><td>Pago</td><td class="der">{{ $guia->esCredito() ? 'Crédito' : $guia->medioDePagoImpreso() }}</td></tr>
-        </table>
 
         @php
             $hayFragil = $porBulto ? $soloEste?->esFragil() : collect($bultos)->contains(fn ($b) => $b?->esFragil());

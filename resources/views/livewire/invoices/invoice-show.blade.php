@@ -71,6 +71,11 @@
             <h3 class="font-semibold mb-1">Anular la guía {{ $invoice->code }}</h3>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Queda registrado quién anuló y por qué. No se puede deshacer.
+                @if ($invoice->electronicInvoice?->status === \App\Models\ElectronicInvoice::STATUS_ACCEPTED)
+                    <strong class="block mt-1 text-red-700 dark:text-red-300">
+                        Su comprobante ya fue aceptado por Hacienda: al anular se emite una nota de crédito por el total.
+                    </strong>
+                @endif
             </p>
             <label class="label">Motivo</label>
             <textarea wire:model="cancelReason" rows="2" class="input"
@@ -80,8 +85,28 @@
                     confirm="¿Anular esta guía? Queda registrado y no se puede deshacer.">
                     <x-icon name="x" class="w-4 h-4" /> Confirmar anulación
                 </x-action-button>
-                <x-ayuda posicion="izquierda">Anula la guía con un motivo obligatorio. Solo se puede antes de que salga: una encomienda que ya viaja se devuelve, que es otra cosa.</x-ayuda>
+                <x-ayuda posicion="izquierda">Anula la guía con un motivo obligatorio, en cualquier estado. Si su comprobante ya fue aceptado por Hacienda, se emite sola la nota de crédito.</x-ayuda>
                 <button type="button" wire:click="$set('showCancelForm', false)" class="btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    @endif
+
+    {{-- Devolución al remitente: solo administrador, con motivo --}}
+    @if ($showReturnForm)
+        <div class="card border-red-200 dark:border-red-800">
+            <h3 class="font-semibold mb-1">Devolver la encomienda {{ $invoice->code }}</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                Queda registrado quién la devolvió y por qué. No se puede deshacer.
+            </p>
+            <label class="label">Motivo</label>
+            <textarea wire:model="returnReason" rows="2" class="input"
+                      placeholder="Destinatario no la quiso, dirección inexistente, el remitente la pidió de vuelta…"></textarea>
+            <div class="flex gap-3 mt-3">
+                <x-action-button action="devolver" variant="danger" loadingText="Devolviendo..."
+                    confirm="¿Devolver esta encomienda? Queda registrado y no se puede deshacer.">
+                    <x-icon name="undo" class="w-4 h-4" /> Confirmar devolución
+                </x-action-button>
+                <button type="button" wire:click="$set('showReturnForm', false)" class="btn-secondary">Cancelar</button>
             </div>
         </div>
     @endif
@@ -104,6 +129,8 @@
                     <input type="text" wire:model="receivedByIdentification" inputmode="numeric" class="input">
                 </div>
             </div>
+
+            @include('livewire.partials.factura-al-entregar', ['guia' => $invoice])
 
             <div class="mt-4">
                 <x-signature-pad model="deliverySignature" />
@@ -233,9 +260,61 @@
                 <div>
                     <span class="text-gray-500 block">Facturado a ({{ $invoice->billToLabel() }})</span>
                     {{ $invoice->receptorDeFactura()['nombre'] }} · {{ $invoice->receptorDeFactura()['numero'] ?: 'sin identificación' }}
+                    @if ($invoice->billing_activity_code)
+                        <span class="block text-sm text-gray-500">Actividad {{ $invoice->billing_activity_code }}</span>
+                    @endif
                 </div>
             @endif
         </div>
+
+        {{-- Corregir a quién se factura: solo datos de Hacienda, nunca montos. --}}
+        @if (auth()->user()->isAdmin() && $invoice->status !== \App\Models\Invoice::STATUS_CANCELLED)
+            @php
+                $comprobanteFijo = $invoice->electronicInvoice
+                    && ! in_array($invoice->electronicInvoice->status, [\App\Models\ElectronicInvoice::STATUS_PENDING, \App\Models\ElectronicInvoice::STATUS_REJECTED], true);
+            @endphp
+            <div class="mt-3">
+                @if ($comprobanteFijo)
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        El comprobante ya se envió a Hacienda: los datos de facturación no se pueden cambiar. Si hay un error, corregilo con una nota de crédito.
+                    </p>
+                @elseif (! $showBillingForm)
+                    <x-action-button action="openBillingForm" variant="secondary" loadingText="Abriendo..." class="!py-1.5 !px-3 text-sm">
+                        <x-icon name="document" class="w-4 h-4" /> Corregir datos de facturación
+                    </x-action-button>
+                @endif
+            </div>
+
+            @if ($showBillingForm)
+                <div class="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <h3 class="font-semibold mb-1">Datos de facturación</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                        Solo cambia a quién se factura; los montos no se tocan.
+                        @if ($invoice->electronicInvoice)
+                            Su comprobante pendiente se rehace con clave nueva.
+                        @endif
+                    </p>
+                    <div class="flex flex-wrap gap-4 mb-3">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" wire:model.live="quiereFactura" value="0"> Tiquete Electrónico (sin cédula)
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" wire:model.live="quiereFactura" value="1"> Factura Electrónica con cédula
+                        </label>
+                    </div>
+                    @if ($quiereFactura)
+                        @include('livewire.partials.datos-de-factura-campos')
+                    @endif
+                    <div class="flex gap-3 mt-4">
+                        <x-action-button action="guardarFacturacion" variant="primary" loadingText="Guardando..."
+                            confirm="¿Guardar los datos de facturación? Queda registrado en la bitácora.">
+                            <x-icon name="check" class="w-4 h-4" /> Guardar
+                        </x-action-button>
+                        <button type="button" wire:click="$set('showBillingForm', false)" class="btn-secondary">Cancelar</button>
+                    </div>
+                </div>
+            @endif
+        @endif
         @if ($invoice->notes)
             <p class="text-sm mt-3"><span class="text-gray-500">Notas:</span> {{ $invoice->notes }}</p>
         @endif
@@ -253,7 +332,7 @@
                 <tbody>
                     @foreach ($invoice->items as $item)
                         <tr class="border-b border-gray-100 dark:border-gray-700/50">
-                            <td class="py-2">{{ $item->nombreDelBulto() }}@if ($item->esFragil()) <span class="badge bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Frágil</span>@endif</td>
+                            <td class="py-2">{{ $item->nombreConCantidad() }}@if ($item->esFragil()) <span class="badge bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Frágil</span>@endif</td>
                             <td class="py-2">{{ $item->size }}</td>
                             <td class="py-2">{{ $item->weight }} kg</td>
                             <td class="py-2">{{ $item->description }}</td>
@@ -267,7 +346,7 @@
         <div class="md:hidden space-y-3">
             @foreach ($invoice->items as $item)
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-                    <div class="flex justify-between font-medium"><span>{{ $item->nombreDelBulto() }}</span><span>₡{{ number_format($item->price, 2) }}</span></div>
+                    <div class="flex justify-between font-medium"><span>{{ $item->nombreConCantidad() }}</span><span>₡{{ number_format($item->price, 2) }}</span></div>
                     <div class="mt-1 text-sm text-gray-500 space-y-0.5">
                         <div class="flex justify-between"><span>Tamaño</span><span>{{ $item->size }}</span></div>
                         <div class="flex justify-between"><span>Peso</span><span>{{ $item->weight }} kg</span></div>

@@ -177,6 +177,8 @@ class Invoice extends Model
         'delivery_photo_path',
         'cancellation_reason',
         'cancelled_by',
+        'return_reason',
+        'returned_by',
         'cancelled_at',
         'status',
         'pickup_branch_id',
@@ -193,6 +195,7 @@ class Invoice extends Model
         'billing_identification_type',
         'billing_identification',
         'billing_email',
+        'billing_activity_code',
         'recipient_name',
         'recipient_phone',
         'recipient_identification_type',
@@ -263,6 +266,11 @@ class Invoice extends Model
         return $this->hasMany(PrintLog::class)->latest('id');
     }
 
+    public function returner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'returned_by');
+    }
+
     public function canceller(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');
@@ -278,9 +286,38 @@ class Invoice extends Model
      * Una guía ya despachada no se anula: viaja en un camión y hay un
      * manifiesto firmado que la incluye. Se devuelve, que es otra cosa.
      */
+    /**
+     * El administrador anula en cualquier estado: también lo que ya salió o se
+     * entregó. Si el comprobante ya fue aceptado, la anulación lleva su nota de
+     * crédito (ver GuideStatusService::anular).
+     */
     public function sePuedeAnular(): bool
     {
-        return in_array($this->status, [self::STATUS_PENDING, self::STATUS_READY], true);
+        return $this->status !== self::STATUS_CANCELLED;
+    }
+
+    /** Meses que tiene que pasar un paquete en destino antes de poder desecharse. */
+    public const MESES_ANTES_DE_DESECHAR = 3;
+
+    /** Desde cuándo cuenta el plazo de desecho: la llegada, o la creación si no hay. */
+    public function desechableDesde(): ?\Illuminate\Support\Carbon
+    {
+        return ($this->arrived_at ?? $this->created_at)?->copy()->addMonths(self::MESES_ANTES_DE_DESECHAR);
+    }
+
+    public function yaSePuedeDesechar(): bool
+    {
+        return ($desde = $this->desechableDesde()) !== null && now()->greaterThanOrEqualTo($desde);
+    }
+
+    /**
+     * Origen y destino en la misma sede: alguien la recoge ahí mismo, así que
+     * nunca viaja en un cierre.
+     */
+    public function esMismaSede(): bool
+    {
+        return $this->pickup_branch_id !== null
+            && (int) $this->pickup_branch_id === (int) $this->delivery_branch_id;
     }
 
     public function creditStatement(): BelongsTo
@@ -660,7 +697,29 @@ class Invoice extends Model
     /** ¿Se puede pasar a este estado desde el actual? */
     public function puedePasarA(string $estado): bool
     {
-        return in_array($estado, self::TRANSITIONS[$this->status] ?? [], true);
+        return in_array($estado, $this->transicionesPosibles(), true);
+    }
+
+    /**
+     * La tabla de TRANSITIONS más las dos excepciones: anular desde cualquier
+     * estado, y que una guía de la misma sede no tenga que viajar para
+     * entregarse.
+     *
+     * @return array<int,string>
+     */
+    private function transicionesPosibles(): array
+    {
+        $posibles = self::TRANSITIONS[$this->status] ?? [];
+
+        if ($this->esMismaSede() && in_array($this->status, [self::STATUS_PENDING, self::STATUS_READY], true)) {
+            $posibles = [...$posibles, self::STATUS_AT_DESTINATION, self::STATUS_DELIVERED];
+        }
+
+        if ($this->sePuedeAnular()) {
+            $posibles[] = self::STATUS_CANCELLED;
+        }
+
+        return array_values(array_unique($posibles));
     }
 
     /** Estados a los que se puede mover ahora, con su etiqueta. */
@@ -670,8 +729,14 @@ class Invoice extends Model
      */
     public function siguientesEstados(?User $usuario = null): array
     {
-        return collect(self::TRANSITIONS[$this->status] ?? [])
-            ->reject(fn (string $e) => $e === self::STATUS_CANCELLED && $usuario && ! $usuario->puedeAnular())
+        $soloAdmin = [self::STATUS_CANCELLED, self::STATUS_RETURNED, self::STATUS_DISPOSED];
+
+        return collect($this->transicionesPosibles())
+            // Sin usuario es el sistema o un mensaje de error: se listan todos.
+            ->reject(fn (string $e) => $usuario && in_array($e, $soloAdmin, true) && ! $usuario->isAdmin())
+            // Una guía de la misma sede no sale en un camión.
+            ->reject(fn (string $e) => $this->esMismaSede()
+                && in_array($e, [self::STATUS_DISPATCHED, self::STATUS_IN_TRANSIT], true))
             ->mapWithKeys(fn (string $e) => [$e => self::STATUSES[$e]])
             ->all();
     }
@@ -749,6 +814,16 @@ class Invoice extends Model
         return $this->hasMany(InvoiceItem::class);
     }
 
+    /**
+     * Cuántos paquetes físicos lleva la guía.
+     *
+     * No es lo mismo que la cantidad de líneas: una línea puede ser «3 sobres».
+     */
+    public function cantidadDeBultos(): int
+    {
+        return (int) $this->items->sum(fn (InvoiceItem $i) => $i->cantidad());
+    }
+
     public function taxes(): HasMany
     {
         return $this->hasMany(InvoiceTax::class);
@@ -816,9 +891,15 @@ class Invoice extends Model
     /**
      * Los datos de a quién se factura, según bill_to.
      *
-     * @return array{nombre:?string, tipo:string, numero:?string, email:?string}
+     * @return array{nombre:?string, tipo:string, numero:?string, email:?string, activity_code:?string}
      */
     public function receptorDeFactura(): array
+    {
+        return $this->datosDeQuienSeFactura() + ['activity_code' => $this->billing_activity_code ?: null];
+    }
+
+    /** @return array{nombre:?string, tipo:string, numero:?string, email:?string} */
+    private function datosDeQuienSeFactura(): array
     {
         return match ($this->bill_to) {
             self::BILL_TO_SENDER => [

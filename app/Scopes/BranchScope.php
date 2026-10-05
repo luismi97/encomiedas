@@ -30,14 +30,17 @@ class BranchScope implements Scope
             return;
         }
 
+        // La sede base y, para el dependiente, las demás que atiende.
+        $sedes = $user->sedesIds();
+
         $columnas = method_exists($model, 'branchColumns') ? $model->branchColumns() : ['branch_id'];
         $tabla = $model->getTable();
 
         // Agrupado: sin el paréntesis, un orWhere se escaparía de cualquier
         // otro filtro que la consulta traiga.
-        $builder->where(function (Builder $query) use ($columnas, $tabla, $user) {
+        $builder->where(function (Builder $query) use ($columnas, $tabla, $sedes) {
             foreach ($columnas as $columna) {
-                $query->orWhere($tabla . '.' . $columna, $user->branch_id);
+                $query->orWhereIn($tabla . '.' . $columna, $sedes);
             }
         });
     }

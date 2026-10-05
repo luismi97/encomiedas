@@ -7,7 +7,11 @@ use App\Models\CashSession;
 use App\Models\CreditStatement;
 use App\Models\ElectronicInvoice;
 use App\Models\Invoice;
+use App\Models\CompanySetting;
+use App\Notifications\EnviarReporteContable;
 use App\Services\CreditoService;
+use App\Services\ReporteContable;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Carbon;
 use Livewire\Component;
 
@@ -35,12 +39,51 @@ class ReportePanel extends Component
         'hacienda'   => 'Facturación electrónica',
         'rutas'      => 'Volumen por ruta',
         'entrega'    => 'Tiempo promedio de entrega',
+        'contable'   => 'Reporte contable (ventas e IVA)',
     ];
+
+    /** Solo administración: es lo fiscal, lo que se declara. */
+    public const SOLO_ADMIN = ['contable'];
+
+    /** A quién se manda el reporte contable. */
+    public string $correoContador = '';
 
     public function mount(): void
     {
         $this->from = now()->startOfMonth()->toDateString();
         $this->to = now()->toDateString();
+        $this->correoContador = (string) CompanySetting::instance()->accountant_email;
+    }
+
+    /** Los reportes que este usuario puede elegir. */
+    public function reportesDisponibles(): array
+    {
+        return auth()->user()->isAdmin()
+            ? self::REPORTES
+            : array_diff_key(self::REPORTES, array_flip(self::SOLO_ADMIN));
+    }
+
+    public function enviarAlContador(ReporteContable $reporte): void
+    {
+        abort_unless(auth()->user()->isAdmin(), 403);
+
+        $this->validate([
+            'correoContador' => 'required|email|max:150',
+            'from'           => 'required|date',
+            'to'             => 'required|date|after_or_equal:from',
+        ], [
+            'correoContador.required' => 'Digitá el correo del contador.',
+            'correoContador.email'    => 'El correo no es válido.',
+            'to.after_or_equal'       => 'La fecha final no puede ser anterior a la inicial.',
+        ]);
+
+        $datos = $reporte->generar($this->from, $this->to, $this->branchId ? (int) $this->branchId : null);
+
+        Notification::route('mail', $this->correoContador)->notify(new EnviarReporteContable($datos));
+
+        CompanySetting::instance()->forceFill(['accountant_email' => $this->correoContador])->save();
+
+        session()->flash('success', "Reporte contable enviado a {$this->correoContador}.");
     }
 
     private function desde(): Carbon
@@ -73,7 +116,13 @@ class ReportePanel extends Component
 
     private function calcular(CreditoService $credito): array
     {
+        // Un cajero que llegara con ?reporte=contable no lo ve.
+        if (! array_key_exists($this->reporte, $this->reportesDisponibles())) {
+            $this->reporte = 'estados';
+        }
+
         return match ($this->reporte) {
+            'contable' => app(ReporteContable::class)->generar($this->from, $this->to, $this->branchId ? (int) $this->branchId : null),
             'estados'  => $this->porEstado(),
             'desecho'  => $this->desecho(),
             'ventas'   => $this->ventasContado(),

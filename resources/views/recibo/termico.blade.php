@@ -30,6 +30,9 @@
         <div class="etiqueta">Código de guía</div>
         <div class="grande">{{ $guia->code }}</div>
         <div>{{ $guia->created_at->format('d/m/Y H:i') }}</div>
+        @if ($guia->creator)
+            <div>Atendido por: {{ $guia->creator->name }}</div>
+        @endif
         @if ($guia->offline_reference)
             {{-- El cliente atendido sin conexión se fue con ese número: así
                  se relaciona el papel provisional con esta guía. --}}
@@ -88,7 +91,7 @@
         <div class="etiqueta">Paquetes</div>
         @forelse ($guia->items as $item)
             <table class="fila"><tr>
-                <td>{{ $item->nombreDelBulto() }}@if ($item->size) · {{ $item->size }}@endif</td>
+                <td>{{ $item->nombreConCantidad() }}@if ($item->size) · {{ $item->size }}@endif</td>
                 <td>{{ $item->weight ? number_format((float) $item->weight, 2) . ' kg' : '' }}</td>
             </tr></table>
             @if ($item->description)

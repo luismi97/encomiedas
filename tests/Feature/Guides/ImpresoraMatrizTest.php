@@ -278,6 +278,48 @@ class ImpresoraMatrizTest extends TestCase
         $this->assertStringContainsString('size: 80mm', $html);
     }
 
+    /**
+     * Sin turno y con cajas distintas, pero este equipo ya imprimió en la de
+     * matriz: se recuerda. Antes salía el diseño térmico de 80 y en la de
+     * impacto se cortaba a los lados.
+     */
+    public function test_sin_turno_usa_la_impresora_que_recuerda_el_equipo(): void
+    {
+        $this->sj->cashRegisters()->create(['name' => 'Mostrador 2', 'is_active' => true, 'receipt_paper_width' => 80]);
+
+        $html = $this->actingAs($this->admin)
+            ->withCookie('impresora_rollo', CashRegister::IMPRESORA_MATRIZ . '|76')
+            ->get(route('invoices.recibo', $this->guia))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('font-family: Tahoma', $html);
+        $this->assertStringContainsString('size: 76mm', $html);
+    }
+
+    /** Al imprimir con una caja conocida, el equipo se lo guarda. */
+    public function test_imprimir_con_una_caja_conocida_guarda_la_impresora_en_el_equipo(): void
+    {
+        app(CajaService::class)->abrir($this->caja, $this->admin, 0);
+
+        $this->actingAs($this->admin)
+            ->get(route('invoices.etiqueta', $this->guia))
+            ->assertCookie('impresora_rollo', CashRegister::IMPRESORA_MATRIZ . '|76');
+    }
+
+    /**
+     * Margen de seguridad a la izquierda: con el contenido pegado al borde, un
+     * corrimiento de un milímetro del driver cortaba el inicio de los renglones.
+     */
+    public function test_en_matriz_deja_margen_a_la_izquierda(): void
+    {
+        $margen = 'padding: 2mm 1mm 2mm ' . CashRegister::MARGEN_IZQUIERDO_MATRIZ_MM . 'mm';
+
+        $this->assertStringContainsString($margen, $this->html('invoices.recibo'));
+        $this->assertStringContainsString($margen, $this->html('invoices.factura'));
+        $this->assertStringContainsString($margen, $this->html('invoices.etiqueta'));
+    }
+
     /** Sin turno, si todas las cajas de la sede imprimen igual, no hay duda. */
     public function test_sin_turno_y_con_cajas_iguales_usa_esa_configuracion(): void
     {

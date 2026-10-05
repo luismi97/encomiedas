@@ -30,6 +30,7 @@ class CompanySetting extends Model
         'phone_code',
         'phone',
         'email',
+        'accountant_email',
         'atv_username',
         'atv_password',
         'certificate_path',

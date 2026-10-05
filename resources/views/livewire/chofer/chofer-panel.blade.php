@@ -78,7 +78,7 @@
                                 </a>
                             @endif
                             <div class="text-xs text-gray-500 mt-1">
-                                {{ $guia->items->count() }} paquete(s) · {{ $guia->deliveryBranch?->name }}
+                                {{ $guia->cantidadDeBultos() }} paquete(s) · {{ $guia->deliveryBranch?->name }}
                             </div>
                             <x-domicilio :guia="$guia" class="mt-1" />
                         </div>
@@ -94,6 +94,8 @@
                             <input type="text" wire:model="receivedByName" class="input mb-2">
                             <label class="label">Identificación</label>
                             <input type="text" wire:model="receivedByIdentification" inputmode="numeric" class="input mb-2">
+
+                            @include('livewire.partials.factura-al-entregar', ['guia' => $guia])
 
                             <x-signature-pad model="deliverySignature" :alto="150" />
 

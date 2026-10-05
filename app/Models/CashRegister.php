@@ -87,6 +87,12 @@ class CashRegister extends Model
      */
     public const ANCHO_IMPRIMIBLE_MATRIZ = [58 => 45, 76 => 63, 80 => 68];
 
+    /**
+     * Lo que se deja libre a la izquierda dentro de ese ancho. Sin margen, un
+     * corrimiento de un milímetro del driver cortaba el inicio de cada renglón.
+     */
+    public const MARGEN_IZQUIERDO_MATRIZ_MM = 2.5;
+
     /** Un valor raro cae a térmica, que era lo único que había. */
     public function receiptPrinterType(): string
     {

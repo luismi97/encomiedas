@@ -15,9 +15,8 @@ use Illuminate\Console\Command;
  * plazo de gracia, a "desechado". Y de paso lista las que salieron y nadie
  * recibió, que son el otro extremo del mismo problema.
  *
- * El desecho definitivo NO se automatiza a ciegas: el requisito pide que quede
- * registrado quién lo autorizó. Por eso el comando avisa, y solo desecha por su
- * cuenta si la configuración lo habilita explícitamente.
+ * El desecho definitivo NO se automatiza: lo hace un administrador, y no antes
+ * de Invoice::MESES_ANTES_DE_DESECHAR en destino. El comando solo avisa.
  */
 class GuiasDesecho extends Command
 {
@@ -71,36 +70,29 @@ class GuiasDesecho extends Command
         }
     }
 
-    /** 2) Ya avisadas y con el plazo de gracia vencido. */
+    /**
+     * 2) Ya avisadas, con el plazo de gracia vencido y con los meses mínimos en
+     *    destino cumplidos: se listan para que un administrador las deseche.
+     *
+     * Nunca se desechan solas. Desechar es solo del administrador y queda a su
+     * nombre (GuideStatusService::cambiar lo exige), así que auto_dispose ya no
+     * aplica.
+     */
     private function desecharVencidas(GuideStatusService $estados, int $diasGracia, bool $automatico, bool $simulacion): void
     {
         $porDesechar = Invoice::where('status', Invoice::STATUS_NEAR_DISPOSAL)
             ->whereNotNull('disposal_warned_at')
             ->where('disposal_warned_at', '<=', now()->subDays($diasGracia))
-            ->get();
+            ->get()
+            ->filter(fn (Invoice $guia) => $guia->yaSePuedeDesechar());
 
-        if (! $automatico) {
-            $this->warn("Listas para desechar: {$porDesechar->count()} — requieren autorización manual.");
-            foreach ($porDesechar as $guia) {
-                $this->line("  - {$guia->code} · avisada {$guia->disposal_warned_at->format('d/m/Y')}");
-            }
-
-            return;
+        if ($automatico) {
+            $this->warn('auto_dispose está encendido, pero desechar es solo del administrador: se listan y no se desechan.');
         }
 
-        $this->info("Desechando: {$porDesechar->count()} (plazo de gracia de {$diasGracia} días vencido)");
-
+        $this->warn("Listas para desechar: {$porDesechar->count()} — las tiene que desechar un administrador.");
         foreach ($porDesechar as $guia) {
-            $this->line("  - {$guia->code}");
-
-            if (! $simulacion) {
-                $estados->cambiar(
-                    $guia,
-                    Invoice::STATUS_DISPOSED,
-                    source: GuideStatusHistory::SOURCE_SYSTEM,
-                    nota: "Plazo de gracia de {$diasGracia} días vencido sin reclamo."
-                );
-            }
+            $this->line("  - {$guia->code} · avisada {$guia->disposal_warned_at->format('d/m/Y')}");
         }
     }
 

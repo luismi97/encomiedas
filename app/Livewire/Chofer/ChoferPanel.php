@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Chofer;
 
+use App\Livewire\Concerns\DatosDeFactura;
 use App\Models\Dispatch;
 use App\Models\GuideIncident;
 use App\Models\Invoice;
@@ -19,6 +20,8 @@ use RuntimeException;
  */
 class ChoferPanel extends Component
 {
+    use DatosDeFactura;
+
     public $dispatchId = null;
 
     /** Lo que escribe el lector de QR. */
@@ -140,6 +143,7 @@ class ChoferPanel extends Component
         $this->receivedByName = (string) $guia?->recipient_name;
         $this->receivedByIdentification = (string) $guia?->recipient_identification;
         $this->deliverySignature = '';
+        $this->prepararFactura($guia);
     }
 
     public function entregar(GuideStatusService $estados): void
@@ -151,12 +155,15 @@ class ChoferPanel extends Component
             return;
         }
 
+        $facturarA = $this->datosDeFactura();
+
         try {
             $estados->entregar(
                 $guia, auth()->user(),
                 $this->receivedByName,
                 $this->receivedByIdentification ?: null,
-                $this->deliverySignature ?: null
+                $this->deliverySignature ?: null,
+                $facturarA
             );
         } catch (RuntimeException $e) {
             $this->notify('error', $e->getMessage());

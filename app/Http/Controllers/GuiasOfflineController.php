@@ -205,7 +205,7 @@ class GuiasOfflineController extends Controller
             'created_at'            => 'required|date',
             'sold_by'               => 'nullable|integer',
             'pickup_branch_id'      => 'required|integer',
-            'delivery_branch_id'    => 'required|integer|different:pickup_branch_id',
+            'delivery_branch_id'    => 'required|integer',
             'shipping_route_id'     => 'nullable|integer',
             'shipment_type'         => ['nullable', Rule::in(array_keys(Rate::SHIPMENT_TYPES))],
             'sender_name'           => 'required|string|max:150',
@@ -227,6 +227,7 @@ class GuiasOfflineController extends Controller
             'payment_method'        => ['required', Rule::in(array_keys(Invoice::PAYMENT_METHODS))],
             'items'                 => 'required|array|min:1',
             'items.*.package_type_id' => 'required|integer',
+            'items.*.quantity'      => 'nullable|integer|min:1|max:999',
             'items.*.size'          => 'nullable|string|max:20',
             'items.*.weight'        => 'nullable|numeric|min:0|max:999999.99',
             'items.*.length_cm'     => 'nullable|numeric|min:0|max:999999.99',
@@ -315,7 +316,9 @@ class GuiasOfflineController extends Controller
     {
         $cerca = fn (float $a, float $b) => abs($a - $b) < 0.02;
 
-        $subtotal = collect($d['items'])->sum(fn ($i) => (float) $i['price']);
+        // `price` es por bulto; la cantidad falta en las guías que se hicieron
+        // sin conexión antes de que existiera.
+        $subtotal = collect($d['items'])->sum(fn ($i) => (float) $i['price'] * max(1, (int) ($i['quantity'] ?? 1)));
         if (! $cerca($subtotal, (float) $d['subtotal'])) {
             return 'El subtotal no coincide con la suma de los bultos.';
         }

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Invoices;
 
+use App\Livewire\Concerns\ConsultaHacienda;
 use App\Rules\DeLaEmpresa;
 use App\Models\Branch;
 use App\Models\Invoice;
@@ -23,6 +24,8 @@ use Livewire\Component;
 
 class InvoiceForm extends Component
 {
+    use ConsultaHacienda;
+
     public ?Invoice $invoice = null;
 
     /**
@@ -130,6 +133,9 @@ class InvoiceForm extends Component
     public string $billing_identification_type = '01';
     public string $billing_identification = '';
     public string $billing_email = '';
+
+    /** CodigoActividadReceptor: de a quién se factura, sea quien sea. */
+    public string $billing_activity_code = '';
     public $assigned_to = null;
 
     /** @var array<int,array<string,mixed>> */
@@ -141,7 +147,7 @@ class InvoiceForm extends Component
     public function mount(?Invoice $invoice = null): void
     {
         $this->items = [
-            ['package_type_id' => PackageType::porDefecto()?->id, 'size' => 'M', 'weight' => '', 'length_cm' => '', 'width_cm' => '', 'height_cm' => '', 'description' => '', 'price' => ''],
+            ['package_type_id' => PackageType::porDefecto()?->id, 'quantity' => 1, 'size' => 'M', 'weight' => '', 'length_cm' => '', 'width_cm' => '', 'height_cm' => '', 'description' => '', 'price' => ''],
         ];
 
         if ($invoice && $invoice->exists) {
@@ -159,6 +165,7 @@ class InvoiceForm extends Component
             $this->billing_identification_type = $invoice->billing_identification_type ?: '01';
             $this->billing_identification = (string) $invoice->billing_identification;
             $this->billing_email = (string) $invoice->billing_email;
+            $this->billing_activity_code = (string) $invoice->billing_activity_code;
             $this->recipient_name = $invoice->recipient_name;
             $this->recipient_phone = (string) $invoice->recipient_phone;
             $this->recipient_identification_type = $invoice->recipient_identification_type ?: '01';
@@ -183,17 +190,24 @@ class InvoiceForm extends Component
             $this->assigned_to = $invoice->assigned_to;
             $this->items = $invoice->items->map(fn ($i) => [
                 'package_type_id' => $i->package_type_id,
+                'quantity' => $i->cantidad(),
                 'size' => $i->size,
                 'weight' => $i->weight,
                 'length_cm' => $i->length_cm,
                 'width_cm' => $i->width_cm,
                 'height_cm' => $i->height_cm,
                 'description' => $i->description,
-                'price' => (float) $i->price,
+                // El formulario trabaja con el precio por bulto.
+                'price' => $i->precioUnitario(),
             ])->toArray();
             $this->selectedTaxes = $invoice->taxes->pluck('tax_id')->filter()->toArray();
         } else {
             $this->selectedTaxes = Tax::where('is_default', true)->pluck('id')->toArray();
+
+            // El dependiente recibe en el mostrador de su sede base.
+            if (auth()->user()->isDependiente()) {
+                $this->pickup_branch_id = auth()->user()->branch_id;
+            }
         }
     }
 
@@ -210,6 +224,68 @@ class InvoiceForm extends Component
         // le factura: ahí manda el formato de Hacienda.
         if ($this->facturaA(Invoice::BILL_TO_SENDER)) {
             $this->sender_identification = preg_replace('/\D/', '', (string) $this->sender_identification);
+        }
+    }
+
+    /*
+     | Al terminar de digitar la cédula de a quién se factura, se consulta
+     | Hacienda: tipo de identificación, actividades y, si es jurídica o el
+     | nombre está vacío, el nombre oficial (el que la factura tiene que llevar).
+     */
+    public function updatedSenderIdentification(): void
+    {
+        $this->autocompletarDesdeHacienda(Invoice::BILL_TO_SENDER);
+    }
+
+    public function updatedRecipientIdentification(): void
+    {
+        $this->autocompletarDesdeHacienda(Invoice::BILL_TO_RECIPIENT);
+    }
+
+    public function updatedBillingIdentification(): void
+    {
+        $this->autocompletarDesdeHacienda(Invoice::BILL_TO_OTHER);
+    }
+
+    public function updatedBillTo(): void
+    {
+        $this->actividadesHacienda = [];
+        $this->avisoHacienda = null;
+    }
+
+    /** Botón «Buscar en Hacienda» del bloque de factura. */
+    public function buscarEnHacienda(): void
+    {
+        $this->autocompletarDesdeHacienda($this->bill_to);
+    }
+
+    private function autocompletarDesdeHacienda(string $parte): void
+    {
+        if (! $this->facturaA($parte)) {
+            return;
+        }
+
+        [$campoNombre, $campoTipo, $campoId] = match ($parte) {
+            Invoice::BILL_TO_SENDER => ['sender_name', 'sender_identification_type', 'sender_identification'],
+            Invoice::BILL_TO_OTHER  => ['billing_name', 'billing_identification_type', 'billing_identification'],
+            default                 => ['recipient_name', 'recipient_identification_type', 'recipient_identification'],
+        };
+
+        $resultado = $this->consultarContribuyente($this->{$campoId});
+
+        if (($resultado['name'] ?? null) === null) {
+            return;
+        }
+
+        $this->{$campoId} = preg_replace('/\D/', '', (string) $this->{$campoId});
+        $this->{$campoTipo} = $resultado['id_type'] ?? $this->{$campoTipo};
+
+        if ($this->{$campoTipo} === '02' || blank($this->{$campoNombre})) {
+            $this->{$campoNombre} = $resultado['name'];
+        }
+
+        if (! in_array($this->billing_activity_code, array_column($this->actividadesHacienda, 'code'), true)) {
+            $this->billing_activity_code = (string) $this->actividadPrincipal();
         }
     }
 
@@ -251,6 +327,10 @@ class InvoiceForm extends Component
         $this->sender_identification = (string) $cliente->identification;
         $this->sender_identification_type = (string) ($cliente->identification_type ?: '01');
         $this->sender_email = (string) $cliente->email;
+
+        if ($cliente->activity_code && $this->bill_to === Invoice::BILL_TO_SENDER) {
+            $this->billing_activity_code = (string) $cliente->activity_code;
+        }
 
         if ($cliente->branch_id && ! $this->pickup_branch_id) {
             $this->pickup_branch_id = $cliente->branch_id;
@@ -333,6 +413,10 @@ class InvoiceForm extends Component
             $this->recipient_identification = (string) $cliente->identification;
             $this->recipient_identification_type = (string) $cliente->identification_type;
             $this->wantsInvoice = true;
+
+            if ($cliente->activity_code && $this->bill_to === Invoice::BILL_TO_RECIPIENT) {
+                $this->billing_activity_code = (string) $cliente->activity_code;
+            }
         }
     }
 
@@ -429,14 +513,15 @@ class InvoiceForm extends Component
                 $this->shipment_type ?: null
             );
 
-            $pesoTotal += $cotizacion['peso_facturable'];
+            $pesoTotal += $cotizacion['peso_facturable'] * self::cantidadDe($item);
 
             if ($cotizacion['precio'] === null) {
                 $sinTarifa = true;
                 continue;
             }
 
-            $precioTotal += $cotizacion['precio'];
+            // La tarifa es por bulto: la línea cobra precio × cantidad.
+            $precioTotal += $cotizacion['precio'] * self::cantidadDe($item);
 
             // Solo se pisa lo que puso el propio tarifario: un precio digitado
             // a mano manda sobre la tabla.
@@ -460,7 +545,7 @@ class InvoiceForm extends Component
 
     public function addItem(): void
     {
-        $this->items[] = ['package_type_id' => PackageType::porDefecto()?->id, 'size' => 'M', 'weight' => '', 'length_cm' => '', 'width_cm' => '', 'height_cm' => '', 'description' => '', 'price' => ''];
+        $this->items[] = ['package_type_id' => PackageType::porDefecto()?->id, 'quantity' => 1, 'size' => 'M', 'weight' => '', 'length_cm' => '', 'width_cm' => '', 'height_cm' => '', 'description' => '', 'price' => ''];
     }
 
     public function removeItem(int $index): void
@@ -471,7 +556,13 @@ class InvoiceForm extends Component
 
     public function getSubtotalProperty(): float
     {
-        return collect($this->items)->sum(fn ($i) => (float) ($i['price'] ?? 0));
+        return collect($this->items)->sum(fn ($i) => (float) ($i['price'] ?? 0) * self::cantidadDe($i));
+    }
+
+    /** Lo que se digitó en Cantidad, con 1 si quedó vacío o en cero. */
+    private static function cantidadDe(array $item): int
+    {
+        return max(1, (int) ($item['quantity'] ?? 1));
     }
 
     /**
@@ -521,11 +612,16 @@ class InvoiceForm extends Component
     {
         return [
             'shipping_route_id' => ['nullable', DeLaEmpresa::en('shipping_routes')],
-            'pickup_branch_id' => ['required', DeLaEmpresa::en('branches')],
-            // Una encomienda es un traslado entre sedes: origen y destino
-            // iguales no es un envío, y además rompe el código guía, que se
-            // arma con los dos prefijos (SJ-SJ-00001 no significa nada).
-            'delivery_branch_id' => ['required', 'different:pickup_branch_id', DeLaEmpresa::en('branches')],
+            'pickup_branch_id' => array_filter([
+                'required',
+                DeLaEmpresa::en('branches'),
+                // El dependiente solo recibe en las sedes que atiende.
+                auth()->user()->isDependiente() ? Rule::in(auth()->user()->sedesIds()) : null,
+            ]),
+            // Origen y destino pueden ser la misma sede: es un paquete que
+            // alguien deja y otro recoge ahí mismo. No viaja en ningún cierre
+            // (ver Invoice::esMismaSede) y su código queda SJ-SJ-00001.
+            'delivery_branch_id' => ['required', DeLaEmpresa::en('branches')],
             'sender_name' => 'required|string|max:150',
             'sender_phone' => 'nullable|string|max:30',
             'sender_identification' => $this->facturaA(Invoice::BILL_TO_SENDER)
@@ -540,6 +636,7 @@ class InvoiceForm extends Component
                 : 'nullable',
             'billing_identification_type' => $this->facturaA(Invoice::BILL_TO_OTHER) ? 'required|in:01,02,03,04' : 'nullable',
             'billing_email' => 'nullable|email',
+            'billing_activity_code' => ['nullable', 'regex:/^(?:\d{6}|\d{4}\.\d)$/'],
             'sender_customer_id' => ['nullable', DeLaEmpresa::en('customers')],
             'recipient_customer_id' => ['nullable', DeLaEmpresa::en('customers')],
             'shipment_type' => ['nullable', Rule::in(array_keys(Rate::SHIPMENT_TYPES))],
@@ -560,6 +657,7 @@ class InvoiceForm extends Component
             'cobro' => 'required|in:' . self::COBRO_PREPAID . ',' . self::COBRO_COLLECT . ',' . self::COBRO_CREDIT,
             'items' => 'required|array|min:1',
             'items.*.package_type_id' => ['required', DeLaEmpresa::en('package_types')],
+            'items.*.quantity' => 'required|integer|min:1|max:999',
             'items.*.size' => 'nullable|string|max:20',
             'items.*.weight' => 'nullable|numeric|min:0|max:999999.99',
             'items.*.length_cm' => 'nullable|numeric|min:0|max:999999.99',
@@ -573,6 +671,7 @@ class InvoiceForm extends Component
     protected function messages(): array
     {
         return [
+            'pickup_branch_id.in' => 'Solo podés recibir encomiendas en las sedes que tenés asignadas.',
             'recipient_identification.required' => 'Para emitir Factura Electrónica hace falta la identificación del receptor. '
                 . 'Sin ella el comprobante debe ser Tiquete Electrónico.',
             'recipient_identification.regex' => 'La identificación son de 9 a 12 dígitos, sin guiones ni espacios.',
@@ -581,8 +680,7 @@ class InvoiceForm extends Component
             'billing_name.required' => 'Indicá a nombre de quién va la factura.',
             'billing_identification.required' => 'Para emitir Factura Electrónica hace falta la identificación de a quién se factura.',
             'billing_identification.regex' => 'La identificación son de 9 a 12 dígitos, sin guiones ni espacios.',
-            'delivery_branch_id.different' => 'La sede de destino tiene que ser distinta de la de origen: '
-                . 'una encomienda es un traslado entre sedes.',
+            'billing_activity_code.regex' => 'El código de actividad son 6 dígitos (ej. 492300) o 4 con decimal (ej. 4923.0).',
             'items.*.package_type_id.required' => 'Elegí qué tipo de bulto es (paquete, caja, sobre...).',
             'items.*.package_type_id.exists' => 'Ese tipo de bulto ya no está disponible.',
             'items.*.weight.numeric' => 'El peso debe ser un número en kilogramos (ej. 12.5).',
@@ -591,6 +689,8 @@ class InvoiceForm extends Component
             'items.*.price.required' => 'El precio del paquete es obligatorio.',
             'items.*.price.numeric' => 'El precio debe ser un número.',
             'items.*.price.min' => 'El precio no puede ser negativo.',
+            'items.*.quantity.min' => 'La cantidad mínima es 1.',
+            'items.*.quantity.required' => 'Indicá cuántos bultos van en esta línea.',
             'delivery_address.required' => 'Para entregar a domicilio hace falta la dirección exacta.',
         ];
     }
@@ -743,6 +843,9 @@ class InvoiceForm extends Component
                 'billing_identification_type' => $this->bill_to === Invoice::BILL_TO_OTHER && filled($data['billing_identification']) ? $this->billing_identification_type : null,
                 'billing_identification' => $this->bill_to === Invoice::BILL_TO_OTHER ? ($data['billing_identification'] ?: null) : null,
                 'billing_email' => $this->bill_to === Invoice::BILL_TO_OTHER ? ($data['billing_email'] ?: null) : null,
+                'billing_activity_code' => $this->wantsInvoice
+                    ? (\App\Services\Hacienda\Catalogs::normalizeActivityCode($data['billing_activity_code'] ?? '') ?: null)
+                    : null,
                 'recipient_name' => $data['recipient_name'],
                 'recipient_phone' => $data['recipient_phone'],
                 'bill_type' => $this->wantsInvoice ? Invoice::BILL_INVOICE : Invoice::BILL_TICKET,
@@ -840,8 +943,14 @@ class InvoiceForm extends Component
 
     public function render()
     {
+        $branches = Branch::where('is_active', true)->orderBy('name')->get();
+
         return view('livewire.invoices.invoice-form', [
-            'branches' => Branch::where('is_active', true)->orderBy('name')->get(),
+            'branches' => $branches,
+            // Desde dónde puede recibir: el dependiente, solo sus sedes.
+            'sedesDeOrigen' => auth()->user()->isDependiente()
+                ? $branches->whereIn('id', auth()->user()->sedesIds())->values()
+                : $branches,
             'rutas' => $this->rutasDisponibles(),
             'rutaElegida' => $this->shipping_route_id ? ShippingRoute::find($this->shipping_route_id) : null,
             'taxes' => Tax::where('is_active', true)->orderBy('name')->get(),

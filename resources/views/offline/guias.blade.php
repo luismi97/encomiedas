@@ -241,13 +241,14 @@
                 <label class="label">Tipo</label>
                 <select class="input" data-campo="package_type_id"></select>
             </div>
+            <div><label class="label">Cantidad</label><input type="number" min="1" step="1" value="1" class="input" data-campo="quantity"></div>
             <div><label class="label">Peso (kg)</label><input type="number" min="0" step="0.01" class="input" data-campo="weight"></div>
             <div><label class="label">Largo (cm)</label><input type="number" min="0" step="0.1" class="input" data-campo="length_cm"></div>
             <div><label class="label">Ancho (cm)</label><input type="number" min="0" step="0.1" class="input" data-campo="width_cm"></div>
             <div><label class="label">Alto (cm)</label><input type="number" min="0" step="0.1" class="input" data-campo="height_cm"></div>
-            <div class="col-span-2 sm:col-span-4"><label class="label">Descripción</label><input type="text" maxlength="255" class="input" data-campo="description"></div>
+            <div class="col-span-2 sm:col-span-3"><label class="label">Descripción</label><input type="text" maxlength="255" class="input" data-campo="description"></div>
             <div class="col-span-2">
-                <label class="label">Precio</label>
+                <label class="label">Precio c/u</label>
                 <input type="number" min="0" step="0.01" class="input" data-campo="price">
                 <p class="text-xs text-gray-500 mt-1" data-cotizacion></p>
             </div>
@@ -478,6 +479,7 @@
             var n = function (c) { var x = v(c); return x === '' ? null : num(x); };
             return {
                 package_type_id: parseInt(v('package_type_id'), 10) || null,
+                quantity: Math.max(1, parseInt(v('quantity'), 10) || 1),
                 weight: n('weight'), length_cm: n('length_cm'), width_cm: n('width_cm'), height_cm: n('height_cm'),
                 description: v('description') || null,
                 price: v('price') === '' ? null : num(v('price')),
@@ -552,7 +554,7 @@
     // Mismo cálculo que InvoiceForm: seguro y domicilio entran ANTES del
     // impuesto. El servidor comprueba que cuadre (GuiasOfflineController::noCuadra).
     function calcular() {
-        var subtotal = r2(bultos().reduce(function (s, b) { return s + (b.price || 0); }, 0));
+        var subtotal = r2(bultos().reduce(function (s, b) { return s + (b.price || 0) * b.quantity; }, 0));
         var declarado = num($('declared_value').value);
         var pct = num(snap.porcentaje_seguro);
         var seguro = declarado > 0 && pct > 0 ? r2(declarado * pct / 100) : 0;
@@ -827,7 +829,7 @@
             + '<div><b>Destinatario</b><br>' + e(g.recipient_name) + (g.recipient_phone ? '<br>' + e(g.recipient_phone) : '') + '<br>' + e(destino ? destino.name : '')
             + (g.home_delivery ? '<br>A domicilio: ' + e(g.delivery_address) : '') + '</div>'
             + '<div class="r"></div>'
-            + '<table>' + g.items.map(function (b, i) { return fila((i + 1) + '. ' + (tipos[b.package_type_id] || 'Bulto') + (b.description ? ' · ' + b.description : ''), b.weight ? b.weight + ' kg' : ''); }).join('') + '</table>'
+            + '<table>' + g.items.map(function (b, i) { return fila((b.quantity > 1 ? b.quantity + ' × ' : '') + (tipos[b.package_type_id] || 'Bulto') + (b.description ? ' · ' + b.description : ''), b.weight ? b.weight + ' kg' : ''); }).join('') + '</table>'
             + '<div class="r"></div>'
             + '<table>' + fila('Bultos', colones(c.subtotal))
             + (c.seguro ? fila('Seguro', colones(c.seguro)) : '')

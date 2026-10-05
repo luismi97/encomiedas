@@ -30,7 +30,7 @@
                 </div>
                 <div>
                     <span class="text-gray-500 dark:text-gray-400 block">Paquetes</span>
-                    {{ $guia->items()->count() }}
+                    {{ $guia->cantidadDeBultos() }}
                 </div>
             </div>
         </div>

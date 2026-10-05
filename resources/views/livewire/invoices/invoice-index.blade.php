@@ -90,14 +90,16 @@
             {{-- El cajero es quien recibe la paquetería en el mostrador: la
                  ruta ya lo permitía, pero el botón estaba detrás de isAdmin()
                  y no tenía por dónde llegar. --}}
-            @if (auth()->user()->puedeOperarCaja())
+            @if (auth()->user()->puedeCrearGuias())
                 <a href="{{ route('invoices.create') }}" class="btn-primary"><x-icon name="plus" class="w-4 h-4" /> Nueva guía</a>
         <x-ayuda posicion="izquierda">Registra una encomienda nueva: ruta, remitente, destinatario y bultos. Al guardar se asigna el código de guía y se imprime la etiqueta.</x-ayuda>
             @endif
+            @if (auth()->user()->puedeVerDinero())
             <a href="{{ route('invoices.export', ['from' => $from, 'to' => $to, 'status' => $status, 'branch_id' => $branchId, 'search' => $search, 'entrega' => $entrega, 'cobro' => $cobro, 'medio' => $medio, 'creada_por' => $creadaPor]) }}"
                class="btn-secondary" target="_blank">
                 <x-icon name="document" class="w-4 h-4" /> Exportar PDF
             </a>
+            @endif
         </div>
     </div>
 
@@ -186,8 +188,13 @@
                                     </a>
 
                                     @php
-                                        $siguientes = collect($invoice->siguientesEstados())
-                                            ->except([\App\Models\Invoice::STATUS_DELIVERED, \App\Models\Invoice::STATUS_CANCELLED]);
+                                        // Entregar, anular, devolver y desechar piden datos
+                                        // o son del administrador: se hacen en el detalle.
+                                        $siguientes = collect($invoice->siguientesEstados(auth()->user()))
+                                            ->except([
+                                                \App\Models\Invoice::STATUS_DELIVERED, \App\Models\Invoice::STATUS_CANCELLED,
+                                                \App\Models\Invoice::STATUS_RETURNED, \App\Models\Invoice::STATUS_DISPOSED,
+                                            ]);
                                     @endphp
 
                                     @if ($siguientes->isNotEmpty())

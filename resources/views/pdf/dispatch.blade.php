@@ -45,7 +45,7 @@
                 <th>Destinatario</th>
                 <th>Sede destino</th>
                 <th class="text-right">Paquetes</th>
-                <th class="text-right">Peso</th>
+                <th>Detalle</th>
                 <th class="text-right">Valor decl.</th>
                 <th>Cobro</th>
                 <th>Recibido</th>
@@ -65,8 +65,14 @@
                         @endif
                     </td>
                     <td>{{ $guia?->deliveryBranch?->name }}</td>
-                    <td class="text-right">{{ $guia?->items->count() }}</td>
-                    <td class="text-right">{{ number_format((float) $guia?->items->sum('weight'), 2) }} kg</td>
+                    <td class="text-right">{{ $guia?->cantidadDeBultos() }}</td>
+                    {{-- Qué va en la guía, para reconocerla al descargar: el peso no
+                         le decía nada a quien revisa el camión. --}}
+                    <td>
+                        @foreach ($guia?->items ?? [] as $item)
+                            <div>{{ $item->nombreConCantidad() }}@if ($item->description) · {{ $item->description }}@endif</div>
+                        @endforeach
+                    </td>
                     <td class="text-right">₡{{ number_format((float) $guia?->declared_value, 2) }}</td>
                     {{-- Quien recibe en destino no entrega sin cobrar lo que diga
                          POR COBRAR, y lo cobra por ese monto. --}}
@@ -93,7 +99,7 @@
         @php $aDomicilio = $dispatch->lines->filter(fn ($l) => $l->invoice?->esADomicilio())->count(); @endphp
         @if ($aDomicilio) ({{ $aDomicilio }} a domicilio) @endif
         · {{ $dispatch->totalPaquetes() }} paquete(s) ·
-        {{ $dispatch->pesoTotal() }} kg · valor declarado ₡{{ number_format($dispatch->valorDeclaradoTotal(), 2) }}
+        valor declarado ₡{{ number_format($dispatch->valorDeclaradoTotal(), 2) }}
         @php $porCobrar = $dispatch->lines->filter(fn ($l) => $l->invoice?->tieneCobroPendiente()); @endphp
         @if ($porCobrar->isNotEmpty())
             <br><strong>Por cobrar en destino: {{ $porCobrar->count() }} guía(s) · ₡{{ number_format((float) $porCobrar->sum(fn ($l) => $l->invoice->total), 2) }}</strong>

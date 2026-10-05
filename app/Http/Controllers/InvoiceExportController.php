@@ -9,12 +9,16 @@ use App\Models\Invoice;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\CajaService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 
 class InvoiceExportController extends Controller
 {
     public function pdf(Request $request)
     {
+        // Es un reporte con totales de dinero: el dependiente no los ve.
+        abort_unless($request->user()->puedeVerDinero(), 403);
+
         $query = Invoice::query()->with(['pickupBranch', 'deliveryBranch', 'assignedTo']);
 
         $user = $request->user();
@@ -56,7 +60,7 @@ class InvoiceExportController extends Controller
             abort(403);
         }
 
-        $invoice->load(['items', 'pickupBranch', 'deliveryBranch']);
+        $invoice->load(['items.packageType', 'pickupBranch', 'deliveryBranch', 'creator']);
 
         $papel = $this->papel($request, $invoice);
 
@@ -100,7 +104,7 @@ class InvoiceExportController extends Controller
             abort(403);
         }
 
-        $invoice->load(['items', 'taxes', 'pickupBranch', 'deliveryBranch', 'electronicInvoice']);
+        $invoice->load(['items.packageType', 'taxes', 'pickupBranch', 'deliveryBranch', 'electronicInvoice', 'creator']);
 
         return view('recibo.factura', $this->papel($request, $invoice) + [
             'guia'    => $invoice,
@@ -136,6 +140,13 @@ class InvoiceExportController extends Controller
         // etiqueta, sin detalle de bulto.
         $bultos = $invoice->items->isNotEmpty() ? $invoice->items->all() : [null];
 
+        // Una etiqueta por paquete físico: una línea de «3 sobres» son tres.
+        if ($request->boolean('porBulto') && $invoice->items->isNotEmpty()) {
+            $bultos = $invoice->items
+                ->flatMap(fn ($item) => array_fill(0, $item->cantidad(), $item))
+                ->all();
+        }
+
         return view('recibo.etiqueta', $papel + [
             'guia'    => $invoice,
             'empresa' => CompanySetting::instance(),
@@ -156,18 +167,33 @@ class InvoiceExportController extends Controller
      *
      * @return array{ancho:int, matriz:bool, anchoUtil:int}
      */
+    /** Qué impresora usó este equipo la última vez que imprimió con una caja conocida. */
+    private const COOKIE_IMPRESORA = 'impresora_rollo';
+
     private function papel(Request $request, Invoice $invoice): array
     {
         $caja = $this->cajaQueImprime($request, $invoice);
 
-        $ancho = $request->integer('ancho') ?: $caja?->receiptPaperWidthMm() ?? 80;
+        // Sin caja que decida (un admin o un dependiente sin turno, una sede con
+        // cajas que imprimen distinto) se usa la impresora con la que imprimió
+        // este equipo la última vez. Antes caía a térmica de 80, y en una de
+        // matriz eso salía cortado a los lados.
+        [$impresoraDelEquipo, $anchoDelEquipo] = array_pad(explode('|', (string) $request->cookie(self::COOKIE_IMPRESORA)), 2, null);
+
+        $ancho = $request->integer('ancho') ?: $caja?->receiptPaperWidthMm() ?? ((int) $anchoDelEquipo ?: 80);
         $ancho = in_array($ancho, CashRegister::PAPER_WIDTHS, true) ? $ancho : 80;
 
         $matriz = match ($request->query('impresora')) {
             CashRegister::IMPRESORA_MATRIZ  => true,
             CashRegister::IMPRESORA_TERMICA => false,
-            default                         => (bool) $caja?->imprimeEnMatriz(),
+            default                         => $caja
+                ? $caja->imprimeEnMatriz()
+                : $impresoraDelEquipo === CashRegister::IMPRESORA_MATRIZ,
         };
+
+        if ($caja) {
+            Cookie::queue(self::COOKIE_IMPRESORA, $caja->receiptPrinterType() . '|' . $caja->receiptPaperWidthMm(), 60 * 24 * 365);
+        }
 
         return [
             'ancho'     => $ancho,
@@ -202,6 +228,22 @@ class InvoiceExportController extends Controller
             ->unique();
 
         return $configuraciones->count() === 1 ? $cajas->first() : null;
+    }
+
+    /** Reporte contable de ventas e IVA (solo aceptados por Hacienda). */
+    public function reporteContablePdf(Request $request, \App\Services\ReporteContable $reporte)
+    {
+        $datos = $request->validate([
+            'from'      => 'required|date',
+            'to'        => 'required|date|after_or_equal:from',
+            'branch_id' => 'nullable|integer',
+        ]);
+
+        $r = $reporte->generar($datos['from'], $datos['to'], $datos['branch_id'] ?? null);
+
+        return Pdf::loadView('pdf.reporte-contable', ['r' => $r])
+            ->setPaper('letter')
+            ->stream('reporte-contable-' . $datos['from'] . '-al-' . $datos['to'] . '.pdf');
     }
 
     /** Proforma en PDF, para descargar o adjuntar. */
@@ -241,7 +283,7 @@ class InvoiceExportController extends Controller
     /** Manifiesto imprimible del cierre de envío, con espacio para firmas. */
     public function dispatchPdf(\App\Models\Dispatch $dispatch)
     {
-        $dispatch->load(['lines.invoice.items', 'lines.invoice.deliveryBranch', 'originBranch', 'destinationBranch', 'driver', 'creator', 'guides.items']);
+        $dispatch->load(['lines.invoice.items.packageType', 'lines.invoice.deliveryBranch', 'originBranch', 'destinationBranch', 'driver', 'creator', 'guides.items']);
 
         return Pdf::loadView('pdf.dispatch', [
             'dispatch' => $dispatch,

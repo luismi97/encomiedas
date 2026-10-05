@@ -29,7 +29,7 @@
     @endif
 
     <div class="flex flex-wrap gap-3">
-        @if (auth()->user()->isAdmin())
+        @if (auth()->user()->puedeCrearGuias())
             <a href="{{ route('invoices.create') }}" class="btn-primary"><x-icon name="plus" class="w-4 h-4" /> Nueva factura</a>
         @endif
         <a href="{{ route('invoices.index') }}" class="btn-secondary"><x-icon name="clipboard-list" class="w-4 h-4" /> Ver todas las facturas</a>

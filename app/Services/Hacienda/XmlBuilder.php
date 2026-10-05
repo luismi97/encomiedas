@@ -148,12 +148,17 @@ abstract class XmlBuilder
             $subTotal = round($gross - $lineDiscount, 5);
             $iva = $rate > 0 ? round($subTotal * $rate / 100, 5) : 0.0;
 
+            // `price` es el total de la línea. Hacienda valida que
+            // PrecioUnitario × Cantidad = MontoTotal, y el precio por bulto
+            // viene digitado con dos decimales, así que la división es exacta.
+            $cantidad = max(1, (int) ($item['cantidad'] ?? 1));
+
             $this->lines[] = [
                 'numero'     => $line,
                 'cabys'      => $item['cabys'] ?? $defaultCabys,
-                'cantidad'   => 1,
+                'cantidad'   => $cantidad,
                 'detalle'    => mb_substr($item['detalle'], 0, 160),
-                'precio'     => $gross,
+                'precio'     => round($gross / $cantidad, 5),
                 'montoTotal' => $gross,
                 'descuento'  => $lineDiscount,
                 'subTotal'   => $subTotal,
@@ -229,8 +234,9 @@ abstract class XmlBuilder
                 $detalle .= ' (' . $item->description . ')';
             }
             $out[] = [
-                'price'   => (float) $item->price,
-                'cabys'   => $item->cabys_code ?: $defaultCabys,
+                'price'    => (float) $item->price,
+                'cantidad' => $item->cantidad(),
+                'cabys'    => $item->cabys_code ?: $defaultCabys,
                 'detalle' => $detalle,
             ];
         }

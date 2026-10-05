@@ -156,7 +156,7 @@
                                     {{ $linea->invoice?->recipient_name }}
                                     <x-domicilio :guia="$linea->invoice" class="mt-1" />
                                 </td>
-                                <td class="py-3 text-sm">{{ $linea->invoice?->items->count() }}</td>
+                                <td class="py-3 text-sm">{{ $linea->invoice?->cantidadDeBultos() }}</td>
                                 <td class="py-3"><x-cobro :guia="$linea->invoice" /></td>
                                 <td class="py-3">
                                     @if ($linea->incident === 'faltante' && $linea->received_at)
@@ -205,7 +205,7 @@
                              class="flex items-center justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-700/50">
                             <div>
                                 <span class="font-mono">{{ $guia->code }}</span>
-                                <span class="text-sm text-gray-500"> · {{ $guia->recipient_name }} · {{ $guia->items->count() }} paquete(s)</span>
+                                <span class="text-sm text-gray-500"> · {{ $guia->recipient_name }} · {{ $guia->cantidadDeBultos() }} paquete(s)</span>
                                 <x-domicilio :guia="$guia" class="mt-1" />
                             </div>
                             {{-- Se lista igual para que se sepa por qué no sale: el

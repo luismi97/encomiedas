@@ -25,6 +25,9 @@ class UserIndex extends Component
     public bool $is_active = true;
     public bool $can_collect = true;
 
+    /** Sedes adicionales que atiende un dependiente (casillas). */
+    public array $sedesExtra = [];
+
     protected function rules(): array
     {
         $usernameRules = ['nullable', 'alpha_dash', 'max:50'];
@@ -43,6 +46,8 @@ class UserIndex extends Component
             'role' => ['required', Rule::in(array_keys(User::ROLES_ASIGNABLES))],
             'branch_id' => ['nullable', DeLaEmpresa::en('branches')],
             'phone' => 'nullable|string|max:30',
+            'sedesExtra' => 'array',
+            'sedesExtra.*' => ['integer', DeLaEmpresa::en('branches')],
         ];
     }
 
@@ -80,6 +85,7 @@ class UserIndex extends Component
         $this->phone = (string) $user->phone;
         $this->is_active = $user->is_active;
         $this->can_collect = $user->can_collect !== false;
+        $this->sedesExtra = $user->branches()->pluck('branches.id')->map(fn ($id) => (string) $id)->all();
         $this->showForm = true;
     }
 
@@ -95,6 +101,7 @@ class UserIndex extends Component
         }
 
         $data = $this->validate();
+        unset($data['sedesExtra']);
 
         $data['username'] = $data['username'] !== '' ? $data['username'] : null;
 
@@ -109,7 +116,13 @@ class UserIndex extends Component
         // demás roles nunca.
         $data['can_collect'] = $this->role !== User::ROLE_CAJERO || $this->can_collect;
 
-        User::updateOrCreate(['id' => $this->editingId], $data);
+        $usuario = User::updateOrCreate(['id' => $this->editingId], $data);
+
+        // Solo el dependiente atiende varias sedes; a los demás se les vacían
+        // para que un cambio de rol no les deje acceso a sedes ajenas.
+        $usuario->branches()->sync($this->role === User::ROLE_DEPENDIENTE
+            ? collect($this->sedesExtra)->map(fn ($id) => (int) $id)->reject(fn ($id) => $id === (int) $this->branch_id)->values()->all()
+            : []);
 
         $this->showForm = false;
         $this->resetForm();
@@ -138,7 +151,7 @@ class UserIndex extends Component
 
     private function resetForm(): void
     {
-        $this->reset(['editingId', 'name', 'username', 'email', 'password', 'branch_id', 'phone']);
+        $this->reset(['editingId', 'name', 'username', 'email', 'password', 'branch_id', 'phone', 'sedesExtra']);
         $this->role = 'repartidor';
         $this->is_active = true;
         $this->can_collect = true;
@@ -148,7 +161,7 @@ class UserIndex extends Component
     public function render()
     {
         return view('livewire.users.user-index', [
-            'users' => User::with('branch')->orderBy('name')->paginate(10),
+            'users' => User::with(['branch', 'branches'])->orderBy('name')->paginate(10),
             'branches' => Branch::orderBy('name')->get(),
         ])->layout('layouts.app', ['title' => 'Usuarios']);
     }

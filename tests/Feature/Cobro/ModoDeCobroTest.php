@@ -129,7 +129,7 @@ class ModoDeCobroTest extends TestCase
         $this->actingAs($this->cajero)
             ->get(route('invoices.etiqueta', Invoice::firstOrFail()))
             ->assertSee('POR COBRAR')
-            ->assertSee('11,300.00'); // 10000 + IVA
+            ->assertDontSee('11,300.00'); // sin montos en la etiqueta
     }
 
     public function test_una_guia_pagada_no_dice_por_cobrar(): void

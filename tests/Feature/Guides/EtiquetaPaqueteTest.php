@@ -87,14 +87,16 @@ class EtiquetaPaqueteTest extends TestCase
             ->assertSee('Marta Solano');
     }
 
-    /** Lleva el total: quien entrega no tiene el recibo a mano (detalle en EtiquetaPagoTest). */
-    public function test_la_etiqueta_muestra_el_total(): void
+    /** Ningún monto: la etiqueta la ve todo el que toca el bulto. */
+    public function test_la_etiqueta_no_lleva_montos(): void
     {
         $guia = $this->guia();
 
         $html = $this->actingAs($this->admin)->get(route('invoices.etiqueta', $guia))->getContent();
 
-        $this->assertStringContainsString('3,450', $html);
+        $this->assertStringNotContainsString('3,450', $html);
+        $this->assertStringNotContainsString('1,000', $html);
+        $this->assertStringNotContainsString('₡', $html);
     }
 
     /**
@@ -111,7 +113,6 @@ class EtiquetaPaqueteTest extends TestCase
         $html = $this->actingAs($this->admin)->get(route('invoices.etiqueta', $guia))->getContent();
 
         $this->assertSame(1, substr_count($html, '<svg'), 'Un solo código de barras.');
-        $this->assertStringContainsString('3 BULTOS', $html);
 
         // Y cada bulto con su línea.
         foreach (['Caja 1', 'Caja 2', 'Caja 3'] as $descripcion) {
@@ -119,14 +120,20 @@ class EtiquetaPaqueteTest extends TestCase
         }
     }
 
-    public function test_un_solo_bulto_se_dice_en_singular(): void
+    /**
+     * Sin contador: «5» no se sabía si era el paquete 5 de la lista o 5
+     * paquetes. La cantidad va pegada al tipo («3 × Sobre»).
+     */
+    public function test_no_hay_contador_de_bultos_y_la_cantidad_va_con_el_tipo(): void
     {
-        $guia = $this->guia(bultos: 1);
+        $guia = $this->guia(bultos: 2);
+        $guia->items()->first()->update(['quantity' => 3, 'price' => 3000]);
 
-        $this->actingAs($this->admin)
-            ->get(route('invoices.etiqueta', $guia))
-            ->assertSee('1 BULTO')
-            ->assertDontSee('BULTOS');
+        $html = $this->actingAs($this->admin)->get(route('invoices.etiqueta', $guia->fresh()))->getContent();
+
+        $this->assertStringNotContainsString('BULTOS', $html);
+        $this->assertStringNotContainsString(' DE 2', $html);
+        $this->assertStringContainsString('3 × PKG-1', $html);
     }
 
     /** Cuando sí hace falta pegar una a cada caja, sigue disponible. */
@@ -139,8 +146,20 @@ class EtiquetaPaqueteTest extends TestCase
             ->getContent();
 
         $this->assertSame(3, substr_count($html, '<svg'));
-        $this->assertStringContainsString('BULTO 1 DE 3', $html);
-        $this->assertStringContainsString('BULTO 3 DE 3', $html);
+        $this->assertStringNotContainsString('DE 3', $html);
+    }
+
+    /** Una línea de «2 sobres» son dos paquetes: dos etiquetas. */
+    public function test_por_bulto_imprime_una_por_cada_paquete_de_la_cantidad(): void
+    {
+        $guia = $this->guia(bultos: 2);
+        $guia->items()->first()->update(['quantity' => 2, 'price' => 2000]);
+
+        $html = $this->actingAs($this->admin)
+            ->get(route('invoices.etiqueta', $guia->fresh()) . '?porBulto=1')
+            ->getContent();
+
+        $this->assertSame(3, substr_count($html, '<svg'));
     }
 
     public function test_una_guia_sin_renglones_igual_imprime_una_etiqueta(): void
@@ -153,10 +172,12 @@ class EtiquetaPaqueteTest extends TestCase
             'created_by' => $this->admin->id,
         ]);
 
-        $this->actingAs($this->admin)
+        $html = $this->actingAs($this->admin)
             ->get(route('invoices.etiqueta', $guia))
             ->assertOk()
-            ->assertSee('1 BULTO');
+            ->getContent();
+
+        $this->assertSame(1, substr_count($html, '<svg'));
     }
 
     /** El ancho sale de la caja que imprime, igual que el recibo. */

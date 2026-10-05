@@ -125,6 +125,13 @@ class ElectronicBillingService
             return 'Este comprobante ya está en la cola de envío.';
         }
 
+        // Una guía anulada no se factura. La nota de crédito sí sale: es lo que
+        // revierte el comprobante cuando la anulación llegó después.
+        if (!$electronicInvoice->isNote()
+            && $electronicInvoice->invoice()->value('status') === Invoice::STATUS_CANCELLED) {
+            return 'La guía está anulada: este comprobante no se envía.';
+        }
+
         $settings = CompanySetting::instance();
         if (!$settings->isReady()) {
             return 'La facturación electrónica no está configurada (certificado o credenciales).';
@@ -255,6 +262,40 @@ class ElectronicBillingService
         $electronicInvoice->save();
 
         $this->queueSend($electronicInvoice);
+
+        return $electronicInvoice->fresh();
+    }
+
+    /**
+     * Rehace un comprobante que nunca llegó a Hacienda porque cambió a quién
+     * se factura (por ejemplo, de tiquete a factura con cédula).
+     *
+     * Solo pendientes o rechazados: uno pendiente no se transmitió, y uno
+     * rechazado ya tenía la clave consumida. Pide clave nueva porque el tipo
+     * de documento (FE/TE) va dentro de la clave; el consecutivo del tiquete
+     * queda sin usar, y Hacienda no rechaza huecos.
+     */
+    public function rehacerPorCambioDeReceptor(ElectronicInvoice $electronicInvoice): ElectronicInvoice
+    {
+        if (! in_array($electronicInvoice->status, [ElectronicInvoice::STATUS_PENDING, ElectronicInvoice::STATUS_REJECTED], true)) {
+            throw new RuntimeException('El comprobante ya se envió a Hacienda («' . $electronicInvoice->statusLabel() . '»): '
+                . 'no se puede rehacer. Si fue aceptado, corregilo con una nota de crédito.');
+        }
+
+        $settings = CompanySetting::instance();
+
+        // La guía recién cambió: sin esto se usaría la copia ya cargada.
+        $electronicInvoice->unsetRelation('invoice');
+
+        $this->regenerateClave($electronicInvoice, $settings);
+        $this->refreshEmisorSnapshot($electronicInvoice, $settings);
+
+        $electronicInvoice->forceFill([
+            'status'            => ElectronicInvoice::STATUS_PENDING,
+            'error_message'     => null,
+            'rejection_details' => null,
+            'rejected_at'       => null,
+        ])->save();
 
         return $electronicInvoice->fresh();
     }

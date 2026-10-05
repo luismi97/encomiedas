@@ -75,15 +75,19 @@ class RegistroDeGuia
 
             $invoice->items()->delete();
             foreach ($datos['items'] as $item) {
+                // Llega el precio por bulto; se guarda el total de la línea.
+                $cantidad = max(1, (int) ($item['quantity'] ?? 1));
+
                 $invoice->items()->create([
                     'package_type_id' => $item['package_type_id'],
+                    'quantity' => $cantidad,
                     'size' => $item['size'] ?? null,
                     'weight' => $item['weight'] ?? null,
                     'length_cm' => $item['length_cm'] ?? null,
                     'width_cm' => $item['width_cm'] ?? null,
                     'height_cm' => $item['height_cm'] ?? null,
                     'description' => $item['description'] ?? null,
-                    'price' => $item['price'],
+                    'price' => round((float) $item['price'] * $cantidad, 5),
                 ]);
             }
 

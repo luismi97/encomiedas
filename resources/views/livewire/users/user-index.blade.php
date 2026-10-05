@@ -65,6 +65,24 @@
                 <div class="flex items-end">
                     <label class="flex items-center gap-2"><input type="checkbox" wire:model="is_active" class="rounded"> Activo</label>
                 </div>
+                @if ($role === \App\Models\User::ROLE_DEPENDIENTE)
+                    <div class="sm:col-span-2">
+                        <span class="label">Otras sedes que atiende</span>
+                        <div class="flex flex-wrap gap-x-5 gap-y-2">
+                            @foreach ($branches as $branch)
+                                @continue((string) $branch->id === (string) $branch_id)
+                                <label class="flex items-center gap-2">
+                                    <input type="checkbox" wire:model="sedesExtra" value="{{ $branch->id }}" class="rounded"> {{ $branch->name }}
+                                </label>
+                            @endforeach
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">
+                            Además de su sede base. Solo crea guías: no abre caja (sus guías de contado quedan
+                            pendientes hasta que un cajero las cobre) y no ve sumas de dinero ni reportes.
+                        </p>
+                        @error('sedesExtra.*') <p class="error-text">{{ $message }}</p> @enderror
+                    </div>
+                @endif
                 @if ($role === \App\Models\User::ROLE_CAJERO)
                     <div class="sm:col-span-2">
                         <label class="flex items-center gap-2">
@@ -114,7 +132,12 @@
                                     <div class="text-xs text-gray-500 mt-1">Solo recibe, no cobra</div>
                                 @endif
                             </td>
-                            <td class="py-3 text-sm">{{ $user->branch?->name ?? '—' }}</td>
+                            <td class="py-3 text-sm">
+                                {{ $user->branch?->name ?? '—' }}
+                                @if ($user->isDependiente() && $user->branches->isNotEmpty())
+                                    <span class="block text-xs text-gray-500">+ {{ $user->branches->pluck('name')->join(', ') }}</span>
+                                @endif
+                            </td>
                             <td class="py-3">
                                 <x-action-button action="toggleActive({{ $user->id }})" variant="link" loadingText="..."
                                     class="badge {{ $user->is_active ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }}">
@@ -146,7 +169,7 @@
                     </div>
                     <div class="mt-2 space-y-1 text-sm">
                         <div class="flex justify-between gap-3"><span class="text-gray-500">Rol</span><span>{{ $user->roleLabel() }}</span></div>
-                        <div class="flex justify-between gap-3"><span class="text-gray-500">Sucursal</span><span>{{ $user->branch?->name ?? '—' }}</span></div>
+                        <div class="flex justify-between gap-3"><span class="text-gray-500">Sucursal</span><span class="text-right">{{ $user->branch?->name ?? '—' }}@if ($user->isDependiente() && $user->branches->isNotEmpty())<span class="block text-xs text-gray-500">+ {{ $user->branches->pluck('name')->join(', ') }}</span>@endif</span></div>
                     </div>
                     <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex gap-4">
                         <x-action-button action="edit({{ $user->id }})" variant="link">Editar</x-action-button>

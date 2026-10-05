@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Branch;
+use App\Models\ElectronicInvoice;
+use App\Services\Hacienda\ElectronicBillingService;
 use App\Notifications\CambioDeEstadoGuia;
 use App\Models\GuideStatusHistory;
 use App\Models\Invoice;
@@ -25,6 +27,10 @@ class GuideStatusService
     public const SOLO_ADMIN_ANULA = 'Solo un administrador puede anular guías. '
         . 'Si hay que anularla, avisale con el motivo y él la anula.';
 
+    public const SOLO_ADMIN_DEVUELVE = 'Solo un administrador puede devolver una encomienda.';
+
+    public const SOLO_ADMIN_DESECHA = 'Solo un administrador puede desechar una encomienda.';
+
     /**
      * @param  string  $source  manual | scan | system
      *
@@ -46,6 +52,30 @@ class GuideStatusService
         // pasa por este método, y la regla no puede depender de cuál se usó.
         if ($nuevoEstado === Invoice::STATUS_CANCELLED && $usuario && ! $usuario->puedeAnular()) {
             throw new RuntimeException(self::SOLO_ADMIN_ANULA);
+        }
+
+        // Devolver y desechar son decisiones de un administrador. El sistema
+        // tampoco: un desecho tiene que llevar el nombre de quien lo autorizó.
+        if ($nuevoEstado === Invoice::STATUS_RETURNED) {
+            if (! $usuario?->isAdmin()) {
+                throw new RuntimeException(self::SOLO_ADMIN_DEVUELVE);
+            }
+
+            if (blank($guia->return_reason)) {
+                throw new RuntimeException('Toda devolución necesita un motivo.');
+            }
+        }
+
+        if ($nuevoEstado === Invoice::STATUS_DISPOSED) {
+            if (! $usuario?->isAdmin()) {
+                throw new RuntimeException(self::SOLO_ADMIN_DESECHA);
+            }
+
+            if (! $guia->yaSePuedeDesechar()) {
+                throw new RuntimeException("La guía {$guia->code} no se puede desechar antes de "
+                    . Invoice::MESES_ANTES_DE_DESECHAR . ' meses en destino: se puede a partir del '
+                    . $guia->desechableDesde()?->format('d/m/Y') . '.');
+            }
         }
 
         if (! $guia->puedePasarA($nuevoEstado)) {
@@ -94,11 +124,10 @@ class GuideStatusService
         }
 
         if (! $guia->sePuedeAnular()) {
-            throw new RuntimeException(
-                "La guía {$guia->code} está en «{$guia->statusLabel()}» y ya no se puede anular. "
-                . 'Una encomienda que ya salió se devuelve, no se anula.'
-            );
+            throw new RuntimeException("La guía {$guia->code} ya está anulada.");
         }
+
+        $comprobante = $this->comprobanteParaAnular($guia);
 
         $guia->forceFill([
             'cancellation_reason' => trim($motivo),
@@ -106,13 +135,102 @@ class GuideStatusService
             'cancelled_at'        => now(),
         ])->save();
 
-        return $this->cambiar(
+        $anulada = $this->cambiar(
             $guia,
             Invoice::STATUS_CANCELLED,
             $usuario,
             null,
             GuideStatusHistory::SOURCE_MANUAL,
             'Anulada: ' . trim($motivo)
+        );
+
+        // Ante Hacienda una factura aceptada no se anula: se revierte con una
+        // nota de crédito por lo que quede sin acreditar.
+        if ($comprobante && ($saldo = $this->saldoSinAcreditar($comprobante)) > 0) {
+            try {
+                app(ElectronicBillingService::class)->issueNote(
+                    $comprobante,
+                    'NC',
+                    mb_substr('Anulación de la guía ' . $guia->code . ': ' . trim($motivo), 0, 180),
+                    $saldo
+                );
+            } catch (\Throwable $e) {
+                Log::error("Anulación de {$guia->code}: no se pudo emitir la nota de crédito: " . $e->getMessage());
+
+                throw new RuntimeException("La guía {$guia->code} quedó anulada, pero la nota de crédito no se pudo "
+                    . 'emitir (' . $e->getMessage() . '). Emitila a mano desde la guía.');
+            }
+        }
+
+        return $anulada;
+    }
+
+    /**
+     * El comprobante aceptado que la anulación tiene que revertir, o null.
+     *
+     * Lanza si Hacienda todavía no contestó: no se sabe si hará falta nota, y
+     * anular igual dejaría una factura viva sin nadie que la revierta.
+     */
+    private function comprobanteParaAnular(Invoice $guia): ?ElectronicInvoice
+    {
+        $comprobante = $guia->electronicInvoice()->first();
+
+        if (! $comprobante) {
+            return null;
+        }
+
+        if (in_array($comprobante->status, [
+            ElectronicInvoice::STATUS_QUEUED,
+            ElectronicInvoice::STATUS_SENDING,
+            ElectronicInvoice::STATUS_SENT,
+        ], true)) {
+            throw new RuntimeException("El comprobante de la guía {$guia->code} está en Hacienda esperando respuesta. "
+                . 'Esperá a que lo acepten o rechacen y volvé a anular.');
+        }
+
+        return $comprobante->status === ElectronicInvoice::STATUS_ACCEPTED ? $comprobante : null;
+    }
+
+    /** Total del comprobante menos las notas de crédito que ya tiene (salvo rechazadas). */
+    private function saldoSinAcreditar(ElectronicInvoice $comprobante): float
+    {
+        $acreditado = (float) ElectronicInvoice::where('reference_invoice_id', $comprobante->id)
+            ->where('document_type', \App\Services\Hacienda\Catalogs::documentCode('NC'))
+            ->where('status', '!=', ElectronicInvoice::STATUS_REJECTED)
+            ->sum('total');
+
+        return round((float) $comprobante->total - $acreditado, 5);
+    }
+
+    /**
+     * Devuelve la encomienda al remitente. Solo el administrador, con motivo.
+     */
+    public function devolver(Invoice $guia, User $usuario, string $motivo): Invoice
+    {
+        if (! $usuario->isAdmin()) {
+            throw new RuntimeException(self::SOLO_ADMIN_DEVUELVE);
+        }
+
+        if (trim($motivo) === '') {
+            throw new RuntimeException('Toda devolución necesita un motivo.');
+        }
+
+        if (! $guia->puedePasarA(Invoice::STATUS_RETURNED)) {
+            throw new RuntimeException($this->explicarRechazo($guia, Invoice::STATUS_RETURNED));
+        }
+
+        $guia->forceFill([
+            'return_reason' => trim($motivo),
+            'returned_by'   => $usuario->id,
+        ])->save();
+
+        return $this->cambiar(
+            $guia,
+            Invoice::STATUS_RETURNED,
+            $usuario,
+            null,
+            GuideStatusHistory::SOURCE_MANUAL,
+            'Devuelta: ' . trim($motivo)
         );
     }
 
@@ -121,13 +239,20 @@ class GuideStatusService
      *
      * La firma llega como data URI del canvas del navegador; se valida que sea
      * una imagen y no cualquier cadena, porque viene del cliente.
+     *
+     * $facturarA es para quien pide factura con cédula recién al retirar: el
+     * comprobante se crea al pasar a entregada, así que se guarda antes. Solo
+     * cambia a quién se factura, nunca los montos.
+     *
+     * @param  array{nombre:string, tipo:string, numero:string, email:?string, actividad:?string}|null  $facturarA
      */
     public function entregar(
         Invoice $guia,
         User $usuario,
         string $nombreQuienRetira,
         ?string $identificacion = null,
-        ?string $firmaDataUri = null
+        ?string $firmaDataUri = null,
+        ?array $facturarA = null
     ): Invoice {
         if (trim($nombreQuienRetira) === '') {
             throw new RuntimeException('Hay que registrar el nombre de quien retira la encomienda.');
@@ -163,6 +288,21 @@ class GuideStatusService
             $firma = $firmaDataUri;
         }
 
+        $nota = 'Retirada por ' . trim($nombreQuienRetira);
+
+        if ($facturarA) {
+            // Con el comprobante ya creado, cambiar la guía no cambia lo que
+            // se le manda a Hacienda: avisar en vez de fingir que se aplicó.
+            if ($guia->electronicInvoice()->exists()) {
+                throw new RuntimeException("La guía {$guia->code} ya tiene comprobante electrónico: "
+                    . 'no se puede cambiar a factura con cédula desde la entrega.');
+            }
+
+            $guia->forceFill(CorreccionDeFactura::columnas($facturarA));
+
+            $nota .= ' · pidió factura a nombre de ' . $facturarA['nombre'] . ' (' . $facturarA['numero'] . ')';
+        }
+
         $guia->forceFill([
             'received_by_name'           => trim($nombreQuienRetira),
             'received_by_identification' => $identificacion ? preg_replace('/\D/', '', $identificacion) : null,
@@ -175,7 +315,7 @@ class GuideStatusService
             $usuario,
             null,
             GuideStatusHistory::SOURCE_MANUAL,
-            'Retirada por ' . trim($nombreQuienRetira)
+            $nota
         );
 
         $this->cobrarSiEstabaPorCobrar($entregada, $usuario);

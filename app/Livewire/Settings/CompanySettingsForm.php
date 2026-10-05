@@ -33,6 +33,7 @@ class CompanySettingsForm extends Component
     public string $phone_code = '506';
     public string $phone = '';
     public string $email = '';
+    public string $accountant_email = '';
     public string $atv_username = '';
     public string $atv_password = '';
     public string $certificate_pin = '';
@@ -103,6 +104,7 @@ class CompanySettingsForm extends Component
         $this->phone_code = (string) ($settings->phone_code ?: '506');
         $this->phone = (string) $settings->phone;
         $this->email = (string) $settings->email;
+        $this->accountant_email = (string) $settings->accountant_email;
         $this->atv_username = (string) $settings->atv_username;
         $this->default_cabys_code = (string) $settings->default_cabys_code;
         $this->insurance_percent = (float) $settings->porcentajeDeSeguro();
@@ -146,6 +148,7 @@ class CompanySettingsForm extends Component
             'phone_code' => ['required', 'regex:/^\d{1,3}$/'],
             'phone' => 'nullable|string|max:30',
             'email' => 'nullable|email',
+            'accountant_email' => 'nullable|email|max:150',
             'atv_username' => 'nullable|string|max:150',
             'atv_password' => 'nullable|string|max:150',
             'certificate' => 'nullable|file|max:2048',
@@ -243,7 +246,14 @@ class CompanySettingsForm extends Component
                 . '): credenciales ATV válidas, token obtenido.';
         } catch (\Throwable $e) {
             $this->connectionTestStatus = 'error';
-            $this->connectionTestMessage = 'Falló la conexión: ' . $e->getMessage();
+            $this->connectionTestMessage = 'Falló la conexión (' . $settings->effectiveEnvironment() . '): ' . $e->getMessage();
+
+            // Credenciales de producción contra el IDP de sandbox dan el mismo
+            // "Invalid user credentials" que una contraseña mala.
+            if ($settings->environment === 'prod' && ! $settings->isProduction()) {
+                $this->connectionTestMessage .= ' — El ambiente dice producción, pero HACIENDA_LIVE no está en true en el .env '
+                    . 'de este servidor, así que se usó el IDP de sandbox.';
+            }
         }
     }
 
@@ -281,6 +291,7 @@ class CompanySettingsForm extends Component
             'phone_code' => $data['phone_code'],
             'phone' => $data['phone'],
             'email' => $data['email'],
+            'accountant_email' => $data['accountant_email'] ?: null,
             'default_cabys_code' => $data['default_cabys_code'],
             'insurance_percent' => $data['insurance_percent'],
         ]);

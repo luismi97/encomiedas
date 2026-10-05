@@ -57,9 +57,15 @@
            Y nada gris: el driver lo convierte en una trama de puntos que
            ensucia el texto de al lado.
         */
+        /*
+           Margen de seguridad a los lados, más a la izquierda: el driver no
+           siempre pone el origen exactamente al inicio del área imprimible, y
+           con el contenido pegado al borde el primer milímetro de cada renglón
+           salía cortado. El borde izquierdo es el que se corre.
+        */
         body {
             width: {{ $anchoUtil }}mm;
-            padding: 2mm 0;
+            padding: 2mm 1mm 2mm {{ \App\Models\CashRegister::MARGEN_IZQUIERDO_MATRIZ_MM }}mm;
             font-family: Tahoma, Verdana, Arial, sans-serif;
             font-size: {{ $ancho >= 76 ? '14px' : '13px' }};
             font-weight: bold;

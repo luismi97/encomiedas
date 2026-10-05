@@ -2,8 +2,10 @@
 
 namespace App\Livewire\Invoices;
 
+use App\Livewire\Concerns\DatosDeFactura;
 use App\Models\ActivityLog;
 use App\Models\Invoice;
+use App\Services\CorreccionDeFactura;
 use App\Services\GuideStatusService;
 use App\Services\QrService;
 use RuntimeException;
@@ -12,6 +14,8 @@ use Livewire\Component;
 
 class InvoiceShow extends Component
 {
+    use DatosDeFactura;
+
     public Invoice $invoice;
 
     // Formulario de nota de crédito / débito
@@ -44,6 +48,13 @@ class InvoiceShow extends Component
     /** Anulación */
     public bool $showCancelForm = false;
     public string $cancelReason = '';
+
+    /** Corrección de a quién se factura: solo administrador, sin montos */
+    public bool $showBillingForm = false;
+
+    /** Devolución: solo administrador, con motivo */
+    public bool $showReturnForm = false;
+    public string $returnReason = '';
 
     /** Entrega con evidencia */
     public bool $showDeliveryForm = false;
@@ -123,7 +134,68 @@ class InvoiceShow extends Component
         $this->receivedByName = (string) $this->invoice->recipient_name;
         $this->receivedByIdentification = (string) $this->invoice->recipient_identification;
         $this->deliverySignature = '';
+        $this->showBillingForm = false;
+        $this->prepararFactura($this->invoice);
         $this->showDeliveryForm = true;
+    }
+
+    public function openBillingForm(): void
+    {
+        if (! auth()->user()->isAdmin()) {
+            session()->flash('error', 'Solo un administrador puede corregir los datos de facturación.');
+
+            return;
+        }
+
+        $this->showDeliveryForm = false;
+        $this->prepararFactura($this->invoice);
+        $this->showBillingForm = true;
+    }
+
+    public function guardarFacturacion(CorreccionDeFactura $correccion): void
+    {
+        $datos = $this->datosDeFactura();
+
+        try {
+            $this->invoice = $correccion->corregir($this->invoice, auth()->user(), $datos);
+        } catch (RuntimeException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        $this->showBillingForm = false;
+        $this->invoice->load(['electronicInvoice', 'activityLogs.user']);
+        session()->flash('success', $datos
+            ? 'Facturación corregida: sale como Factura Electrónica a nombre de ' . $datos['nombre'] . '.'
+            : 'Facturación corregida: sale como Tiquete Electrónico.');
+    }
+
+    public function openReturnForm(): void
+    {
+        if (! auth()->user()->isAdmin()) {
+            session()->flash('error', GuideStatusService::SOLO_ADMIN_DEVUELVE);
+
+            return;
+        }
+
+        $this->returnReason = '';
+        $this->showReturnForm = true;
+    }
+
+    public function devolver(GuideStatusService $estados): void
+    {
+        try {
+            $this->invoice = $estados->devolver($this->invoice, auth()->user(), $this->returnReason);
+        } catch (RuntimeException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        $this->showReturnForm = false;
+        $this->invoice->load(['statusHistories.user', 'statusHistories.branch']);
+        session()->flash('success', 'Encomienda devuelta. El motivo quedó en la bitácora.');
     }
 
     public function anular(GuideStatusService $estados): void
@@ -143,13 +215,16 @@ class InvoiceShow extends Component
 
     public function entregar(GuideStatusService $estados): void
     {
+        $facturarA = $this->datosDeFactura();
+
         try {
             $this->invoice = $estados->entregar(
                 $this->invoice,
                 auth()->user(),
                 $this->receivedByName,
                 $this->receivedByIdentification ?: null,
-                $this->deliverySignature ?: null
+                $this->deliverySignature ?: null,
+                $facturarA
             );
         } catch (RuntimeException $e) {
             session()->flash('error', $e->getMessage());
@@ -173,6 +248,12 @@ class InvoiceShow extends Component
 
         if ($status === Invoice::STATUS_CANCELLED) {
             $this->openCancelForm();
+
+            return;
+        }
+
+        if ($status === Invoice::STATUS_RETURNED) {
+            $this->openReturnForm();
 
             return;
         }

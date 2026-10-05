@@ -142,13 +142,14 @@ class CotizadorTest extends TestCase
 
     // ── Validaciones ──────────────────────────────────────────────────
 
-    public function test_no_se_cotiza_de_una_sede_a_si_misma(): void
+    /** Paquetes que se dejan y se recogen en la misma sede también se cotizan. */
+    public function test_se_cotiza_de_una_sede_a_si_misma(): void
     {
         $this->form()
             ->set('destination_branch_id', $this->sj->id)
             ->set('items.0.price', 5000)
             ->call('save')
-            ->assertHasErrors('destination_branch_id');
+            ->assertHasNoErrors('destination_branch_id');
     }
 
     public function test_hace_falta_a_nombre_de_quien(): void

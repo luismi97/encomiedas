@@ -165,6 +165,11 @@
                     @error('phone_code') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
                 <div><label class="label">Correo electrónico</label><input type="email" wire:model="email" class="input"></div>
+                <div>
+                    <label class="label">Correo del contador</label>
+                    <input type="email" wire:model="accountant_email" class="input @error('accountant_email') input-error @enderror" placeholder="Para el reporte contable">
+                    @error('accountant_email') <p class="error-text">{{ $message }}</p> @enderror
+                </div>
             </div>
 
             <h3 class="font-semibold text-lg border-b border-gray-200 dark:border-gray-700 pb-2">Credenciales ATV y certificado</h3>

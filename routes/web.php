@@ -108,8 +108,14 @@ Route::middleware('auth')->group(function () {
      | recibir cierres. El cajero hace todo esto en SU sede; el administrador,
      | en todas.
      */
-    Route::middleware('role:admin,cajero')->group(function () {
+    /*
+     | Registrar guías: también el dependiente, que solo hace esto.
+     */
+    Route::middleware('role:admin,cajero,dependiente')->group(function () {
         Route::get('/invoices-create', InvoiceForm::class)->name('invoices.create');
+    });
+
+    Route::middleware('role:admin,cajero')->group(function () {
 
         // Guías sin conexión (ver GuiasOfflineController y MODO-OFFLINE.md).
         Route::get('/guias-offline', [\App\Http\Controllers\GuiasOfflineController::class, 'page'])->name('offline.page');
@@ -146,6 +152,7 @@ Route::middleware('auth')->group(function () {
      */
     Route::middleware('role:admin')->group(function () {
         Route::get('/hacienda/pending', PendingQueue::class)->name('hacienda.pending');
+        Route::get('/reportes/contable/pdf', [InvoiceExportController::class, 'reporteContablePdf'])->name('reportes.contable.pdf');
 
         Route::get('/branches', BranchIndex::class)->name('branches.index');
         Route::get('/cash-registers', CashRegisterIndex::class)->name('cash-registers.index');

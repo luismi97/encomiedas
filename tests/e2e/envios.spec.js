@@ -167,11 +167,10 @@ test.describe('Envíos', () => {
   });
 
   /**
-   * Origen y destino iguales no es un envío.
-   *
-   * Y además rompe el código: `SJO-SJO-00001` no significa nada.
+   * Origen y destino iguales: un paquete que se deja y se recoge en la misma
+   * sede. Se crea normal y su código repite el prefijo.
    */
-  test('no se puede enviar de una sede a sí misma', async ({ page }) => {
+  test('se puede registrar una guía de una sede a sí misma', async ({ page }) => {
     const empresa = await empresaOperando(page);
     await abrirCaja(page, { sede: empresa.origen, fondo: 10000 });
 
@@ -185,8 +184,8 @@ test.describe('Envíos', () => {
 
     await page.click('button:has-text("Guardar factura")');
 
-    await expect(page.locator('body')).toContainText('distinta de la de origen');
-    await expect(page).not.toHaveURL(/\/invoices\/\d+/);
+    await expect(page).toHaveURL(/\/invoices\/\d+/);
+    await expect(page.locator('body')).toContainText('SJO-SJO-');
   });
 
   /* ─────────────────── Lo que se imprime ─────────────────── */

@@ -76,7 +76,8 @@ class QuoteIndex extends Component
     {
         return [
             'origin_branch_id' => ['required', DeLaEmpresa::en('branches')],
-            'destination_branch_id' => ['required', 'different:origin_branch_id', DeLaEmpresa::en('branches')],
+            // Puede ser la misma sede: paquetes que se dejan y se recogen ahí.
+            'destination_branch_id' => ['required', DeLaEmpresa::en('branches')],
             'customer_id' => ['nullable', DeLaEmpresa::en('customers')],
             'customer_name' => 'required|string|max:150',
             'customer_email' => 'nullable|email|max:150',
@@ -97,7 +98,6 @@ class QuoteIndex extends Component
     protected function messages(): array
     {
         return [
-            'destination_branch_id.different' => 'El destino tiene que ser una sede distinta del origen.',
             'customer_name.required' => 'Poné a nombre de quién va la cotización.',
             'valid_until.after_or_equal' => 'La cotización no puede vencer antes de hoy.',
             'items.*.price.required' => 'Cada bulto necesita un precio.',

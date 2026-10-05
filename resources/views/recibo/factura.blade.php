@@ -35,6 +35,9 @@
         <div class="etiqueta">Factura de encomienda</div>
         <div class="grande">{{ $guia->code }}</div>
         <div>{{ $guia->created_at->format('d/m/Y H:i') }}</div>
+        @if ($guia->creator)
+            <div>Atendido por: {{ $guia->creator->name }}</div>
+        @endif
     </div>
 
     <div class="regla"></div>
@@ -83,7 +86,7 @@
     @forelse ($guia->items as $item)
         <table class="fila"><tr>
             <td>
-                {{ $item->nombreDelBulto() }}@if ($item->size) · {{ $item->size }}@endif
+                {{ $item->nombreConCantidad() }}@if ($item->size) · {{ $item->size }}@endif
                 @if ($item->weight) · {{ number_format((float) $item->weight, 2) }} kg @endif
             </td>
             <td>{{ number_format((float) $item->price, 2) }}</td>

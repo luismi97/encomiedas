@@ -95,9 +95,12 @@ class InvoiceIndex extends Component
 
         // Entregar y anular piden datos extra (quién retiró, motivo): se
         // resuelven en la pantalla de la guía, no desde el listado.
-        if (in_array($status, [Invoice::STATUS_DELIVERED, Invoice::STATUS_CANCELLED], true)) {
-            session()->flash('error', 'Abrí la guía para ' .
-                ($status === Invoice::STATUS_DELIVERED ? 'registrar quién la retira.' : 'indicar el motivo de la anulación.'));
+        if (in_array($status, [Invoice::STATUS_DELIVERED, Invoice::STATUS_CANCELLED, Invoice::STATUS_RETURNED], true)) {
+            session()->flash('error', 'Abrí la guía para ' . match ($status) {
+                Invoice::STATUS_DELIVERED => 'registrar quién la retira.',
+                Invoice::STATUS_RETURNED  => 'indicar el motivo de la devolución.',
+                default                   => 'indicar el motivo de la anulación.',
+            });
 
             return;
         }
@@ -153,7 +156,7 @@ class InvoiceIndex extends Component
             'statuses' => Invoice::STATUSES,
             // Quienes registran guías: también los inactivos, porque sus
             // guías siguen ahí y alguien puede necesitar revisarlas.
-            'usuarios' => User::whereIn('role', [User::ROLE_ADMIN, User::ROLE_CAJERO])->orderBy('name')->get(['id', 'name', 'is_active']),
+            'usuarios' => User::whereIn('role', [User::ROLE_ADMIN, User::ROLE_CAJERO, User::ROLE_DEPENDIENTE])->orderBy('name')->get(['id', 'name', 'is_active']),
             'filtrosCobro' => Invoice::FILTROS_COBRO,
             'mediosDePago' => Invoice::PAYMENT_METHODS,
         ])->layout('layouts.app', ['title' => 'Facturas / Encomiendas']);

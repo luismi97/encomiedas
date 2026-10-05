@@ -41,8 +41,15 @@
                 </div>
                 <div>
                     <label class="block text-base font-medium text-gray-700 dark:text-gray-200 mb-1">Contraseña</label>
-                    <input type="password" name="password" required
-                        class="input text-lg py-3 px-4">
+                    <div class="relative">
+                        <input type="password" name="password" required data-password
+                            class="input text-lg py-3 pl-4 pr-12">
+                        <button type="button" data-password-toggle aria-label="Mostrar contraseña"
+                            class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 dark:text-gray-300">
+                            <span data-eye-show><x-icon name="eye" class="w-6 h-6" /></span>
+                            <span data-eye-hide hidden><x-icon name="eye-slash" class="w-6 h-6" /></span>
+                        </button>
+                    </div>
                 </div>
                 <div class="flex items-center justify-between gap-3">
                     <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
@@ -101,6 +108,18 @@
             window.addEventListener('pageshow', function (event) {
                 if (event.persisted) resetButton();
             });
+
+            var password = document.querySelector('[data-password]');
+            var eye = document.querySelector('[data-password-toggle]');
+            if (password && eye) {
+                eye.addEventListener('click', function () {
+                    var visible = password.type === 'password';
+                    password.type = visible ? 'text' : 'password';
+                    eye.setAttribute('aria-label', visible ? 'Ocultar contraseña' : 'Mostrar contraseña');
+                    eye.querySelector('[data-eye-show]').hidden = visible;
+                    eye.querySelector('[data-eye-hide]').hidden = !visible;
+                });
+            }
 
             var toggle = document.querySelector('[data-theme-toggle]');
             if (toggle) {

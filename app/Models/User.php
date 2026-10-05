@@ -6,6 +6,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -30,9 +31,17 @@ class User extends Authenticatable
     public const ROLE_REPARTIDOR = 'repartidor';
     public const ROLE_DESPACHADOR = 'despachador';
 
+    /**
+     * Atiende el mostrador: solo crea guías. No abre caja (sus guías de
+     * contado quedan esperando que un cajero las cobre), no ve sumas de
+     * dinero ni reportes, y puede atender varias sedes (branch_user).
+     */
+    public const ROLE_DEPENDIENTE = 'dependiente';
+
     public const ROLES = [
         self::ROLE_ADMIN      => 'Administrador',
         self::ROLE_CAJERO     => 'Cajero',
+        self::ROLE_DEPENDIENTE => 'Dependiente',
         self::ROLE_REPARTIDOR => 'Repartidor',
         self::ROLE_DESPACHADOR => 'Despachador',
         self::ROLE_SUPERADMIN => 'Superadministrador',
@@ -47,6 +56,7 @@ class User extends Authenticatable
     public const ROLES_ASIGNABLES = [
         self::ROLE_ADMIN      => 'Administrador',
         self::ROLE_CAJERO     => 'Cajero',
+        self::ROLE_DEPENDIENTE => 'Dependiente',
         self::ROLE_REPARTIDOR => 'Repartidor',
         self::ROLE_DESPACHADOR => 'Despachador',
     ];
@@ -55,6 +65,7 @@ class User extends Authenticatable
     public const ROLE_BADGE_CLASSES = [
         self::ROLE_ADMIN      => 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
         self::ROLE_CAJERO     => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+        self::ROLE_DEPENDIENTE => 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200',
         self::ROLE_REPARTIDOR => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
         self::ROLE_DESPACHADOR => 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
         self::ROLE_SUPERADMIN => 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100',
@@ -66,7 +77,7 @@ class User extends Authenticatable
      * Un cajero opera la caja de SU sede: sin sede asignada no habría contra
      * cuál validar, y terminaría viendo la caja de cualquiera.
      */
-    public const ROLES_CON_SEDE = [self::ROLE_CAJERO, self::ROLE_DESPACHADOR];
+    public const ROLES_CON_SEDE = [self::ROLE_CAJERO, self::ROLE_DESPACHADOR, self::ROLE_DEPENDIENTE];
 
     /**
      * The attributes that are mass assignable.
@@ -91,6 +102,9 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
+    /** @var array<int,int>|null */
+    private ?array $sedesCache = null;
+
     protected $hidden = [
         'password',
         'remember_token',
@@ -149,6 +163,44 @@ class User extends Authenticatable
         return $this->belongsTo(Branch::class);
     }
 
+    /** Sedes adicionales que atiende (solo el dependiente las usa). */
+    public function branches(): BelongsToMany
+    {
+        return $this->belongsToMany(Branch::class)->withTimestamps();
+    }
+
+    /**
+     * Las sedes cuyas guías puede ver y operar: la base y, si es dependiente,
+     * las que el administrador le marcó.
+     *
+     * @return array<int,int>
+     */
+    public function sedesIds(): array
+    {
+        // Se guarda en la instancia: BranchScope lo pide en cada consulta, y
+        // auth()->user() es la misma instancia durante toda la petición.
+        return $this->sedesCache ??= $this->calcularSedes();
+    }
+
+    /** Tras cambiarle las sedes, para que la misma instancia no siga con las viejas. */
+    public function olvidarSedes(): void
+    {
+        $this->sedesCache = null;
+        $this->unsetRelation('branches');
+    }
+
+    /** @return array<int,int> */
+    private function calcularSedes(): array
+    {
+        $ids = $this->branch_id ? [(int) $this->branch_id] : [];
+
+        if ($this->isDependiente()) {
+            $ids = [...$ids, ...$this->branches()->pluck('branches.id')->map(fn ($id) => (int) $id)->all()];
+        }
+
+        return array_values(array_unique($ids));
+    }
+
     public function activityLogs()
     {
         return $this->hasMany(ActivityLog::class);
@@ -203,7 +255,27 @@ class User extends Authenticatable
     /** Un cajero solo ve lo de su sede; el administrador ve todo. */
     public function limitadoASuSede(): bool
     {
-        return $this->isCajero() || $this->isDespachador();
+        return $this->isCajero() || $this->isDespachador() || $this->isDependiente();
+    }
+
+    /** Registra guías en el mostrador. */
+    public function puedeCrearGuias(): bool
+    {
+        return $this->isAdmin() || $this->isCajero() || $this->isDependiente();
+    }
+
+    /**
+     * Ve sumas de dinero (totales de listados, el PDF de guías) y reportes.
+     * El dependiente no: atiende el mostrador, no lleva la plata.
+     */
+    public function puedeVerDinero(): bool
+    {
+        return ! $this->isDependiente();
+    }
+
+    public function isDependiente(): bool
+    {
+        return $this->role === self::ROLE_DEPENDIENTE;
     }
 
     public function isAdmin(): bool

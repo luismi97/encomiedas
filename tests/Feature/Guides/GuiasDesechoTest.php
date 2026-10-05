@@ -148,7 +148,7 @@ class GuiasDesechoTest extends TestCase
      * El requisito pide que el desecho quede autorizado por alguien con
      * permiso: apagado, el comando avisa pero no desecha.
      */
-    public function test_sin_autorizacion_automatica_solo_reporta(): void
+    public function test_el_comando_solo_reporta_las_que_ya_se_pueden_desechar(): void
     {
         config([
             'encomiendas.disposal.warn_after_days' => 30,
@@ -156,20 +156,21 @@ class GuiasDesechoTest extends TestCase
             'encomiendas.disposal.auto_dispose' => false,
         ]);
 
-        $guia = $this->guiaEnDestino(60);
+        $guia = $this->guiaEnDestino(100);
         $guia->forceFill([
             'status' => Invoice::STATUS_NEAR_DISPOSAL,
             'disposal_warned_at' => now()->subDays(20),
         ])->save();
 
         $this->artisan('guias:desecho')
-            ->expectsOutputToContain('requieren autorización manual')
+            ->expectsOutputToContain('Listas para desechar: 1 — las tiene que desechar un administrador')
             ->assertSuccessful();
 
         $this->assertSame(Invoice::STATUS_NEAR_DISPOSAL, $guia->fresh()->status);
     }
 
-    public function test_con_autorizacion_automatica_si_desecha(): void
+    /** Desechar es solo del administrador: ni con auto_dispose lo hace el cron. */
+    public function test_ni_con_auto_dispose_desecha_solo(): void
     {
         config([
             'encomiendas.disposal.warn_after_days' => 30,
@@ -177,7 +178,7 @@ class GuiasDesechoTest extends TestCase
             'encomiendas.disposal.auto_dispose' => true,
         ]);
 
-        $guia = $this->guiaEnDestino(60);
+        $guia = $this->guiaEnDestino(100);
         $guia->forceFill([
             'status' => Invoice::STATUS_NEAR_DISPOSAL,
             'disposal_warned_at' => now()->subDays(20),
@@ -185,9 +186,21 @@ class GuiasDesechoTest extends TestCase
 
         $this->artisan('guias:desecho')->assertSuccessful();
 
-        $guia->refresh();
-        $this->assertSame(Invoice::STATUS_DISPOSED, $guia->status);
-        $this->assertNotNull($guia->disposed_at);
+        $this->assertSame(Invoice::STATUS_NEAR_DISPOSAL, $guia->fresh()->status);
+    }
+
+    /** Menos de 3 meses en destino: todavía no aparece como lista para desechar. */
+    public function test_antes_de_tres_meses_no_se_lista(): void
+    {
+        $guia = $this->guiaEnDestino(60);
+        $guia->forceFill([
+            'status' => Invoice::STATUS_NEAR_DISPOSAL,
+            'disposal_warned_at' => now()->subDays(20),
+        ])->save();
+
+        $this->artisan('guias:desecho')
+            ->expectsOutputToContain('Listas para desechar: 0')
+            ->assertSuccessful();
     }
 
     public function test_dry_run_no_toca_nada(): void

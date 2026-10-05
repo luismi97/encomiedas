@@ -148,12 +148,12 @@ class Dispatch extends Model
 
     public function totalPaquetes(): int
     {
-        return (int) $this->guides->sum(fn (Invoice $g) => $g->items->count());
+        return (int) $this->guides->sum(fn (Invoice $g) => $g->cantidadDeBultos());
     }
 
     public function pesoTotal(): float
     {
-        return round((float) $this->guides->sum(fn (Invoice $g) => $g->items->sum('weight')), 2);
+        return round((float) $this->guides->sum(fn (Invoice $g) => $g->items->sum(fn ($i) => (float) $i->weight * $i->cantidad())), 2);
     }
 
     public function valorDeclaradoTotal(): float

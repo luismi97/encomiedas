@@ -83,10 +83,10 @@ class AnulacionYEntregaTest extends TestCase
     }
 
     /**
-     * Una encomienda que ya salió viaja en un camión con un manifiesto firmado:
-     * se devuelve, no se anula.
+     * El administrador anula aunque la guía ya haya salido (pedido del
+     * negocio): antes una despachada solo se podía devolver.
      */
-    public function test_una_guia_despachada_no_se_anula(): void
+    public function test_el_administrador_anula_una_guia_despachada(): void
     {
         Bus::fake();
         $guia = $this->guia();
@@ -95,10 +95,18 @@ class AnulacionYEntregaTest extends TestCase
             $guia = $this->servicio()->cambiar($guia, $estado, $this->usuario);
         }
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('se devuelve, no se anula');
+        $guia = $this->servicio()->anular($guia, $this->usuario, 'Ya no lo quieren');
 
-        $this->servicio()->anular($guia, $this->usuario, 'Ya no lo quieren');
+        $this->assertSame(Invoice::STATUS_CANCELLED, $guia->status);
+    }
+
+    public function test_una_anulada_no_se_vuelve_a_anular(): void
+    {
+        $guia = $this->servicio()->anular($this->guia(), $this->usuario, 'Error');
+
+        $this->expectExceptionMessage('ya está anulada');
+
+        $this->servicio()->anular($guia, $this->usuario, 'Otra vez');
     }
 
     public function test_una_guia_lista_todavia_se_puede_anular(): void

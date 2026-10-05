@@ -4,7 +4,7 @@
             <div class="sm:col-span-2">
                 <label class="label">Reporte</label>
                 <select wire:model.live="reporte" class="input">
-                    @foreach (\App\Livewire\Reportes\ReportePanel::REPORTES as $valor => $etiqueta)
+                    @foreach ($this->reportesDisponibles() as $valor => $etiqueta)
                         <option value="{{ $valor }}">{{ $etiqueta }}</option>
                     @endforeach
                 </select>
@@ -23,6 +23,9 @@
         </div>
     </div>
 
+    @if ($reporte === 'contable')
+        @include('livewire.reportes.contable')
+    @else
     <div class="card">
         <h2 class="text-lg font-semibold mb-4">
             {{ \App\Livewire\Reportes\ReportePanel::REPORTES[$reporte] }}
@@ -95,4 +98,5 @@
             </table>
         </div>
     </div>
+    @endif
 </div>

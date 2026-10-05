@@ -103,6 +103,17 @@ return [
     ],
 
     /*
+     | Datos de un contribuyente (nombre, tipo de cédula y actividades) por su
+     | identificación, para autocompletar a quién se factura.
+     */
+    'taxpayer' => [
+        'url'        => 'https://api.hacienda.go.cr/fe/ae',
+        'timeout'    => 6,            // segundos: el cajero esta esperando
+        'cache_ttl'  => 60 * 60 * 24, // 24h por identificacion encontrada
+        'user_agent' => 'EncomiendasCR/1.0 (facturacion electronica)',
+    ],
+
+    /*
      | Consulta de estado (hacienda:poll). Corre cada minuto, asi que necesita
      | techo: sin el, una acumulacion de comprobantes atascados deja un proceso
      | PHP ocupado de forma permanente.

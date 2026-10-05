@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Http;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -33,6 +34,11 @@ abstract class TestCase extends BaseTestCase
         // El contexto es estático y el mismo proceso PHP corre cientos de
         // pruebas: sin limpiarlo, la empresa de una se filtraría a la siguiente.
         CompanyContext::olvidar();
+
+        // Digitar una cédula consulta a Hacienda (TaxpayerLookup). Ninguna
+        // prueba sale a internet: por defecto Hacienda «no la conoce». Quien
+        // necesite otra respuesta reemplaza TaxpayerLookup en el contenedor.
+        Http::fake(['api.hacienda.go.cr/fe/ae*' => Http::response(null, 404)]);
 
         if ($this->usaBaseDeDatos()) {
             // La que dejó la migración, no una nueva: los catálogos que

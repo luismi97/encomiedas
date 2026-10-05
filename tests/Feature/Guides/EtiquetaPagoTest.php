@@ -10,8 +10,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * La etiqueta del paquete dice si el flete está pagado, con el desglose, el
- * medio de pago y el total. Quien entrega no tiene el recibo a mano.
+ * La etiqueta del paquete dice si el flete está pagado o por cobrar, pero sin
+ * ningún monto: la ve todo el que manipula el bulto. El total lo ve la caja.
  */
 class EtiquetaPagoTest extends TestCase
 {
@@ -55,17 +55,14 @@ class EtiquetaPagoTest extends TestCase
             ->getContent();
     }
 
-    public function test_una_guia_pagada_lleva_desglose_medio_y_total_pagado(): void
+    public function test_una_guia_pagada_dice_pagado_sin_montos(): void
     {
         $html = $this->etiqueta();
 
         $this->assertStringContainsString('PAGADO', $html);
-        $this->assertStringContainsString('TOTAL PAGADO', $html);
-        $this->assertStringContainsString('₡1,073.50', $html);
-        $this->assertStringContainsString('SINPE Móvil', $html);
-        $this->assertStringContainsString('Seguro', $html);
-        $this->assertStringContainsString('-100.00', $html);
-        $this->assertStringContainsString('123.50', $html);
+        $this->assertStringNotContainsString('1,073.50', $html);
+        $this->assertStringNotContainsString('123.50', $html);
+        $this->assertStringNotContainsString('₡', $html);
     }
 
     public function test_un_por_cobrar_no_dice_pagado(): void
@@ -75,16 +72,18 @@ class EtiquetaPagoTest extends TestCase
         $html = $this->etiqueta();
 
         $this->assertStringContainsString('POR COBRAR', $html);
-        $this->assertStringContainsString('Se paga al retirar', $html);
-        $this->assertStringNotContainsString('TOTAL PAGADO', $html);
-        $this->assertStringNotContainsString('SINPE Móvil', $html);
+        $this->assertStringNotContainsString('>PAGADO<', $html);
+        $this->assertStringNotContainsString('1,073.50', $html);
     }
 
     public function test_un_por_cobrar_ya_cobrado_sale_pagado(): void
     {
         $this->guia->forceFill(['payment_timing' => Invoice::TIMING_COLLECT, 'collected_at' => now()])->save();
 
-        $this->assertStringContainsString('TOTAL PAGADO', $this->etiqueta());
+        $html = $this->etiqueta();
+
+        $this->assertStringContainsString('>PAGADO<', $html);
+        $this->assertStringNotContainsString('POR COBRAR', $html);
     }
 
     public function test_esperando_caja_no_dice_pagado(): void
@@ -94,7 +93,7 @@ class EtiquetaPagoTest extends TestCase
         $html = $this->etiqueta();
 
         $this->assertStringContainsString('PENDIENTE DE PAGO EN CAJA', $html);
-        $this->assertStringNotContainsString('TOTAL PAGADO', $html);
+        $this->assertStringNotContainsString('>PAGADO<', $html);
     }
 
     public function test_a_credito_no_dice_pagado(): void
@@ -104,6 +103,6 @@ class EtiquetaPagoTest extends TestCase
         $html = $this->etiqueta();
 
         $this->assertStringContainsString('A CRÉDITO', $html);
-        $this->assertStringNotContainsString('TOTAL PAGADO', $html);
+        $this->assertStringNotContainsString('>PAGADO<', $html);
     }
 }

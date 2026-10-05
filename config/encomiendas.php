@@ -29,9 +29,9 @@ return [
      | Ciclo de desecho de guías sin retirar, en días desde que llegaron a la
      | sede destino.
      |
-     | auto_dispose viene apagado a propósito: el requisito pide que el desecho
-     | quede autorizado por alguien con permiso. Encendido, el cron desecha solo
-     | y la bitácora registra "Automático" en vez de una persona.
+     | auto_dispose ya no tiene efecto: desechar es solo del administrador y no
+     | antes de 3 meses en destino (Invoice::MESES_ANTES_DE_DESECHAR). El cron
+     | marca «próximo a desecho» y lista las que ya se pueden desechar.
      */
     'disposal' => [
         'warn_after_days'    => (int) env('ENCOMIENDAS_DISPOSAL_WARN_DAYS', 30),
