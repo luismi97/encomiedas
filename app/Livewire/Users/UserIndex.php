@@ -9,9 +9,15 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 class UserIndex extends Component
 {
+    // Sin esto los enlaces de página son <a> comunes, y después de cualquier
+    // acción de Livewire apuntan a /livewire/update?page=2: un GET a una ruta
+    // que solo acepta POST, o sea 405.
+    use WithPagination;
+
     public bool $showForm = false;
     public $editingId = null;
 
