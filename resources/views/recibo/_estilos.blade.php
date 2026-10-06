@@ -9,10 +9,12 @@
        El ancho y el tipo de impresora salen de la sede, no de una constante:
        cada mostrador compra la impresora que consigue.
     */
+    @unless ($ajustar ?? false)
     @page {
         size: {{ $ancho }}mm auto;
         margin: 0;
     }
+    @endunless
 
     * { box-sizing: border-box; }
 
@@ -94,4 +96,6 @@
             body { margin: 0 auto; }
         @endif
     }
+
+    @include('recibo._ajustar')
 </style>

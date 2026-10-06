@@ -165,7 +165,7 @@ class InvoiceExportController extends Controller
      * Manda la caja desde la que se imprime. ?ancho= y ?impresora= lo fuerzan
      * por URL, para probar en otra impresora sin tocar la caja.
      *
-     * @return array{ancho:int, matriz:bool, anchoUtil:int}
+     * @return array{ancho:int, matriz:bool, anchoUtil:int, ajustar:bool}
      */
     /** Qué impresora usó este equipo la última vez que imprimió con una caja conocida. */
     private const COOKIE_IMPRESORA = 'impresora_rollo';
@@ -200,6 +200,9 @@ class InvoiceExportController extends Controller
             'matriz'    => $matriz,
             // La térmica imprime casi de borde a borde; la de impacto no.
             'anchoUtil' => $matriz ? CashRegister::ANCHO_IMPRIMIBLE_MATRIZ[$ancho] : $ancho,
+            // En prueba: el ancho lo pone el papel del driver y no la caja
+            // (ver recibo/_ajustar).
+            'ajustar'   => $request->boolean('ajustar'),
         ];
     }
 

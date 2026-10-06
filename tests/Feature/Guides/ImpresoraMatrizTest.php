@@ -107,6 +107,31 @@ class ImpresoraMatrizTest extends TestCase
         $this->assertStringContainsString('Courier New', $html);
     }
 
+    /**
+     * En prueba: con ?ajustar=1 el ancho lo pone el papel del driver. No se
+     * declara tamaño ni márgenes, y el estilo de matriz se mantiene.
+     */
+    public function test_ajustar_toma_el_papel_del_driver_en_los_tres_documentos(): void
+    {
+        foreach (['invoices.recibo', 'invoices.factura', 'invoices.etiqueta'] as $ruta) {
+            $html = $this->html($ruta, ['ajustar' => 1]);
+
+            $this->assertStringNotContainsString('@page', $html, $ruta);
+            $this->assertStringContainsString('width: auto !important', $html, $ruta);
+            $this->assertStringContainsString('font-family: Tahoma', $html, $ruta);
+        }
+    }
+
+    public function test_sin_ajustar_sigue_el_ancho_de_la_caja(): void
+    {
+        foreach (['invoices.recibo', 'invoices.factura', 'invoices.etiqueta'] as $ruta) {
+            $html = $this->html($ruta);
+
+            $this->assertStringContainsString('size: 76mm auto', $html, $ruta);
+            $this->assertStringNotContainsString('width: auto !important', $html, $ruta);
+        }
+    }
+
     /** Para probar la otra impresora sin tocar la caja. */
     public function test_el_tipo_de_impresora_se_puede_forzar_por_url(): void
     {

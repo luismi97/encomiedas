@@ -11,10 +11,12 @@
        ruta, a quién va y el código de barras. Lleva si está pagada o por
        cobrar, pero NINGÚN monto: la etiqueta la ve todo el que toca el bulto.
     */
+    @unless ($ajustar ?? false)
     @page {
         size: {{ $ancho }}mm auto;
         margin: 0;
     }
+    @endunless
 
     * { box-sizing: border-box; }
 
@@ -151,6 +153,8 @@
             body { margin: 0 auto; }
         }
     @endif
+
+    @include('recibo._ajustar')
 </style>
 </head>
 <body onload="window.print()">
