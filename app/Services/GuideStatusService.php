@@ -202,6 +202,147 @@ class GuideStatusService
         return round((float) $comprobante->total - $acreditado, 5);
     }
 
+    public const SOLO_ADMIN_CORRIGE = 'Solo un administrador puede corregir el estado de una guía.';
+
+    /**
+     * Corrige el estado de una guía que se movió por error.
+     *
+     * Es la salida para cuando alguien marcó «Entregado» la guía equivocada o
+     * la pasó de largo: el ciclo normal no deja volver atrás, y sin esto el
+     * único arreglo era tocar la base. Por eso tiene que ser lo contrario de un
+     * atajo: solo un administrador, con motivo, y queda en la bitácora igual
+     * que cualquier otro cambio.
+     *
+     * Salta las reglas de transición, pero no las que protegen plata y
+     * comprobantes:
+     *  - Anular sigue siendo anular(): lleva la nota de crédito si hace falta.
+     *  - A «Entregado» no se corrige una guía con cobro pendiente: eso es una
+     *    entrega de verdad y el cobro tiene que entrar a una caja.
+     *  - Una anulada que ya tiene nota de crédito no revive: el comprobante
+     *    quedó revertido ante Hacienda.
+     *
+     * Al volver atrás se borran las marcas de los estados que se deshacen
+     * (fecha de llegada, de entrega, quién retiró…): si no, la guía diría que
+     * se entregó estando en bodega, y el cron de desecho contaría desde una
+     * llegada que no fue.
+     */
+    public function corregirEstado(Invoice $guia, string $nuevoEstado, User $usuario, string $motivo): Invoice
+    {
+        if (! $usuario->isAdmin()) {
+            throw new RuntimeException(self::SOLO_ADMIN_CORRIGE);
+        }
+
+        $motivo = trim($motivo);
+
+        if ($motivo === '') {
+            throw new RuntimeException('Toda corrección de estado necesita un motivo.');
+        }
+
+        if (! array_key_exists($nuevoEstado, Invoice::STATUSES)) {
+            throw new RuntimeException('Ese estado no existe.');
+        }
+
+        if ($guia->status === $nuevoEstado) {
+            throw new RuntimeException("La guía {$guia->code} ya está en «" . Invoice::STATUSES[$nuevoEstado] . '».');
+        }
+
+        if ($nuevoEstado === Invoice::STATUS_CANCELLED) {
+            throw new RuntimeException('Para anular usá «Anular»: si el comprobante ya fue aceptado, lleva su nota de crédito.');
+        }
+
+        if ($nuevoEstado === Invoice::STATUS_DELIVERED && ($guia->tieneCobroPendiente() || $guia->esperandoCaja())) {
+            throw new RuntimeException("La guía {$guia->code} tiene un cobro pendiente: entregala con «Entregado», "
+                . 'que registra el cobro en tu caja.');
+        }
+
+        if ($guia->status === Invoice::STATUS_CANCELLED && $guia->electronicNotes()->exists()) {
+            throw new RuntimeException("La guía {$guia->code} se anuló con nota de crédito ante Hacienda: no se puede revivir. "
+                . 'Hacé una guía nueva.');
+        }
+
+        $anterior = $guia->status;
+
+        DB::transaction(function () use ($guia, $nuevoEstado, $anterior, $usuario, $motivo) {
+            $this->deshacerMarcas($guia, $nuevoEstado);
+
+            if ($nuevoEstado === Invoice::STATUS_RETURNED) {
+                $guia->return_reason = $guia->return_reason ?: $motivo;
+                $guia->returned_by = $guia->returned_by ?: $usuario->id;
+            }
+
+            $guia->status = $nuevoEstado;
+            $this->sellarTiempos($guia, $nuevoEstado);
+            $guia->save();
+
+            GuideStatusHistory::create([
+                'invoice_id'  => $guia->id,
+                'from_status' => $anterior,
+                'to_status'   => $nuevoEstado,
+                'branch_id'   => $usuario->branch_id,
+                'user_id'     => $usuario->id,
+                'source'      => GuideStatusHistory::SOURCE_MANUAL,
+                'note'        => 'Corrección de estado: ' . $motivo,
+                'happened_at' => now(),
+            ]);
+        });
+
+        // Sin aviso al destinatario: es arreglar un error, no un movimiento
+        // del paquete, y un correo de «llegó» por una corrección confunde.
+        return $guia->fresh();
+    }
+
+    /** Orden del recorrido, para saber qué marcas quedan «en el futuro». */
+    private const ETAPA = [
+        Invoice::STATUS_PENDING        => 0,
+        Invoice::STATUS_READY          => 1,
+        Invoice::STATUS_DISPATCHED     => 2,
+        Invoice::STATUS_IN_TRANSIT     => 3,
+        Invoice::STATUS_AT_DESTINATION => 4,
+        Invoice::STATUS_NEAR_DISPOSAL  => 5,
+        Invoice::STATUS_DELIVERED      => 6,
+        Invoice::STATUS_DISPOSED       => 6,
+        Invoice::STATUS_RETURNED       => 6,
+        Invoice::STATUS_CANCELLED      => 6,
+    ];
+
+    private function deshacerMarcas(Invoice $guia, string $nuevoEstado): void
+    {
+        $etapa = self::ETAPA[$nuevoEstado];
+
+        if ($etapa < self::ETAPA[Invoice::STATUS_AT_DESTINATION]) {
+            $guia->arrived_at = null;
+        }
+
+        if ($nuevoEstado !== Invoice::STATUS_NEAR_DISPOSAL && $nuevoEstado !== Invoice::STATUS_DISPOSED) {
+            $guia->disposal_warned_at = null;
+        }
+
+        if ($nuevoEstado !== Invoice::STATUS_DISPOSED) {
+            $guia->disposed_at = null;
+        }
+
+        if ($nuevoEstado !== Invoice::STATUS_DELIVERED) {
+            // La entrega no fue: quién retiró y su firma tampoco. Lo cobrado al
+            // entregar (collected_at) se queda: esa plata sí entró a una caja.
+            $guia->delivered_at = null;
+            $guia->received_by_name = null;
+            $guia->received_by_identification = null;
+            $guia->delivery_signature = null;
+        }
+
+        if ($nuevoEstado !== Invoice::STATUS_RETURNED) {
+            $guia->returned_at = null;
+            $guia->return_reason = null;
+            $guia->returned_by = null;
+        }
+
+        if ($guia->status === Invoice::STATUS_CANCELLED) {
+            $guia->cancellation_reason = null;
+            $guia->cancelled_by = null;
+            $guia->cancelled_at = null;
+        }
+    }
+
     /**
      * Devuelve la encomienda al remitente. Solo el administrador, con motivo.
      */

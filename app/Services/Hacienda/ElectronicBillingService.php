@@ -7,6 +7,7 @@ use App\Models\CompanySetting;
 use App\Models\ElectronicInvoice;
 use App\Models\Invoice;
 use App\Notifications\SendElectronicInvoice;
+use App\Support\CompanyContext;
 use Carbon\Carbon;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
@@ -721,28 +722,120 @@ class ElectronicBillingService
      * Le entrega al receptor el comprobante aceptado: XML firmado, respuesta de
      * Hacienda y PDF. Un fallo de correo nunca debe tumbar la aceptación, que
      * ya ocurrió del lado de Hacienda.
+     *
+     * Además va una copia al correo de la empresa registrado en sus datos de
+     * Hacienda: es el buzón donde la oficina archiva lo emitido y desde donde
+     * se lo pasa al contador. Sin la copia, la única forma de tener el PDF era
+     * entrar a cada guía a descargarlo.
      */
     private function sendInvoiceEmail(ElectronicInvoice $electronicInvoice): void
     {
+        $email = $this->correoDelReceptor($electronicInvoice);
+
+        if ($email) {
+            $this->notificar($electronicInvoice, $email);
+        } else {
+            Log::info("Hacienda: comprobante {$electronicInvoice->clave} sin correo del receptor, no se envía.");
+        }
+
+        $empresa = $this->correoDeLaEmpresa($electronicInvoice);
+
+        if ($empresa && strcasecmp($empresa, (string) $email) !== 0) {
+            $this->notificar($electronicInvoice, $empresa);
+        }
+    }
+
+    private function notificar(ElectronicInvoice $electronicInvoice, string $email): void
+    {
         try {
-            // Con receptor identificado el correo es el suyo, aunque falte:
-            // caer al del destinatario le mandaría la factura del remitente a
-            // otra persona. El tiquete, sin receptor, va al destinatario.
-            $receptor = $electronicInvoice->receptor_data ?? [];
-            $email = ! empty($receptor['numero'])
-                ? ($receptor['email'] ?? null)
-                : $electronicInvoice->invoice?->recipient_email;
-
-            if (!$email) {
-                Log::info("Hacienda: comprobante {$electronicInvoice->clave} sin correo del receptor, no se envía.");
-                return;
-            }
-
             Notification::route('mail', $email)->notify(new SendElectronicInvoice($electronicInvoice));
             Log::info("Hacienda: comprobante {$electronicInvoice->clave} enviado a {$email}.");
         } catch (\Throwable $e) {
-            Log::warning("Hacienda: no se pudo enviar el correo del comprobante {$electronicInvoice->clave}: {$e->getMessage()}");
+            Log::warning("Hacienda: no se pudo enviar el correo del comprobante {$electronicInvoice->clave} a {$email}: {$e->getMessage()}");
         }
+    }
+
+    /**
+     * A quién le corresponde el comprobante por correo.
+     *
+     * Con receptor identificado el correo es el suyo, aunque falte: caer al del
+     * destinatario le mandaría la factura del remitente a otra persona. El
+     * tiquete, sin receptor, va al destinatario.
+     */
+    public function correoDelReceptor(ElectronicInvoice $electronicInvoice): ?string
+    {
+        $receptor = $electronicInvoice->receptor_data ?? [];
+
+        $email = ! empty($receptor['numero'])
+            ? ($receptor['email'] ?? null)
+            : $electronicInvoice->invoice?->recipient_email;
+
+        return filled($email) ? trim($email) : null;
+    }
+
+    /**
+     * El correo de la empresa en sus datos de Hacienda.
+     *
+     * El vigente y no el de la foto del comprobante: si la oficina cambia de
+     * buzón, las copias tienen que llegar al nuevo desde ese momento.
+     */
+    private function correoDeLaEmpresa(ElectronicInvoice $electronicInvoice): ?string
+    {
+        // Sin empresa en contexto instance() podría crear una fila vacía o
+        // lanzar: ahí se usa la foto que guardó el comprobante.
+        $email = CompanyContext::hay()
+            ? CompanySetting::query()->value('email')
+            : null;
+
+        $email = $email ?: ($electronicInvoice->emisor_data['email'] ?? null);
+
+        return filled($email) ? trim($email) : null;
+    }
+
+    /**
+     * Vuelve a mandar un comprobante ya aceptado, al cliente o a otro correo.
+     *
+     * Para cuando el cliente no lo encuentra, lo borró o pide que vaya a su
+     * contador. Se manda en el acto y no por la cola: quien lo pide está
+     * esperando en la pantalla y tiene que enterarse ahí si el correo falló.
+     *
+     * El PDF se rehace antes de adjuntarlo, para que salga con el formato
+     * vigente aunque el comprobante sea de antes de un cambio.
+     *
+     * @throws RuntimeException si no está aceptado o el correo no es válido
+     */
+    public function reenviarCorreo(ElectronicInvoice $electronicInvoice, string $email): void
+    {
+        $email = trim($email);
+
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new RuntimeException('El correo «' . $email . '» no es válido.');
+        }
+
+        if ($electronicInvoice->status !== ElectronicInvoice::STATUS_ACCEPTED) {
+            throw new RuntimeException('Solo se puede reenviar un comprobante aceptado por Hacienda. Este está «'
+                . $electronicInvoice->statusLabel() . '».');
+        }
+
+        if ($electronicInvoice->signed_xml_path && $this->disk()->exists($electronicInvoice->signed_xml_path)) {
+            try {
+                app(PdfGenerator::class)->generate($electronicInvoice);
+            } catch (\Throwable $e) {
+                // Sin PDF nuevo se manda con el que haya: el XML firmado es el
+                // documento con validez y ese sí está.
+                Log::warning("Hacienda: no se pudo rehacer el PDF de {$electronicInvoice->clave} al reenviar: {$e->getMessage()}");
+            }
+        }
+
+        try {
+            Notification::route('mail', $email)->notifyNow(new SendElectronicInvoice($electronicInvoice->fresh()));
+        } catch (\Throwable $e) {
+            Log::warning("Hacienda: falló el reenvío de {$electronicInvoice->clave} a {$email}: {$e->getMessage()}");
+
+            throw new RuntimeException('No se pudo enviar el correo: ' . $e->getMessage());
+        }
+
+        Log::info("Hacienda: comprobante {$electronicInvoice->clave} reenviado a {$email}.");
     }
 
     private function emisorSnapshot(CompanySetting $settings): array

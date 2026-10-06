@@ -430,6 +430,125 @@ class InvoiceShow extends Component
         }
     }
 
+    /** Corrección de estado: solo administrador, a cualquier estado, con motivo */
+    public bool $showStatusFixForm = false;
+    public string $statusFixTo = '';
+    public string $statusFixReason = '';
+
+    public function openStatusFixForm(): void
+    {
+        if (! auth()->user()->isAdmin()) {
+            session()->flash('error', GuideStatusService::SOLO_ADMIN_CORRIGE);
+
+            return;
+        }
+
+        $this->statusFixTo = '';
+        $this->statusFixReason = '';
+        $this->showStatusFixForm = true;
+    }
+
+    public function corregirEstado(GuideStatusService $estados): void
+    {
+        $anterior = $this->invoice->status;
+
+        try {
+            $this->invoice = $estados->corregirEstado($this->invoice, $this->statusFixTo, auth()->user(), $this->statusFixReason);
+        } catch (RuntimeException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        ActivityLog::record(
+            'status_corrected',
+            auth()->user()->name . " corrigió el estado de {$this->invoice->code} de \"" . Invoice::STATUSES[$anterior]
+                . '" a "' . $this->invoice->statusLabel() . '": ' . trim($this->statusFixReason),
+            $this->invoice,
+            $anterior,
+            $this->invoice->status,
+        );
+
+        $this->showStatusFixForm = false;
+        $this->invoice->load([
+            'electronicInvoice', 'electronicNotes', 'activityLogs.user',
+            'statusHistories.user', 'statusHistories.branch',
+        ]);
+        session()->flash('success', 'Estado corregido a "' . $this->invoice->statusLabel() . '". Quedó en la bitácora con el motivo.');
+    }
+
+    /** Reenvío por correo de un comprobante aceptado */
+    public bool $showResendForm = false;
+    public ?int $resendId = null;
+    public string $resendEmail = '';
+
+    /**
+     * Abre el reenvío con el correo del receptor ya puesto: lo normal es que
+     * el cliente diga que no le llegó. Se puede cambiar por el del contador.
+     */
+    public function openResendForm(int $id, ElectronicBillingService $service): void
+    {
+        if (! auth()->user()->isAdmin()) {
+            session()->flash('error', self::SOLO_ADMIN_HACIENDA);
+
+            return;
+        }
+
+        if (! $comprobante = $this->comprobanteDeLaGuia($id)) {
+            return;
+        }
+
+        $this->resendId = $comprobante->id;
+        $this->resendEmail = (string) $service->correoDelReceptor($comprobante);
+        $this->resetValidation('resendEmail');
+        $this->showResendForm = true;
+    }
+
+    public function reenviarComprobante(ElectronicBillingService $service): void
+    {
+        if (! auth()->user()->isAdmin()) {
+            session()->flash('error', self::SOLO_ADMIN_HACIENDA);
+
+            return;
+        }
+
+        $this->validate(['resendEmail' => 'required|email'], [], ['resendEmail' => 'correo']);
+
+        if (! $comprobante = $this->comprobanteDeLaGuia((int) $this->resendId)) {
+            return;
+        }
+
+        try {
+            $service->reenviarCorreo($comprobante, $this->resendEmail);
+        } catch (\Throwable $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        ActivityLog::record(
+            'hacienda_resent',
+            auth()->user()->name . ' reenvió la ' . $comprobante->typeLabel() . " {$comprobante->consecutivo} a {$this->resendEmail}.",
+            $this->invoice,
+        );
+
+        $this->showResendForm = false;
+        $this->reloadInvoice();
+        session()->flash('success', $comprobante->typeLabel() . ' ' . $comprobante->consecutivo . " enviada a {$this->resendEmail}.");
+    }
+
+    /** Un comprobante de ESTA guía: el id llega del navegador. */
+    private function comprobanteDeLaGuia(int $id): ?\App\Models\ElectronicInvoice
+    {
+        $comprobante = \App\Models\ElectronicInvoice::where('invoice_id', $this->invoice->id)->find($id);
+
+        if (! $comprobante) {
+            session()->flash('error', 'Ese comprobante no es de esta guía.');
+        }
+
+        return $comprobante;
+    }
+
     private function reloadInvoice(): void
     {
         $this->invoice->refresh()->load(['electronicInvoice', 'electronicNotes', 'activityLogs.user']);

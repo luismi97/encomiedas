@@ -2,17 +2,49 @@
 
 namespace App\Services\Hacienda;
 
+use App\Models\Customer;
 use App\Models\ElectronicInvoice;
+use App\Models\Invoice;
+use App\Services\QrService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
+use SimpleXMLElement;
 
 /**
  * Genera el PDF del comprobante electrónico (a partir del XML ya firmado) y
  * lo guarda en el disco privado 'hacienda'.
+ *
+ * Es la representación gráfica que recibe el cliente por correo, así que sigue
+ * el formato que los contadores ya conocen de otros emisores: emisor arriba con
+ * el QR, receptor y datos del documento lado a lado, el detalle con IVA por
+ * línea, el desglose del impuesto y los totales. Todo sale del XML firmado —lo
+ * que Hacienda aceptó—, no de la guía, que se puede haber editado después.
  */
 class PdfGenerator
 {
+    /** Códigos del catálogo de Hacienda, para imprimir nombres y no números. */
+    private const PROVINCIAS = [
+        '1' => 'San José', '2' => 'Alajuela', '3' => 'Cartago', '4' => 'Heredia',
+        '5' => 'Guanacaste', '6' => 'Puntarenas', '7' => 'Limón',
+    ];
+
+    private const MEDIOS_DE_PAGO = [
+        '01' => 'Efectivo', '02' => 'Tarjeta', '03' => 'Cheque', '04' => 'Transferencia',
+        '05' => 'Recaudado por terceros', '06' => 'SINPE Móvil', '07' => 'Plataforma digital',
+        '99' => 'Otros',
+    ];
+
+    private const UNIDADES = [
+        'Sp' => 'Servicio', 'Unid' => 'Unidad', 'Os' => 'Otro servicio', 'kg' => 'Kilogramo',
+    ];
+
+    private const TIPOS_REFERENCIA = [
+        '01' => 'Factura electrónica', '02' => 'Nota de débito', '03' => 'Nota de crédito',
+        '04' => 'Tiquete electrónico',
+    ];
+
     public function generate(ElectronicInvoice $electronicInvoice): string
     {
         if (!$electronicInvoice->signed_xml_path || !Storage::disk('hacienda')->exists($electronicInvoice->signed_xml_path)) {
@@ -20,17 +52,25 @@ class PdfGenerator
         }
 
         $xml = Storage::disk('hacienda')->get($electronicInvoice->signed_xml_path);
-        $html = $this->xmlToHtml($xml, $electronicInvoice);
 
-        $pdf = Pdf::loadHTML($html)->setPaper('a4')
-            ->setOption('margin-top', 10)
-            ->setOption('margin-bottom', 10)
-            ->setOption('margin-left', 10)
-            ->setOption('margin-right', 10);
+        $pdf = Pdf::loadView('pdf.comprobante-electronico', $this->datos($xml, $electronicInvoice))
+            ->setPaper('letter')
+            // Va adjunto en cada correo: con la fuente entera pesaba 1,2 MB.
+            ->setOption('enable_font_subsetting', true);
+
+        // El pie se pinta después de maquetar: es la única forma de saber el
+        // total de páginas («Página 1 de 2») cuando el detalle es largo.
+        $dompdf = $pdf->getDomPDF();
+        $dompdf->render();
+        $canvas = $dompdf->getCanvas();
+        $fuente = $dompdf->getFontMetrics()->getFont('DejaVu Sans');
+        $alto = $canvas->get_height();
+        $canvas->page_text(36, $alto - 30, 'Página {PAGE_NUM} de {PAGE_COUNT}', $fuente, 8, [0.3, 0.3, 0.3]);
+        $canvas->page_text($canvas->get_width() - 90, $alto - 30, 'Versión ' . config('hacienda.version', '4.4'), $fuente, 8, [0.3, 0.3, 0.3]);
 
         $yearMonth = $electronicInvoice->issued_at->format('Y-m');
         $filename = "pdf/{$yearMonth}/{$electronicInvoice->clave}.pdf";
-        Storage::disk('hacienda')->put($filename, $pdf->output());
+        Storage::disk('hacienda')->put($filename, $dompdf->output());
 
         $electronicInvoice->pdf_path = $filename;
         $electronicInvoice->save();
@@ -38,116 +78,172 @@ class PdfGenerator
         return $filename;
     }
 
-    private function xmlToHtml(string $xml, ElectronicInvoice $electronicInvoice): string
+    /**
+     * Lo que imprime la plantilla, ya leído del XML y formateado.
+     *
+     * @return array<string,mixed>
+     */
+    public function datos(string $xml, ElectronicInvoice $electronicInvoice): array
     {
         $data     = simplexml_load_string($xml);
         $emisor   = $data->Emisor;
         $receptor = $data->Receptor ?? null;
-        $detalles = $data->DetalleServicio->LineaDetalle ?? [];
         $resumen  = $data->ResumenFactura;
+        $invoice  = $electronicInvoice->invoice;
 
-        $invoice = $electronicInvoice->invoice;
+        $fecha = $electronicInvoice->issued_at
+            ?? (isset($data->FechaEmision) ? Carbon::parse((string) $data->FechaEmision) : now());
 
-        $emisorNom   = (string) ($emisor->Nombre ?? 'N/A');
-        $emisorCed   = (string) ($emisor->Identificacion->Numero ?? '—');
-        $emisorTel   = (string) ($emisor->Telefono->NumTelefono ?? '—');
-        $emisorEmail = (string) ($emisor->CorreoElectronico ?? '—');
+        $condicion = (string) ($data->CondicionVenta ?? '');
+        $plazo = (int) ($data->PlazoCredito ?? 0);
 
-        $receptorNom = optional($receptor)->Nombre ?? 'Consumidor Final';
-        $receptorCed = isset($receptor->Identificacion->Numero) ? (string) $receptor->Identificacion->Numero : '—';
+        $lineas = [];
+        $desgloseIva = [];
 
-        $fecha = $electronicInvoice->issued_at->format('d/m/Y');
-        $hora  = $electronicInvoice->issued_at->format('h:i A');
+        foreach ($data->DetalleServicio->LineaDetalle ?? [] as $linea) {
+            $tarifa = (float) ($linea->Impuesto->Tarifa ?? 0);
+            $impuesto = (float) ($linea->Impuesto->Monto ?? 0);
+            $exonerado = (float) ($linea->Impuesto->Exoneracion->MontoExoneracion ?? 0);
+            $descuento = 0.0;
+            foreach ($linea->Descuento ?? [] as $d) {
+                $descuento += (float) $d->MontoDescuento;
+            }
 
-        $subtotal = number_format((float) ($resumen->TotalVentaNeta ?? 0), 2, '.', ',');
-        $impuesto = number_format((float) ($resumen->TotalImpuesto ?? 0), 2, '.', ',');
-        $total    = number_format((float) ($resumen->TotalComprobante ?? 0), 2, '.', ',');
+            $unidad = (string) $linea->UnidadMedida;
 
-        $rows = '';
-        foreach ($detalles as $linea) {
-            $desc       = htmlspecialchars((string) $linea->Detalle);
-            $precio     = number_format((float) $linea->PrecioUnitario, 2, '.', ',');
-            $impLinea   = number_format((float) ($linea->Impuesto->Monto ?? 0), 2, '.', ',');
-            $totalLinea = number_format((float) $linea->MontoTotalLinea, 2, '.', ',');
+            $lineas[] = [
+                'codigo'    => (string) ($linea->CodigoCABYS ?? $linea->NumeroLinea),
+                'detalle'   => (string) $linea->Detalle,
+                'unidad'    => self::UNIDADES[$unidad] ?? $unidad,
+                'cantidad'  => (float) $linea->Cantidad,
+                'precio'    => (float) $linea->PrecioUnitario,
+                'subtotal'  => (float) $linea->MontoTotal,
+                'descuento' => $descuento,
+                'tarifa'    => $tarifa,
+                'impuesto'  => $impuesto,
+                'total'     => (float) $linea->MontoTotalLinea,
+            ];
 
-            $rows .= <<<HTML
-            <tr>
-              <td class="td-desc">$desc</td>
-              <td class="td-price">₡ $precio</td>
-              <td class="td-imp">₡ $impLinea</td>
-              <td class="td-total">₡ $totalLinea</td>
-            </tr>
-            HTML;
+            $clave = number_format($tarifa, 2, '.', '');
+            $desgloseIva[$clave] ??= ['tarifa' => $tarifa, 'impuesto' => 0.0, 'exonerado' => 0.0];
+            $desgloseIva[$clave]['impuesto'] += $impuesto;
+            $desgloseIva[$clave]['exonerado'] += $exonerado;
         }
 
-        $pickup   = htmlspecialchars($invoice?->pickupBranch?->name ?? '—');
-        $delivery = htmlspecialchars($invoice?->deliveryBranch?->name ?? '—');
-        $code     = htmlspecialchars($invoice?->code ?? '');
+        $mediosDePago = [];
+        foreach ($resumen->MedioPago ?? [] as $medio) {
+            $codigo = (string) ($medio->TipoMedioPago ?? $medio);
+            $mediosDePago[] = self::MEDIOS_DE_PAGO[$codigo] ?? $codigo;
+        }
 
-        return <<<HTML
-        <html>
-        <head>
-        <meta charset="utf-8">
-        <style>
-            body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #1f2937; }
-            .header { background: linear-gradient(135deg, #2563eb 0%, #1e3a8a 100%); color: #fff; padding: 16px; border-radius: 8px; }
-            .header h1 { margin: 0; font-size: 18px; }
-            .muted { color: #6b7280; }
-            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-            th, td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; }
-            th { background: #f3f4f6; }
-            .td-price, .td-imp, .td-total { text-align: right; }
-            .totals { margin-top: 10px; width: 260px; margin-left: auto; }
-            .totals div { display: flex; justify-content: space-between; padding: 3px 0; }
-            .grid { display: flex; gap: 24px; margin-top: 14px; }
-            .box { flex: 1; }
-            .box h3 { margin: 0 0 4px 0; font-size: 13px; }
-            .clave { font-size: 9px; word-break: break-all; color: #6b7280; }
-        </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>Comprobante de Encomienda — {$code}</h1>
-                <div>{$electronicInvoice->typeLabel()} · {$fecha} {$hora}</div>
-            </div>
+        $referencia = null;
+        if (isset($data->InformacionReferencia)) {
+            $ir = $data->InformacionReferencia;
+            $referencia = [
+                'tipo'   => self::TIPOS_REFERENCIA[(string) $ir->TipoDocIR] ?? (string) $ir->TipoDocIR,
+                'numero' => (string) $ir->Numero,
+                'fecha'  => isset($ir->FechaEmisionIR) ? Carbon::parse((string) $ir->FechaEmisionIR)->format('d/m/Y') : null,
+                'razon'  => (string) ($ir->Razon ?? ''),
+            ];
+        }
 
-            <div class="grid">
-                <div class="box">
-                    <h3>Emisor</h3>
-                    {$emisorNom}<br>
-                    Cédula: {$emisorCed}<br>
-                    Tel: {$emisorTel} · {$emisorEmail}
-                </div>
-                <div class="box">
-                    <h3>Receptor</h3>
-                    {$receptorNom}<br>
-                    Identificación: {$receptorCed}
-                </div>
-                <div class="box">
-                    <h3>Ruta</h3>
-                    Recogida: {$pickup}<br>
-                    Entrega: {$delivery}
-                </div>
-            </div>
+        $receptorNumero = isset($receptor->Identificacion->Numero) ? (string) $receptor->Identificacion->Numero : null;
 
-            <table>
-                <thead>
-                    <tr><th>Detalle</th><th>Precio</th><th>Impuesto</th><th>Total</th></tr>
-                </thead>
-                <tbody>
-                    {$rows}
-                </tbody>
-            </table>
+        return [
+            'comprobante' => $electronicInvoice,
+            'titulo'      => $electronicInvoice->typeLabel(),
+            'clave'       => $electronicInvoice->clave,
+            'consecutivo' => $electronicInvoice->consecutivo,
+            // El QR lleva la clave: es lo que identifica el comprobante ante
+            // Hacienda y lo que el contador del cliente necesita digitar.
+            'qr'          => app(QrService::class)->dataUri($electronicInvoice->clave, 260),
 
-            <div class="totals">
-                <div><span>Subtotal</span><span>₡ {$subtotal}</span></div>
-                <div><span>Impuestos</span><span>₡ {$impuesto}</span></div>
-                <div><strong>Total</strong><strong>₡ {$total}</strong></div>
-            </div>
+            'emisor' => [
+                'nombre'      => (string) ($emisor->Nombre ?? ''),
+                'comercial'   => (string) ($emisor->NombreComercial ?? ''),
+                'cedula'      => (string) ($emisor->Identificacion->Numero ?? ''),
+                'telefono'    => (string) ($emisor->Telefono->NumTelefono ?? ''),
+                'email'       => (string) ($emisor->CorreoElectronico ?? ''),
+                'direccion'   => $this->direccion($emisor->Ubicacion ?? null),
+                'actividad'   => (string) ($data->CodigoActividadEmisor ?? ''),
+            ],
 
-            <p class="clave">Clave: {$electronicInvoice->clave}</p>
-        </body>
-        </html>
-        HTML;
+            'receptor' => $receptor && $receptorNumero ? $this->receptor($receptor, $receptorNumero, $invoice) : null,
+            'actividadReceptor' => (string) ($data->CodigoActividadReceptor ?? ''),
+
+            'fecha'      => $fecha,
+            'condicion'  => Catalogs::SALE_CONDITIONS[$condicion] ?? ($condicion ?: '—'),
+            'plazo'      => $plazo,
+            'vence'      => $plazo > 0 ? $fecha->copy()->addDays($plazo) : null,
+            'moneda'     => (string) ($resumen->CodigoTipoMoneda->CodigoMoneda ?? 'CRC'),
+            'tipoCambio' => (float) ($resumen->CodigoTipoMoneda->TipoCambio ?? 1),
+            'pago'       => implode(', ', $mediosDePago),
+
+            'lineas'      => $lineas,
+            'desgloseIva' => array_values($desgloseIva),
+
+            'totales' => [
+                'subtotal'    => (float) ($resumen->TotalVenta ?? 0),
+                'descuento'   => (float) ($resumen->TotalDescuentos ?? 0),
+                'impuesto'    => (float) ($resumen->TotalImpuesto ?? 0),
+                'otrosCargos' => (float) ($resumen->TotalOtrosCargos ?? 0),
+                'ivaDevuelto' => (float) ($resumen->TotalIVADevuelto ?? 0),
+                'total'       => (float) ($resumen->TotalComprobante ?? 0),
+                'exonerado'   => (float) ($resumen->TotalExonerado ?? 0),
+            ],
+
+            'referencia' => $referencia,
+            'guia'       => $invoice ? $this->guia($invoice) : null,
+            'leyenda'    => (string) config('hacienda.leyenda_resolucion'),
+        ];
+    }
+
+    private function direccion(?SimpleXMLElement $ubicacion): string
+    {
+        if (! $ubicacion) {
+            return '';
+        }
+
+        $provincia = self::PROVINCIAS[(string) $ubicacion->Provincia] ?? '';
+        $senas = trim((string) ($ubicacion->OtrasSenas ?? ''));
+
+        return trim($provincia . ($provincia && $senas ? '. ' : '') . $senas);
+    }
+
+    /**
+     * El receptor del XML, completado con teléfono y dirección.
+     *
+     * El XML no los lleva (Hacienda no los exige y la guía no tiene dirección
+     * fiscal), pero el formato los muestra: salen del cliente registrado con
+     * esa cédula y, si no hay, de la persona de la guía a quien se facturó.
+     */
+    private function receptor(SimpleXMLElement $receptor, string $numero, ?Invoice $invoice): array
+    {
+        $cliente = Customer::where('identification', $numero)->first();
+
+        $telefonoDeLaGuia = match ($invoice?->bill_to) {
+            Invoice::BILL_TO_SENDER    => $invoice->sender_phone,
+            Invoice::BILL_TO_RECIPIENT => $invoice->recipient_phone,
+            default                    => null,
+        };
+
+        return [
+            'nombre'    => (string) $receptor->Nombre,
+            'cedula'    => $numero,
+            'email'     => (string) ($receptor->CorreoElectronico ?? ''),
+            'telefono'  => (string) ($cliente?->phone ?: $telefonoDeLaGuia),
+            'direccion' => (string) ($cliente?->address ?? ''),
+        ];
+    }
+
+    /** La encomienda a la que corresponde, en una línea como la del formato. */
+    private function guia(Invoice $invoice): string
+    {
+        return collect([
+            'Guía'     => $invoice->code,
+            'Emisor'   => $invoice->sender_name,
+            'Receptor' => $invoice->recipient_name,
+            'Destino'  => $invoice->deliveryBranch?->name,
+        ])->filter()->map(fn ($valor, $etiqueta) => "{$etiqueta}: {$valor}")->implode('  ');
     }
 }

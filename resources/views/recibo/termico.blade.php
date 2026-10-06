@@ -128,6 +128,20 @@
         @endif
     </table>
 
+    {{-- Con qué comprobante se declaró el servicio: el cliente lo busca por
+         la clave en su contabilidad y en el correo que le llega de Hacienda.
+         Solo si ya existe y no fue rechazado: una clave rechazada se rehace
+         con otra y la impresa no serviría para nada. --}}
+    @php $comprobante = $guia->electronicInvoice; @endphp
+    @if ($comprobante && ! $comprobante->wasRejected())
+        <div class="regla"></div>
+        <div class="etiqueta">{{ $comprobante->typeLabel() }}</div>
+        <div class="etiqueta" style="margin-top: 1mm;">Consecutivo</div>
+        <div class="clave">{{ $comprobante->consecutivo }}</div>
+        <div class="etiqueta" style="margin-top: 1mm;">Clave numérica</div>
+        <div class="clave nota">{{ $comprobante->clave }}</div>
+    @endif
+
     <div class="firma">Recibí conforme · nombre, cédula y firma</div>
 
     <div class="centro chico" style="margin-top: 3mm;">

@@ -101,6 +101,36 @@
                 </div>
             </div>
 
+            {{-- Estado de cuenta por fechas: informativo, no corta nada --}}
+            <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4" data-test="estado-por-fechas">
+                <h3 class="font-semibold mb-1">Estado de cuenta por fechas</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    Las guías a crédito y los abonos entre dos fechas cualquiera, con el saldo de hoy. No corta el período ni cambia nada.
+                </p>
+                <div class="flex flex-wrap items-end gap-3">
+                    <div>
+                        <label class="label">Desde</label>
+                        <input type="date" wire:model.live="rangoDesde" class="input">
+                    </div>
+                    <div>
+                        <label class="label">Hasta</label>
+                        <input type="date" wire:model.live="rangoHasta" class="input">
+                    </div>
+                    @if ($enlaceRango)
+                        <a href="{{ $enlaceRango }}" target="_blank" class="btn-secondary">
+                            <x-icon name="document" class="w-4 h-4" /> Generar PDF
+                        </a>
+                    @else
+                        <span class="btn-secondary opacity-50 cursor-not-allowed" aria-disabled="true">
+                            <x-icon name="document" class="w-4 h-4" /> Generar PDF
+                        </span>
+                    @endif
+                </div>
+                @if ($avisoRango)
+                    <p class="error-text mt-2">{{ $avisoRango }}</p>
+                @endif
+            </div>
+
             {{-- Abono --}}
             <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                 <h3 class="font-semibold mb-3">Registrar abono</h3>

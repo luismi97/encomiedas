@@ -67,6 +67,14 @@ return [
     'sale_condition' => '01', // Contado
 
     /*
+     | Lo que imprime el PDF del comprobante al pie: la versión del esquema y la
+     | resolución que autoriza la facturación electrónica. Si Hacienda publica
+     | otra, se cambia acá (o con la variable de entorno) sin tocar la plantilla.
+     */
+    'version' => '4.4',
+    'leyenda_resolucion' => env('HACIENDA_LEYENDA_RESOLUCION', 'Autorizado por MH-DGT-RES-0027-2024 del 19/11/2024'),
+
+    /*
      | Unidad de medida por tipo de linea. Hacienda clasifica bien vs servicio
      | por el CABYS, asi que la unidad tiene que seguir esa misma clasificacion:
      | 'Sp' en una linea cuyo CABYS es un bien es una contradiccion.

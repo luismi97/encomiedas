@@ -153,6 +153,7 @@ Route::middleware('auth')->group(function () {
         // Reportes y crédito: solo administración.
         Route::get('/credito', CreditoPanel::class)->name('credito.index');
         Route::get('/credito/{statement}/pdf', [InvoiceExportController::class, 'creditStatementPdf'])->name('credito.pdf');
+        Route::get('/credito/cliente/{customer}/estado', [InvoiceExportController::class, 'creditRangePdf'])->name('credito.rango');
         Route::get('/reportes', ReportePanel::class)->name('reportes.index');
         Route::get('/reportes/contable/pdf', [InvoiceExportController::class, 'reporteContablePdf'])->name('reportes.contable.pdf');
 

@@ -131,9 +131,43 @@ class EtiquetaPaqueteTest extends TestCase
 
         $html = $this->actingAs($this->admin)->get(route('invoices.etiqueta', $guia->fresh()))->getContent();
 
-        $this->assertStringNotContainsString('BULTOS', $html);
         $this->assertStringNotContainsString(' DE 2', $html);
+        $this->assertStringNotContainsString(' DE 4', $html);
         $this->assertStringContainsString('3 × PKG-1', $html);
+    }
+
+    /**
+     * El total de paquetes físicos de la guía, sumando cantidades: es lo que
+     * hay que juntar antes de cargar o entregar.
+     */
+    public function test_la_etiqueta_dice_el_total_de_bultos(): void
+    {
+        $guia = $this->guia(bultos: 2);
+        $guia->items()->first()->update(['quantity' => 3, 'price' => 3000]);
+
+        $this->actingAs($this->admin)
+            ->get(route('invoices.etiqueta', $guia->fresh()))
+            ->assertSee('TOTAL: 4 BULTOS');
+    }
+
+    /** También en la de un paquete por etiqueta: cada caja dice cuántas son. */
+    public function test_cada_etiqueta_por_bulto_lleva_el_total(): void
+    {
+        $guia = $this->guia(bultos: 3);
+
+        $html = $this->actingAs($this->admin)
+            ->get(route('invoices.etiqueta', $guia) . '?porBulto=1')
+            ->getContent();
+
+        $this->assertSame(3, substr_count($html, 'TOTAL: 3 BULTOS'));
+    }
+
+    public function test_un_solo_bulto_va_en_singular(): void
+    {
+        $this->actingAs($this->admin)
+            ->get(route('invoices.etiqueta', $this->guia(bultos: 1)))
+            ->assertSee('TOTAL: 1 BULTO')
+            ->assertDontSee('TOTAL: 1 BULTOS');
     }
 
     /** Cuando sí hace falta pegar una a cada caja, sigue disponible. */

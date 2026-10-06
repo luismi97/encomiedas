@@ -2,6 +2,24 @@
     
     <x-flash />
 
+    @if ($invoice)
+        {{-- Editar una guía ya creada toca cosas que siguieron su curso: se
+             avisa antes y no después. --}}
+        <div class="card border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-900 dark:text-amber-100" data-test="aviso-edicion">
+            <p class="font-semibold">Editando la guía {{ $invoice->code }}</p>
+            <ul class="list-disc list-inside mt-1 space-y-0.5">
+                <li>El código de la guía no cambia aunque cambies las sedes: ya está impreso en la etiqueta.</li>
+                @if ($invoice->fueCortada())
+                    <li>Está en un estado de cuenta: si cambia el monto, el estado de cuenta se recalcula.</li>
+                @endif
+                @if ($invoice->electronicInvoice && ! in_array($invoice->electronicInvoice->status, ['pending', 'rejected'], true))
+                    <li>Su comprobante electrónico ya está en Hacienda: lo declarado no cambia. Para corregirlo, emití una nota desde la guía.</li>
+                @endif
+                <li>El estado se corrige desde la guía, con «Corregir estado».</li>
+            </ul>
+        </div>
+    @endif
+
     {{-- ¿Este equipo puede seguir recibiendo encomiendas si se cae el
          internet? Lo pinta el watchdog (offline/watchdog.blade.php). --}}
     @if (! $invoice && \App\Support\ModoOffline::habilitado())

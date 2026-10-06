@@ -291,6 +291,7 @@ export async function crearGuia(page, opciones) {
     conFactura = null,
     sinImpuestos = false,
     bultosExtra = [],
+    clienteRemitente = null,
   } = opciones;
 
   await visitar(page, '/invoices-create');
@@ -298,7 +299,13 @@ export async function crearGuia(page, opciones) {
   await page.locator('[wire\\:model\\.live="pickup_branch_id"]').selectOption({ label: origen });
   await page.locator('[wire\\:model\\.live="delivery_branch_id"]').selectOption({ label: destino });
 
-  await page.fill('[wire\\:model="sender_name"]', remitente);
+  // Un cliente registrado trae sus datos y, si es de crédito, deja la guía a
+  // crédito: el nombre se copia de su ficha y no se pisa.
+  if (clienteRemitente) {
+    await elegirClienteRemitente(page, clienteRemitente);
+  } else {
+    await page.fill('[wire\\:model="sender_name"]', remitente);
+  }
   await page.fill('[wire\\:model="recipient_name"]', destinatario);
 
   if (tipoDeEnvio) {
@@ -314,7 +321,7 @@ export async function crearGuia(page, opciones) {
     await page
       .locator('[wire\\:model="recipient_identification_type"]')
       .selectOption(conFactura.tipo ?? '01');
-    await page.fill('[wire\\:model="recipient_identification"]', conFactura.cedula);
+    await page.fill('[wire\\:model\\.blur="recipient_identification"]', conFactura.cedula);
   }
 
   if (domicilio) {
@@ -369,6 +376,13 @@ export async function crearGuia(page, opciones) {
     total: await monto(page, 'guia-total'),
     subtotal: await monto(page, 'guia-subtotal'),
   };
+}
+
+/** Busca un cliente registrado en el bloque del remitente y lo elige. */
+export async function elegirClienteRemitente(page, nombre) {
+  await page.locator('[wire\\:model\\.live\\.debounce\\.300ms="senderSearch"]').fill(nombre);
+  await page.locator('button[wire\\:click^="$set(\'sender_customer_id\'"]', { hasText: nombre }).first().click();
+  await expect(page.locator('[wire\\:model="sender_name"]')).toHaveValue(nombre);
 }
 
 async function llenarBulto(page, indice, { tamano, peso, dimensiones, precio }) {

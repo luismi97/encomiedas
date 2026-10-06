@@ -295,6 +295,32 @@ Es la herramienta para entenderlo, y es la que usan estas pruebas.
 
 ---
 
+## Escenario 6 · Administración: corregir lo que salió mal
+
+**Archivo:** `tests/e2e/administracion.spec.js`
+
+Las herramientas del administrador para cuando alguien se equivocó o hay que
+rendir cuentas. Cada prueba sigue de largo después del cambio —se entrega, se
+corta, se cobra—, porque el riesgo de estas herramientas no es que fallen: es
+que dejen la guía en un estado del que el flujo normal ya no sabe salir.
+
+| Flujo | Qué se comprueba |
+|---|---|
+| Etiqueta | dice «TOTAL: N BULTOS», también en la versión de una por bulto |
+| Editar la guía | el admin entra desde «Editar guía», cambia destinatario y precio; el código no cambia y el arqueo refleja el monto nuevo sin duplicar el cobro |
+| Corregir estado | adelanta un estado, se entrega normalmente, se deshace la entrega (la evidencia desaparece) y se vuelve a entregar |
+| Corregir estado | no ofrece «Anulado» (eso es «Anular», con su nota de crédito) ni el estado actual |
+| Estado de cuenta por fechas | el PDF del rango sale; fechas al revés avisan; el reporte no corta nada y el corte posterior sigue encontrando la guía |
+| Comprobante aceptado | el recibo lleva la clave numérica; el reenvío a otro correo sale (en local, al log) con el PDF; el PDF pesa menos de 200 KB |
+
+El comprobante aceptado lo arma `php artisan e2e:comprobante-aceptado
+{código}`: en local no hay certificado ni conexión con Hacienda, así que no
+hay otra forma de llegar a lo que pasa después de la aceptación. Usa el XML
+que produciría el sistema de verdad, sin firma, y se niega a correr en
+producción.
+
+---
+
 ## Qué NO cubren estas pruebas, y por qué
 
 - **Transmisión real a Hacienda.** Firmar y transmitir necesita el certificado

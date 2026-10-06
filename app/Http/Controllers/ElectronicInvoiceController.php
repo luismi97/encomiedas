@@ -11,7 +11,7 @@ use Throwable;
 class ElectronicInvoiceController extends Controller
 {
     /**
-     * PDF del comprobante, regenerándolo si el archivo ya no está.
+     * PDF del comprobante, rehecho desde el XML firmado cuando está.
      *
      * El PDF se guardaba una sola vez, al aceptarse el comprobante, y después
      * esto devolvía 404 pelado si el archivo faltaba: pasa al mover el sitio de
@@ -23,20 +23,25 @@ class ElectronicInvoiceController extends Controller
     public function downloadPdf(ElectronicInvoice $electronicInvoice, PdfGenerator $generador)
     {
         $disco = Storage::disk('hacienda');
+        $hayPdf = $electronicInvoice->pdf_path && $disco->exists($electronicInvoice->pdf_path);
+        $hayXml = $electronicInvoice->signed_xml_path && $disco->exists($electronicInvoice->signed_xml_path);
 
-        if (! $electronicInvoice->pdf_path || ! $disco->exists($electronicInvoice->pdf_path)) {
-            abort_unless(
-                $electronicInvoice->signed_xml_path && $disco->exists($electronicInvoice->signed_xml_path),
-                404,
-                'Este comprobante no tiene PDF ni XML firmado: todavía no se ha transmitido a Hacienda.'
-            );
+        abort_unless(
+            $hayPdf || $hayXml,
+            404,
+            'Este comprobante no tiene PDF ni XML firmado: todavía no se ha transmitido a Hacienda.'
+        );
 
+        // Con el XML a mano se rehace siempre: así los comprobantes emitidos
+        // antes de un cambio de formato salen con el formato vigente. Si
+        // rehacerlo falla y queda el PDF de antes, se sirve ese.
+        if ($hayXml) {
             try {
                 $generador->generate($electronicInvoice);
             } catch (Throwable $e) {
                 report($e);
 
-                abort(500, 'No se pudo generar el PDF del comprobante: ' . $e->getMessage());
+                abort_unless($hayPdf, 500, 'No se pudo generar el PDF del comprobante: ' . $e->getMessage());
             }
         }
 

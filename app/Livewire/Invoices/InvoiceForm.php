@@ -761,7 +761,7 @@ class InvoiceForm extends Component
     {
         $descuento = (float) $this->discount_amount;
 
-        if ($descuento <= 0) {
+        if ($descuento <= 0 || $this->descuentoSinCambios()) {
             return;
         }
 
@@ -824,6 +824,16 @@ class InvoiceForm extends Component
         ]);
     }
 
+    /**
+     * Al editar, un descuento que ya estaba autorizado no se vuelve a pedir:
+     * corregir un teléfono no puede exigir la clave de un descuento de ayer.
+     */
+    private function descuentoSinCambios(): bool
+    {
+        return $this->invoice?->exists
+            && abs((float) $this->discount_amount - (float) $this->invoice->discount_amount) < 0.01;
+    }
+
     public function save(): void
     {
         $this->normalizeItems();
@@ -833,7 +843,15 @@ class InvoiceForm extends Component
         $this->validarDescuento();
         $this->validarCajaAbierta();
 
-        DB::transaction(function () use ($data) {
+        // Cómo estaba antes de guardar, para ajustar lo que cuelga de la guía.
+        $antes = $this->invoice?->exists ? [
+            'total'      => round((float) $this->invoice->total, 2),
+            'estado'     => $this->invoice->credit_statement_id,
+            'facturaA'   => $this->firmaDeFacturacion($this->invoice),
+        ] : null;
+        $avisos = [];
+
+        DB::transaction(function () use ($data, $antes, &$avisos) {
             $invoice = app(RegistroDeGuia::class)->guardar($this->invoice, [
                 'pickup_branch_id' => $data['pickup_branch_id'],
                 'delivery_branch_id' => $data['delivery_branch_id'],
@@ -865,7 +883,8 @@ class InvoiceForm extends Component
                 'home_delivery' => $this->home_delivery,
                 'delivery_address' => $this->home_delivery ? ($data['delivery_address'] ?: null) : null,
                 'home_delivery_fee' => $this->homeDeliveryFeeAmount,
-                'discount_authorized_by' => (float) $this->discount_amount > 0 ? auth()->id() : null,
+                'discount_authorized_by' => (float) $this->discount_amount <= 0 ? null
+                    : ($this->descuentoSinCambios() ? $this->invoice->discount_authorized_by : auth()->id()),
                 // Se guarda aunque sea tiquete: el tiquete no la manda a Hacienda
                 // (ver receptorIdentificado) y la entrega la usa para verificar.
                 'recipient_identification_type' => filled($data['recipient_identification']) ? $this->recipient_identification_type : null,
@@ -895,8 +914,12 @@ class InvoiceForm extends Component
                 default => null,
             };
 
-            if ($aviso) {
-                session()->flash('info', $aviso);
+            if ($antes) {
+                $avisos = $this->ajustarLoQueDependeDeLaGuia($invoice, $antes);
+            }
+
+            if ($aviso || $avisos) {
+                session()->flash('info', trim($aviso . ' ' . implode(' ', $avisos)));
             }
 
             $this->invoice = $invoice;
@@ -904,6 +927,80 @@ class InvoiceForm extends Component
 
         session()->flash('success', 'Factura guardada correctamente.');
         $this->redirect(route('invoices.show', $this->invoice), navigate: false);
+    }
+
+    /** Lo que define a quién y cómo se factura: si cambia, el comprobante también. */
+    private function firmaDeFacturacion(Invoice $guia): string
+    {
+        return json_encode([
+            $guia->bill_type,
+            $guia->receptorIdentificado(),
+            $guia->receptorIdentificado() ? $guia->receptorDeFactura() : null,
+        ]);
+    }
+
+    /**
+     * Al editar una guía ya existente, pone al día lo que se calculó con los
+     * datos viejos y avisa de lo que no se puede tocar solo.
+     *
+     * Es lo que permite que un administrador corrija CUALQUIER campo: sin
+     * esto, cambiar el monto de una guía ya cortada dejaba el estado de cuenta
+     * cobrando el monto viejo, y cambiar a quién se factura dejaba el
+     * comprobante pendiente con la cédula anterior.
+     *
+     * @param  array{total:float, estado:?int, facturaA:string}  $antes
+     * @return list<string>  avisos para quien guardó
+     */
+    private function ajustarLoQueDependeDeLaGuia(Invoice $guia, array $antes): array
+    {
+        $avisos = [];
+        $guia->refresh();
+        $cambioElTotal = abs(round((float) $guia->total, 2) - $antes['total']) >= 0.01;
+
+        // Estado de cuenta: si la guía dejó de ser a crédito sale del corte;
+        // si cambió el monto, el corte se rehace con el nuevo.
+        if ($antes['estado'] && $estado = \App\Models\CreditStatement::find($antes['estado'])) {
+            if (! $guia->esCredito()) {
+                $guia->forceFill(['credit_statement_id' => null])->save();
+                $avisos[] = "La guía salió del estado de cuenta {$estado->code} porque ya no es a crédito.";
+            }
+
+            if ($cambioElTotal || ! $guia->esCredito()) {
+                app(CreditoService::class)->recalcularEstado($estado);
+                $avisos[] = "El estado de cuenta {$estado->code} quedó en ₡" . number_format((float) $estado->total, 2) . '.';
+            }
+        }
+
+        // Comprobante electrónico: el que no llegó a Hacienda se rehace con los
+        // datos nuevos; el que ya llegó no se puede cambiar.
+        if ($comprobante = $guia->electronicInvoice()->first()) {
+            $cambioLaFacturacion = $this->firmaDeFacturacion($guia) !== $antes['facturaA'];
+            $editable = in_array($comprobante->status, [
+                \App\Models\ElectronicInvoice::STATUS_PENDING,
+                \App\Models\ElectronicInvoice::STATUS_REJECTED,
+            ], true);
+
+            if ($editable && $cambioLaFacturacion) {
+                app(\App\Services\Hacienda\ElectronicBillingService::class)->rehacerPorCambioDeReceptor($comprobante);
+                $avisos[] = 'Su comprobante pendiente se rehízo con los datos de facturación nuevos.';
+            } elseif (! $editable && ($cambioElTotal || $cambioLaFacturacion)) {
+                $avisos[] = 'Ojo: el comprobante electrónico ya está en Hacienda («' . $comprobante->statusLabel() . '») '
+                    . 'y no cambió. Si hay que corregir lo declarado, emití una nota de crédito o débito desde la guía.';
+            }
+        }
+
+        // Caja: lo cobrado en un turno anterior no se mueve solo (en el turno
+        // abierto, RegistroDeGuia ya actualizó el monto).
+        $cobro = \App\Models\CashMovement::where('invoice_id', $guia->id)
+            ->where('type', \App\Models\CashMovement::TYPE_SALE)
+            ->first();
+
+        if ($cambioElTotal && $cobro && abs((float) $cobro->amount - (float) $guia->total) >= 0.01) {
+            $avisos[] = 'El cobro de esta guía ya está en un arqueo con el monto anterior: '
+                . 'si hay diferencia, registrala como entrada o salida de caja.';
+        }
+
+        return $avisos;
     }
 
     /**

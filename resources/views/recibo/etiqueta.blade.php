@@ -220,6 +220,14 @@
             </table>
         @endif
 
+        {{-- El total de la guía, no un contador por paquete: «5 de 8» se
+             confundía con la cantidad, pero «8 bultos» es lo que hay que
+             juntar antes de cargar o entregar, y sin él una caja que se
+             separa del resto no se echa de menos. --}}
+        <div class="centro bulto total-bultos" style="margin-top:1.5mm">
+            TOTAL: {{ $totalBultos }} {{ $totalBultos === 1 ? 'BULTO' : 'BULTOS' }}
+        </div>
+
         {{-- Lo primero que tiene que ver quien entrega: si no cobra, la plata
              se pierde. Solo el estado, sin montos: el cobro lo hace la caja,
              que ve el total en pantalla. --}}

@@ -20,7 +20,7 @@ test.describe('Aislamiento entre empresas', () => {
     await visitar(page, '/customers');
     await page.click('button:has-text("Nuevo cliente")');
     await page.fill('[wire\\:model="name"]', nombre);
-    await page.fill('[wire\\:model="identification"]', identificacion);
+    await page.fill('[wire\\:model\\.blur="identification"]', identificacion);
     await page.click('button:has-text("Guardar")');
     await expect(page.locator('body')).toContainText(nombre);
   }

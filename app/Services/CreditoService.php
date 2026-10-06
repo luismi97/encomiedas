@@ -235,6 +235,75 @@ class CreditoService
     }
 
     /**
+     * Estado de cuenta de un rango de fechas cualquiera, sin cortar nada.
+     *
+     * El corte agrupa guías y les pone vencimiento; esto solo informa. Sirve
+     * cuando el cliente pide «lo de septiembre» o «lo de la primera quincena»,
+     * que no coincide con sus cortes: trae todas sus guías a crédito del rango
+     * —cortadas o no— con en qué estado de cuenta quedó cada una, los abonos
+     * que hizo en esas fechas y lo que debe hoy.
+     *
+     * @return array{desde:Carbon, hasta:Carbon, guias:Collection, abonos:Collection, consumido:float, abonado:float, saldoActual:float, sinCortar:float, facturado:float}
+     */
+    public function estadoPorFechas(Customer $cliente, CarbonInterface|string $desde, CarbonInterface|string $hasta): array
+    {
+        $desde = Carbon::parse($desde)->startOfDay();
+        $hasta = Carbon::parse($hasta)->endOfDay();
+
+        $guias = Invoice::query()
+            ->with(['creditStatement', 'pickupBranch', 'deliveryBranch'])
+            ->where('sender_customer_id', $cliente->id)
+            ->where('sale_condition', Invoice::SALE_CREDIT)
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
+            ->whereBetween('created_at', [$desde, $hasta])
+            ->orderBy('created_at')
+            ->get();
+
+        $abonos = CreditPayment::query()
+            ->with('statement')
+            ->where('customer_id', $cliente->id)
+            ->whereBetween('paid_at', [$desde, $hasta])
+            ->orderBy('paid_at')
+            ->get();
+
+        return [
+            'desde'       => $desde,
+            'hasta'       => $hasta,
+            'guias'       => $guias,
+            'abonos'      => $abonos,
+            'consumido'   => round((float) $guias->sum('total'), 2),
+            'abonado'     => round((float) $abonos->sum('amount'), 2),
+            'saldoActual' => $this->saldoTotal($cliente),
+            'sinCortar'   => $this->saldoSinCortar($cliente),
+            'facturado'   => $this->saldoFacturado($cliente),
+        ];
+    }
+
+    /**
+     * Rehace los montos de un estado de cuenta a partir de sus guías.
+     *
+     * Hace falta cuando un administrador corrige una guía ya cortada: el
+     * estado guardaba el total de entonces y seguiría cobrando el monto viejo.
+     * Lo abonado no se toca —es plata que entró—; cambia el saldo.
+     */
+    public function recalcularEstado(CreditStatement $estado): CreditStatement
+    {
+        $total = round((float) $estado->guides()
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
+            ->sum('total'), 2);
+
+        $saldo = round($total - (float) $estado->paid, 2);
+
+        $estado->update([
+            'total'   => $total,
+            'balance' => max(0, $saldo),
+            'status'  => $saldo <= 0.009 ? CreditStatement::STATUS_PAID : CreditStatement::STATUS_ISSUED,
+        ]);
+
+        return $estado;
+    }
+
+    /**
      * Cuentas por cobrar agrupadas por antigüedad, que es como se lee un
      * reporte de cobranza: no importa solo cuánto deben, sino desde cuándo.
      */

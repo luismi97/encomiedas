@@ -54,6 +54,9 @@
                 </x-action-button>
             @endforeach
 
+            @if (auth()->user()->isAdmin() && $invoice->status !== \App\Models\Invoice::STATUS_CANCELLED)
+                <a href="{{ route('invoices.edit', $invoice) }}" class="btn-secondary" data-test="editar-guia"><x-icon name="pencil" class="w-4 h-4" /> Editar guía</a>
+            @endif
             <a href="{{ route('invoices.factura', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="document" class="w-4 h-4" /> Imprimir factura</a>
             <a href="{{ route('invoices.pdf', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="download" class="w-4 h-4" /> Descargar factura</a>
             <a href="{{ route('invoices.recibo', $invoice) }}" target="_blank" class="btn-secondary"><x-icon name="receipt" class="w-4 h-4" /> Recibo del cliente</a>
@@ -61,8 +64,52 @@
             <x-action-button action="openIncidentForm" variant="secondary" loadingText="Abriendo...">
                 <x-icon name="warning" class="w-4 h-4" /> Reportar incidencia
             </x-action-button>
+            @if (auth()->user()->isAdmin())
+                <x-action-button action="openStatusFixForm" variant="secondary" loadingText="Abriendo...">
+                    <x-icon name="undo" class="w-4 h-4" /> Corregir estado
+                </x-action-button>
+            @endif
         </div>
     </div>
+
+    {{-- Corrección de estado: para cuando se movió la guía por error. Salta el
+         ciclo normal, por eso pide motivo y queda en la bitácora. --}}
+    @if ($showStatusFixForm)
+        <div class="card border-amber-200 dark:border-amber-800" data-test="corregir-estado">
+            <h3 class="font-semibold mb-1">Corregir el estado de {{ $invoice->code }}</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                Para cuando se marcó un estado por error. Puede ir a cualquier estado, también hacia atrás;
+                se borran las marcas de lo que se deshace (por ejemplo, quién retiró si se quita «Entregado»).
+                Para anular usá «Anular».
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="label">Estado actual</label>
+                    <div class="py-2"><span class="badge {{ $invoice->statusBadgeClasses() }}">{{ $invoice->statusLabel() }}</span></div>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="label">Estado correcto</label>
+                    <select wire:model="statusFixTo" class="input">
+                        <option value="">— Elegir —</option>
+                        @foreach (\App\Models\Invoice::STATUSES as $valor => $etiqueta)
+                            @continue($valor === $invoice->status || $valor === \App\Models\Invoice::STATUS_CANCELLED)
+                            <option value="{{ $valor }}">{{ $etiqueta }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+            <label class="label mt-3">Motivo</label>
+            <textarea wire:model="statusFixReason" rows="2" class="input"
+                      placeholder="Se marcó entregada por error; el paquete sigue en bodega…"></textarea>
+            <div class="flex gap-3 mt-3">
+                <x-action-button action="corregirEstado" variant="primary" loadingText="Corrigiendo..."
+                    confirm="¿Corregir el estado de esta guía? Queda registrado con tu nombre y el motivo.">
+                    <x-icon name="check" class="w-4 h-4" /> Corregir estado
+                </x-action-button>
+                <button type="button" wire:click="$set('showStatusFixForm', false)" class="btn-secondary">Cancelar</button>
+            </div>
+        </div>
+    @endif
 
 
     {{-- Anulación: el motivo es obligatorio y queda en la bitácora --}}
@@ -440,10 +487,34 @@
                         <a href="{{ route('electronic-invoices.pdf', $ei) }}" target="_blank" class="btn-secondary"><x-icon name="document" class="w-4 h-4" /> Ver comprobante PDF</a>
                     @endif
                     @if ($ei->status === 'accepted')
+                        <x-action-button action="openResendForm({{ $ei->id }})" variant="secondary" loadingText="Abriendo..."><x-icon name="send" class="w-4 h-4" /> Reenviar por correo</x-action-button>
                         <x-action-button action="openNoteForm('NC')" variant="secondary"><x-icon name="undo" class="w-4 h-4" /> Nota de crédito</x-action-button>
                         <x-action-button action="openNoteForm('ND')" variant="secondary"><x-icon name="plus" class="w-4 h-4" /> Nota de débito</x-action-button>
                     @endif
                 </div>
+
+                @if ($showResendForm)
+                    @php $aReenviar = $resendId === $ei->id ? $ei : $invoice->electronicNotes->firstWhere('id', $resendId); @endphp
+                    <div class="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3" data-test="reenviar-comprobante">
+                        <h4 class="font-semibold">
+                            Reenviar {{ $aReenviar?->typeLabel() }} {{ $aReenviar?->consecutivo }}
+                        </h4>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            Sale ya, con el PDF, el XML firmado y la respuesta de Hacienda. Puede ir al cliente o a cualquier otro correo, como el de su contador.
+                        </p>
+                        <div>
+                            <label class="label">Correo</label>
+                            <input type="email" wire:model="resendEmail" class="input sm:max-w-md" placeholder="cliente@correo.com">
+                            @error('resendEmail') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <x-action-button action="reenviarComprobante" variant="primary" loadingText="Enviando...">
+                                <x-icon name="send" class="w-4 h-4" /> Enviar
+                            </x-action-button>
+                            <button type="button" wire:click="$set('showResendForm', false)" class="btn-secondary">Cancelar</button>
+                        </div>
+                    </div>
+                @endif
 
                 @if ($ei->status === 'accepted' && !$showNoteForm)
                     <p class="mt-3 text-xs text-gray-500">
@@ -490,6 +561,9 @@
                                         ₡{{ number_format((float) $note->total, 2) }} · {{ $note->statusLabel() }}
                                         @if ($note->pdf_path)
                                             <a href="{{ route('electronic-invoices.pdf', $note) }}" target="_blank" class="text-brand-600 ml-2">PDF</a>
+                                        @endif
+                                        @if ($note->status === 'accepted')
+                                            <button type="button" wire:click="openResendForm({{ $note->id }})" class="text-brand-600 ml-2">Reenviar</button>
                                         @endif
                                     </span>
                                 </li>

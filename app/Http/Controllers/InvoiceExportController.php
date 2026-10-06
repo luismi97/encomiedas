@@ -60,7 +60,7 @@ class InvoiceExportController extends Controller
             abort(403);
         }
 
-        $invoice->load(['items.packageType', 'pickupBranch', 'deliveryBranch', 'creator']);
+        $invoice->load(['items.packageType', 'pickupBranch', 'deliveryBranch', 'creator', 'electronicInvoice']);
 
         $papel = $this->papel($request, $invoice);
 
@@ -151,6 +151,8 @@ class InvoiceExportController extends Controller
             'guia'    => $invoice,
             'empresa' => CompanySetting::instance(),
             'bultos'  => $bultos,
+            // Paquetes físicos, no renglones: una línea de «3 sobres» son tres.
+            'totalBultos' => max(1, (int) $invoice->items->sum(fn ($item) => $item->cantidad())),
             // El alto en píxeles se traduce a milímetros al imprimir; 55 da una
             // barra cómoda de escanear en rollo de 58 y de 80. La de impacto
             // la necesita más alta: el lector tiene más renglón donde enganchar
@@ -269,6 +271,30 @@ class InvoiceExportController extends Controller
             'estado'  => $statement,
             'company' => CompanySetting::instance(),
         ])->setPaper('letter')->stream("{$statement->code}.pdf");
+    }
+
+    /**
+     * Estado de cuenta de un cliente de crédito para las fechas que se pidan.
+     *
+     * Informativo: no corta ni le pone vencimiento a nada. Ver
+     * CreditoService::estadoPorFechas.
+     */
+    public function creditRangePdf(Request $request, \App\Models\Customer $customer, \App\Services\CreditoService $credito)
+    {
+        $datos = $request->validate([
+            'from' => 'required|date',
+            'to'   => 'required|date|after_or_equal:from',
+        ], [
+            'to.after_or_equal' => 'La fecha final no puede ser anterior a la inicial.',
+        ]);
+
+        abort_unless($customer->isCredit(), 404, 'Ese cliente no es de crédito.');
+
+        return Pdf::loadView('pdf.credit-range', [
+            'cliente' => $customer,
+            'r'       => $credito->estadoPorFechas($customer, $datos['from'], $datos['to']),
+            'company' => CompanySetting::instance(),
+        ])->setPaper('letter')->stream('estado-de-cuenta-' . $datos['from'] . '-al-' . $datos['to'] . '.pdf');
     }
 
     /** Reporte de cierre de caja, con el arqueo y espacio para firmas. */
