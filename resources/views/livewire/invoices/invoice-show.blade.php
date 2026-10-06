@@ -538,8 +538,22 @@
                     </h3>
                     <p class="text-sm text-amber-800 dark:text-amber-200 mt-1">
                         La recibió alguien que no cobra. El cliente paga en la caja de
-                        {{ $invoice->pickupBranch?->name ?? 'origen' }} («Por cobrar en caja») y recién ahí el paquete puede salir.
+                        {{ $invoice->pickupBranch?->name ?? 'origen' }} y recién ahí el paquete puede salir.
                     </p>
+
+                    @if (auth()->user()->puedeCobrar())
+                        <div class="flex flex-wrap items-center gap-2 mt-3" data-test="cobrar-desde-guia">
+                            <select wire:model="medioDeCobro" class="input !py-1.5 w-40">
+                                @foreach (\App\Models\Invoice::PAYMENT_METHODS as $clave => $nombre)
+                                    <option value="{{ $clave }}">{{ $nombre }}</option>
+                                @endforeach
+                            </select>
+                            <x-action-button action="cobrarEnCaja" variant="primary" loadingText="Cobrando..."
+                                :confirm="'Cobrar ₡' . number_format((float) $invoice->total, 2) . ' de la guía ' . $invoice->code . ' en tu caja. ¿Continuar?'">
+                                <x-icon name="banknotes" class="w-4 h-4" /> Cobrar en mi caja
+                            </x-action-button>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>

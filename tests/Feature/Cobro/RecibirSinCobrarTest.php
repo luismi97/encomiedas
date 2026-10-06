@@ -4,6 +4,7 @@ namespace Tests\Feature\Cobro;
 
 use App\Livewire\Caja\CajaPanel;
 use App\Livewire\Invoices\InvoiceForm;
+use App\Livewire\Invoices\InvoiceShow;
 use App\Livewire\Users\UserIndex;
 use App\Models\Branch;
 use App\Models\CashMovement;
@@ -136,6 +137,55 @@ class RecibirSinCobrarTest extends TestCase
         $this->assertSame('card', $guia->payment_method);
         $this->assertSame(1, CashMovement::where('cash_session_id', $sesion->id)->where('invoice_id', $guia->id)->count());
         $this->assertSame(1, Invoice::cobradas()->count());
+    }
+
+    /** Desde la propia guía, sin buscarla en la lista de la caja. */
+    public function test_la_cajera_la_cobra_desde_la_guia(): void
+    {
+        $guia = $this->recibir();
+        $sesion = $this->abrirCaja($this->cajera, $this->sj);
+
+        Livewire::actingAs($this->cajera)
+            ->test(InvoiceShow::class, ['invoice' => $guia])
+            ->assertSee('Cobrar en mi caja')
+            ->assertSet('medioDeCobro', 'sinpe')
+            ->set('medioDeCobro', 'card')
+            ->call('cobrarEnCaja')
+            ->assertDontSee('Cobrar en mi caja');
+
+        $guia->refresh();
+
+        $this->assertFalse($guia->esperandoCaja());
+        $this->assertSame('card', $guia->payment_method);
+        $this->assertSame(1, CashMovement::where('cash_session_id', $sesion->id)->where('invoice_id', $guia->id)->count());
+    }
+
+    public function test_desde_la_guia_sin_caja_abierta_avisa_y_no_cobra(): void
+    {
+        $guia = $this->recibir();
+
+        Livewire::actingAs($this->cajera)
+            ->test(InvoiceShow::class, ['invoice' => $guia])
+            ->call('cobrarEnCaja')
+            ->assertSee('No tenés una caja abierta');
+
+        $this->assertTrue($guia->fresh()->esperandoCaja());
+        $this->assertSame(0, CashMovement::count());
+    }
+
+    /** Quien no cobra ve el aviso, pero no el botón; y si lo fuerza, no cobra. */
+    public function test_quien_no_cobra_no_la_cobra_desde_la_guia(): void
+    {
+        $guia = $this->recibir();
+
+        Livewire::actingAs($this->recepcion)
+            ->test(InvoiceShow::class, ['invoice' => $guia])
+            ->assertSee('Sin cobrar en caja')
+            ->assertDontSee('Cobrar en mi caja')
+            ->call('cobrarEnCaja');
+
+        $this->assertTrue($guia->fresh()->esperandoCaja());
+        $this->assertSame(0, CashMovement::count());
     }
 
     /** Dos clics, o dos cajeras a la vez, no meten el mismo dinero dos veces. */

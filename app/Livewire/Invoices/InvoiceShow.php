@@ -5,6 +5,7 @@ namespace App\Livewire\Invoices;
 use App\Livewire\Concerns\DatosDeFactura;
 use App\Models\ActivityLog;
 use App\Models\Invoice;
+use App\Services\CajaService;
 use App\Services\CorreccionDeFactura;
 use App\Services\GuideStatusService;
 use App\Services\QrService;
@@ -26,6 +27,9 @@ class InvoiceShow extends Component
     public string $noteReason = '';
     public $noteAmount = null;
 
+    /** Medio con que paga el cliente una guía que esperaba su cobro en caja. */
+    public string $medioDeCobro = 'cash';
+
     public function mount(Invoice $invoice): void
     {
         $user = auth()->user();
@@ -40,6 +44,33 @@ class InvoiceShow extends Component
             'statusHistories.user', 'statusHistories.branch',
             'incidents.reporter', 'incidents.resolver',
         ]);
+
+        $this->medioDeCobro = $invoice->payment_method ?: 'cash';
+    }
+
+    /**
+     * Cobra desde la propia guía la de contado que recibió alguien que no
+     * cobra. Antes solo se podía desde la lista de la caja, y con muchas
+     * guías esperando el cajero tenía que buscarla entre todas aunque ya la
+     * tuviera abierta.
+     *
+     * Es el mismo cobro que el de la caja: CajaService valida que quien cobra
+     * maneje dinero, que tenga su turno abierto en la sede de origen y que la
+     * guía no se cobre dos veces.
+     */
+    public function cobrarEnCaja(CajaService $caja): void
+    {
+        try {
+            $caja->cobrarEnCaja($this->invoice, auth()->user(), $this->medioDeCobro);
+        } catch (RuntimeException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        $this->invoice->refresh();
+        session()->flash('success', "Guía {$this->invoice->code} cobrada: ₡"
+            . number_format((float) $this->invoice->total, 2) . '. El paquete ya puede salir.');
     }
 
     /**
