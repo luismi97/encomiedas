@@ -59,17 +59,31 @@
                     </div>
                     <div>
                         <label class="label">Identificación</label>
-                        <input type="text" wire:model="identification" inputmode="numeric" maxlength="12"
+                        {{-- Al salir del campo se consulta Hacienda y se completa el nombre. --}}
+                        <input type="text" wire:model.blur="identification" inputmode="numeric" maxlength="14"
                                placeholder="Sin guiones" class="input @error('identification') input-error @enderror">
+                        <p class="text-xs text-gray-500 mt-1" wire:loading wire:target="identification">Consultando Hacienda…</p>
                         @error('identification') <p class="error-text">{{ $message }}</p> @enderror
                     </div>
                     <div>
                         <label class="label">Código de actividad</label>
-                        <input type="text" wire:model="activity_code" maxlength="6"
-                               class="input @error('activity_code') input-error @enderror">
+                        @if ($actividadesHacienda)
+                            <select wire:model="activity_code" class="input">
+                                <option value="">Sin actividad</option>
+                                @foreach ($actividadesHacienda as $actividad)
+                                    <option value="{{ $actividad['code'] }}">{{ $actividad['code'] }} · {{ \Illuminate\Support\Str::limit($actividad['description'], 40) }}</option>
+                                @endforeach
+                            </select>
+                        @else
+                            <input type="text" wire:model="activity_code" maxlength="7"
+                                   class="input @error('activity_code') input-error @enderror">
+                        @endif
                         @error('activity_code') <p class="error-text">{{ $message }}</p> @enderror
                     </div>
                 </div>
+                @if ($avisoHacienda)
+                    <p class="text-sm text-amber-700 dark:text-amber-300 -mt-2">{{ $avisoHacienda }}</p>
+                @endif
 
                 <h3 class="font-semibold border-b border-gray-200 dark:border-gray-700 pb-2">Contacto</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">

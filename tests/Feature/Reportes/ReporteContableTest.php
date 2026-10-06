@@ -130,6 +130,21 @@ class ReporteContableTest extends TestCase
         $this->assertSame('contador@despacho.test', CompanySetting::instance()->accountant_email);
     }
 
+    /** El reporte de facturación electrónica agrupa por estado con su nombre. */
+    public function test_el_reporte_de_facturacion_electronica_abre_con_comprobantes(): void
+    {
+        $this->comprobante('01', 10000, 1300);
+        $this->comprobante('01', 5000, 650, ElectronicInvoice::STATUS_REJECTED);
+
+        Livewire::actingAs($this->admin)
+            ->test(ReportePanel::class)
+            ->set('from', '2020-01-01')->set('to', now()->toDateString())
+            ->set('reporte', 'hacienda')
+            ->assertOk()
+            ->assertSee('Aceptado por Hacienda')
+            ->assertSee('Rechazado por Hacienda');
+    }
+
     public function test_el_cajero_no_lo_ve(): void
     {
         $cajero = User::create(['name' => 'Caj', 'username' => 'caj', 'email' => 'caj@t.test', 'password' => bcrypt('x'),
@@ -144,5 +159,10 @@ class ReporteContableTest extends TestCase
         $this->actingAs($cajero)
             ->get(route('reportes.contable.pdf', ['from' => '2026-09-01', 'to' => '2026-09-30']))
             ->assertForbidden();
+
+        // Reportes completo es solo de administración: ni la pantalla ni el menú.
+        $this->actingAs($cajero)->get(route('reportes.index'))->assertForbidden();
+        $this->actingAs($cajero)->get(route('dashboard'))->assertDontSee(route('reportes.index'));
+        $this->actingAs($this->admin)->get(route('dashboard'))->assertSee(route('reportes.index'));
     }
 }

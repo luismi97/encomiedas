@@ -14,6 +14,8 @@ use Livewire\Component;
 
 class InvoiceShow extends Component
 {
+    public const SOLO_ADMIN_HACIENDA = 'Solo un administrador puede ver y enviar comprobantes a Hacienda.';
+
     use DatosDeFactura;
 
     public Invoice $invoice;
@@ -295,6 +297,14 @@ class InvoiceShow extends Component
      */
     public function sendToHacienda(ElectronicBillingService $service): void
     {
+        // La sección solo se le muestra al administrador, pero la acción se
+        // puede invocar igual desde el navegador: se valida acá.
+        if (! auth()->user()->isAdmin()) {
+            session()->flash('error', self::SOLO_ADMIN_HACIENDA);
+
+            return;
+        }
+
         // Una guía anulada no se factura: el comprobante quedaría emitido
         // contra algo que no existe, y anularlo después exige una nota.
         if ($this->invoice->status === Invoice::STATUS_CANCELLED) {
@@ -347,6 +357,12 @@ class InvoiceShow extends Component
      */
     public function issueNote(ElectronicBillingService $service): void
     {
+        if (! auth()->user()->isAdmin()) {
+            session()->flash('error', self::SOLO_ADMIN_HACIENDA);
+
+            return;
+        }
+
         $this->validate([
             'noteType'   => 'required|in:NC,ND',
             'noteReason' => 'required|string|min:5|max:180',

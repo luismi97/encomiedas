@@ -118,9 +118,9 @@ class UserIndex extends Component
 
         $usuario = User::updateOrCreate(['id' => $this->editingId], $data);
 
-        // Solo el dependiente atiende varias sedes; a los demás se les vacían
-        // para que un cambio de rol no les deje acceso a sedes ajenas.
-        $usuario->branches()->sync($this->role === User::ROLE_DEPENDIENTE
+        // Solo cajero y dependiente atienden varias sedes; a los demás se les
+        // vacían para que un cambio de rol no les deje acceso a sedes ajenas.
+        $usuario->branches()->sync(in_array($this->role, User::ROLES_MULTISEDE, true)
             ? collect($this->sedesExtra)->map(fn ($id) => (int) $id)->reject(fn ($id) => $id === (int) $this->branch_id)->values()->all()
             : []);
 

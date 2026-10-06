@@ -166,18 +166,20 @@ class ElectronicInvoice extends Model
         };
     }
 
+    /** Nombre de cada estado, para pantallas y reportes que agrupan por estado. */
+    public const STATUSES = [
+        self::STATUS_PENDING  => 'Pendiente de envío',
+        self::STATUS_QUEUED   => 'En cola de envío',
+        self::STATUS_SENDING  => 'Enviando…',
+        self::STATUS_SENT     => 'Enviado (procesando)',
+        self::STATUS_ACCEPTED => 'Aceptado por Hacienda',
+        self::STATUS_REJECTED => 'Rechazado por Hacienda',
+        self::STATUS_ERROR    => 'Error',
+    ];
+
     public function statusLabel(): string
     {
-        return match ($this->status) {
-            self::STATUS_PENDING  => 'Pendiente de envío',
-            self::STATUS_QUEUED   => 'En cola de envío',
-            self::STATUS_SENDING  => 'Enviando…',
-            self::STATUS_SENT     => 'Enviado (procesando)',
-            self::STATUS_ACCEPTED => 'Aceptado por Hacienda',
-            self::STATUS_REJECTED => 'Rechazado por Hacienda',
-            self::STATUS_ERROR    => 'Error',
-            default => $this->status,
-        };
+        return self::STATUSES[$this->status] ?? $this->status;
     }
 
     protected function serializeDate(\DateTimeInterface $date): string

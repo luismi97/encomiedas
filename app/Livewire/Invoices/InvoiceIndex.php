@@ -48,6 +48,34 @@ class InvoiceIndex extends Component
         }
     }
 
+    /**
+     * Lo que leyó la cámara en el buscador.
+     *
+     * Si es una guía, se abre directamente: quien escanea en el mostrador
+     * quiere la guía, no una lista de un solo resultado. Si no, queda como
+     * búsqueda. El QR trae el enlace de rastreo, no solo el código: se toma lo
+     * último del enlace.
+     */
+    public function buscarEscaneado(string $leido)
+    {
+        $codigo = trim($leido);
+
+        if (str_contains($codigo, '/')) {
+            $codigo = basename(parse_url($codigo, PHP_URL_PATH) ?: $codigo);
+        }
+
+        $guia = $codigo === '' ? null : Invoice::query()
+            ->where(fn ($q) => $q->where('code', $codigo)->orWhere('offline_reference', $codigo))
+            ->first();
+
+        if ($guia) {
+            return $this->redirectRoute('invoices.show', $guia);
+        }
+
+        $this->reiniciarScroll();
+        $this->search = $codigo;
+    }
+
     public function updatedPeriod(): void
     {
         [$from, $to] = $this->rangeForPeriod($this->period);

@@ -79,6 +79,9 @@ class User extends Authenticatable
      */
     public const ROLES_CON_SEDE = [self::ROLE_CAJERO, self::ROLE_DESPACHADOR, self::ROLE_DEPENDIENTE];
 
+    /** Roles que pueden atender otras sedes además de la base (branch_user). */
+    public const ROLES_MULTISEDE = [self::ROLE_CAJERO, self::ROLE_DEPENDIENTE];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -163,15 +166,15 @@ class User extends Authenticatable
         return $this->belongsTo(Branch::class);
     }
 
-    /** Sedes adicionales que atiende (solo el dependiente las usa). */
+    /** Sedes adicionales que atiende (cajero y dependiente, ver ROLES_MULTISEDE). */
     public function branches(): BelongsToMany
     {
         return $this->belongsToMany(Branch::class)->withTimestamps();
     }
 
     /**
-     * Las sedes cuyas guías puede ver y operar: la base y, si es dependiente,
-     * las que el administrador le marcó.
+     * Las sedes cuyas guías y cajas puede ver y operar: la base y, si es
+     * cajero o dependiente, las que el administrador le marcó.
      *
      * @return array<int,int>
      */
@@ -194,7 +197,7 @@ class User extends Authenticatable
     {
         $ids = $this->branch_id ? [(int) $this->branch_id] : [];
 
-        if ($this->isDependiente()) {
+        if (in_array($this->role, self::ROLES_MULTISEDE, true)) {
             $ids = [...$ids, ...$this->branches()->pluck('branches.id')->map(fn ($id) => (int) $id)->all()];
         }
 
@@ -265,12 +268,13 @@ class User extends Authenticatable
     }
 
     /**
-     * Ve sumas de dinero (totales de listados, el PDF de guías) y reportes.
-     * El dependiente no: atiende el mostrador, no lleva la plata.
+     * Ve sumas de dinero: el PDF del listado de guías, Reportes y Crédito.
+     * Solo administración; cajeros y dependientes ven el monto de cada guía,
+     * no los totales.
      */
     public function puedeVerDinero(): bool
     {
-        return ! $this->isDependiente();
+        return $this->isAdmin();
     }
 
     public function isDependiente(): bool

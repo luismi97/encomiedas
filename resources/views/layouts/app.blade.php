@@ -93,12 +93,14 @@
                 <a href="{{ route('customers.index') }}" class="nav-link {{ request()->routeIs('customers.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="users" /> <span>Clientes</span>
                 </a>
-                <a href="{{ route('credito.index') }}" class="nav-link {{ request()->routeIs('credito.*') ? 'nav-link-active' : '' }}">
-                    <x-icon name="receipt" /> <span>Crédito</span>
-                </a>
-                <a href="{{ route('reportes.index') }}" class="nav-link {{ request()->routeIs('reportes.*') ? 'nav-link-active' : '' }}">
-                    <x-icon name="clipboard-list" /> <span>Reportes</span>
-                </a>
+                @if (auth()->user()->isAdmin())
+                    <a href="{{ route('credito.index') }}" class="nav-link {{ request()->routeIs('credito.*') ? 'nav-link-active' : '' }}">
+                        <x-icon name="receipt" /> <span>Crédito</span>
+                    </a>
+                    <a href="{{ route('reportes.index') }}" class="nav-link {{ request()->routeIs('reportes.*') ? 'nav-link-active' : '' }}">
+                        <x-icon name="clipboard-list" /> <span>Reportes</span>
+                    </a>
+                @endif
             @endif
 
             @if (auth()->user()->puedeConfigurar())

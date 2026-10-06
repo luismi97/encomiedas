@@ -71,7 +71,25 @@
             </div>
             <div>
                 <label class="label">Buscar</label>
-                <input type="text" wire:model.live.debounce.400ms="search" class="input" placeholder="Código, remitente, receptor...">
+                <div class="flex gap-2">
+                    <input type="text" wire:model.live.debounce.400ms="search" class="input flex-1" placeholder="Código, remitente, receptor...">
+                    {{-- La misma cámara de los choferes, pero de una lectura: se cierra
+                         y abre la guía (InvoiceIndex::buscarEscaneado). --}}
+                    <button type="button" x-data
+                            @click="
+                                if (! window.EncomiendasScanner) return;
+                                window.EncomiendasScanner.open({
+                                    onDetected: (code) => {
+                                        window.EncomiendasScanner.close();
+                                        $wire.buscarEscaneado(code);
+                                    },
+                                });
+                            "
+                            class="btn-secondary inline-flex items-center gap-2"
+                            title="Escanear la guía con la cámara" data-test="buscar-con-camara">
+                        <x-icon name="camera" class="w-4 h-4" />
+                    </button>
+                </div>
                 @if (\App\Models\Invoice::esBusquedaDeGuia($search))
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-test="busqueda-sin-filtros">
                         Buscando por código en todas las fechas, sin los demás filtros.

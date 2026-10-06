@@ -9,12 +9,14 @@ use App\Models\Customer;
 use Illuminate\Database\QueryException;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use App\Livewire\Concerns\ConsultaHacienda;
 use App\Livewire\Concerns\ScrollInfinito;
 use Livewire\Component;
 
 class CustomerIndex extends Component
 {
     use ScrollInfinito;
+    use ConsultaHacienda;
 
     public string $search = '';
     public string $filterCondition = '';
@@ -86,6 +88,29 @@ class CustomerIndex extends Component
         ];
     }
 
+    /**
+     * Al terminar de digitar la cédula se consulta Hacienda: nombre oficial,
+     * tipo de identificación y actividades económicas.
+     */
+    public function updatedIdentification(): void
+    {
+        // Se digita con guiones con toda naturalidad; la regla exige solo dígitos.
+        $this->identification = preg_replace('/\D/', '', $this->identification);
+
+        $resultado = $this->consultarContribuyente($this->identification);
+
+        if (($resultado['name'] ?? null) === null) {
+            return;
+        }
+
+        $this->identification_type = $resultado['id_type'] ?? $this->identification_type;
+        $this->ponerNombreDeHacienda('name', $resultado['name'], $this->identification_type);
+
+        if (! in_array($this->activity_code, array_column($this->actividadesHacienda, 'code'), true)) {
+            $this->activity_code = (string) $this->actividadPrincipal();
+        }
+    }
+
     private function notify(string $type, string $message): void
     {
         $this->feedbackType = $type;
@@ -116,6 +141,9 @@ class CustomerIndex extends Component
         }
 
         $this->resetErrorBag();
+        $this->actividadesHacienda = [];
+        $this->avisoHacienda = null;
+        $this->nombresDeHacienda = [];
         $this->editingId = $customer->id;
         $this->name = $customer->name;
         $this->commercial_name = (string) $customer->commercial_name;
@@ -217,6 +245,9 @@ class CustomerIndex extends Component
             'email', 'phone', 'address', 'branch_id', 'credit_cutoff_day', 'notes',
         ]);
         $this->identification_type = '01';
+        $this->actividadesHacienda = [];
+        $this->avisoHacienda = null;
+        $this->nombresDeHacienda = [];
         $this->payment_condition = Customer::PAYMENT_CASH;
         $this->credit_limit = 0;
         $this->is_active = true;

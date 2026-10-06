@@ -100,8 +100,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/mi-ruta', ChoferPanel::class)->name('chofer.index');
     });
 
-    Route::get('/electronic-invoices/{electronicInvoice}/pdf', [ElectronicInvoiceController::class, 'downloadPdf'])->name('electronic-invoices.pdf');
-    Route::get('/electronic-invoices/{electronicInvoice}/respuesta.xml', [ElectronicInvoiceController::class, 'downloadResponseXml'])->name('electronic-invoices.response-xml');
 
     /*
      | Operación diaria: recibir encomiendas, cobrar, imprimir, despachar y
@@ -133,9 +131,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/customers', CustomerIndex::class)->name('customers.index');
         Route::get('/customers/importar', CustomerImport::class)->name('customers.import');
         Route::get('/customers/plantilla', [CustomerImportController::class, 'plantilla'])->name('customers.plantilla');
-        Route::get('/credito', CreditoPanel::class)->name('credito.index');
-        Route::get('/reportes', ReportePanel::class)->name('reportes.index');
-        Route::get('/credito/{statement}/pdf', [InvoiceExportController::class, 'creditStatementPdf'])->name('credito.pdf');
     });
 
     /*
@@ -152,6 +147,13 @@ Route::middleware('auth')->group(function () {
      */
     Route::middleware('role:admin')->group(function () {
         Route::get('/hacienda/pending', PendingQueue::class)->name('hacienda.pending');
+        // Los comprobantes de Hacienda los ve y los envía solo administración.
+        Route::get('/electronic-invoices/{electronicInvoice}/pdf', [ElectronicInvoiceController::class, 'downloadPdf'])->name('electronic-invoices.pdf');
+        Route::get('/electronic-invoices/{electronicInvoice}/respuesta.xml', [ElectronicInvoiceController::class, 'downloadResponseXml'])->name('electronic-invoices.response-xml');
+        // Reportes y crédito: solo administración.
+        Route::get('/credito', CreditoPanel::class)->name('credito.index');
+        Route::get('/credito/{statement}/pdf', [InvoiceExportController::class, 'creditStatementPdf'])->name('credito.pdf');
+        Route::get('/reportes', ReportePanel::class)->name('reportes.index');
         Route::get('/reportes/contable/pdf', [InvoiceExportController::class, 'reporteContablePdf'])->name('reportes.contable.pdf');
 
         Route::get('/branches', BranchIndex::class)->name('branches.index');

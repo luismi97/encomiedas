@@ -177,14 +177,14 @@ class RolDependienteTest extends TestCase
         $this->assertEqualsCanonicalizing([$this->sj->id, $this->lim->id, $this->pz->id], $pedro->sedesIds());
     }
 
-    /** Si deja de ser dependiente, pierde las sedes extra. */
+    /** Si pasa a un rol de una sola sede (despachador), pierde las extra. */
     public function test_al_cambiar_de_rol_se_le_quitan_las_sedes_extra(): void
     {
         Livewire::actingAs($this->admin)
             ->test(UserIndex::class)
             ->call('edit', $this->dependiente->id)
             ->assertSet('sedesExtra', [(string) $this->lim->id])
-            ->set('role', User::ROLE_CAJERO)
+            ->set('role', User::ROLE_DESPACHADOR)
             ->call('save')
             ->assertHasNoErrors();
 

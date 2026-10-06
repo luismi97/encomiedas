@@ -47,9 +47,23 @@ class RolCajeroTest extends TestCase
     {
         $cajero = $this->cajero();
 
-        foreach (['caja.index', 'dispatches.index', 'invoices.create', 'customers.index', 'credito.index'] as $ruta) {
+        foreach (['caja.index', 'dispatches.index', 'invoices.create', 'customers.index'] as $ruta) {
             $this->actingAs($cajero)->get(route($ruta))->assertOk();
         }
+    }
+
+    /** Totales de dinero: reportes, crédito y el PDF del listado son de administración. */
+    public function test_el_cajero_no_ve_reportes_credito_ni_el_pdf_con_totales(): void
+    {
+        $cajero = $this->cajero();
+
+        foreach (['reportes.index', 'credito.index', 'invoices.export'] as $ruta) {
+            $this->actingAs($cajero)->get(route($ruta))->assertForbidden();
+        }
+
+        $this->actingAs($cajero)->get(route('invoices.index'))
+            ->assertDontSee(route('credito.index'))
+            ->assertDontSee(route('invoices.export'));
     }
 
     public function test_el_cajero_no_entra_a_la_configuracion(): void

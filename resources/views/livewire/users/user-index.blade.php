@@ -65,7 +65,7 @@
                 <div class="flex items-end">
                     <label class="flex items-center gap-2"><input type="checkbox" wire:model="is_active" class="rounded"> Activo</label>
                 </div>
-                @if ($role === \App\Models\User::ROLE_DEPENDIENTE)
+                @if (in_array($role, \App\Models\User::ROLES_MULTISEDE, true))
                     <div class="sm:col-span-2">
                         <span class="label">Otras sedes que atiende</span>
                         <div class="flex flex-wrap gap-x-5 gap-y-2">
@@ -77,8 +77,13 @@
                             @endforeach
                         </div>
                         <p class="text-xs text-gray-500 mt-1">
-                            Además de su sede base. Solo crea guías: no abre caja (sus guías de contado quedan
-                            pendientes hasta que un cajero las cobre) y no ve sumas de dinero ni reportes.
+                            Además de su sede base: ve y opera las guías de todas
+                            @if ($role === \App\Models\User::ROLE_CAJERO)
+                                y puede abrir caja en cualquiera de ellas.
+                            @else
+                                ellas. Solo crea guías: no abre caja (sus guías de contado quedan pendientes hasta
+                                que un cajero las cobre) y no ve sumas de dinero ni reportes.
+                            @endif
                         </p>
                         @error('sedesExtra.*') <p class="error-text">{{ $message }}</p> @enderror
                     </div>
@@ -134,7 +139,7 @@
                             </td>
                             <td class="py-3 text-sm">
                                 {{ $user->branch?->name ?? '—' }}
-                                @if ($user->isDependiente() && $user->branches->isNotEmpty())
+                                @if (in_array($user->role, \App\Models\User::ROLES_MULTISEDE, true) && $user->branches->isNotEmpty())
                                     <span class="block text-xs text-gray-500">+ {{ $user->branches->pluck('name')->join(', ') }}</span>
                                 @endif
                             </td>
@@ -169,7 +174,7 @@
                     </div>
                     <div class="mt-2 space-y-1 text-sm">
                         <div class="flex justify-between gap-3"><span class="text-gray-500">Rol</span><span>{{ $user->roleLabel() }}</span></div>
-                        <div class="flex justify-between gap-3"><span class="text-gray-500">Sucursal</span><span class="text-right">{{ $user->branch?->name ?? '—' }}@if ($user->isDependiente() && $user->branches->isNotEmpty())<span class="block text-xs text-gray-500">+ {{ $user->branches->pluck('name')->join(', ') }}</span>@endif</span></div>
+                        <div class="flex justify-between gap-3"><span class="text-gray-500">Sucursal</span><span class="text-right">{{ $user->branch?->name ?? '—' }}@if (in_array($user->role, \App\Models\User::ROLES_MULTISEDE, true) && $user->branches->isNotEmpty())<span class="block text-xs text-gray-500">+ {{ $user->branches->pluck('name')->join(', ') }}</span>@endif</span></div>
                     </div>
                     <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex gap-4">
                         <x-action-button action="edit({{ $user->id }})" variant="link">Editar</x-action-button>

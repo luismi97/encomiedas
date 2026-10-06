@@ -228,9 +228,9 @@ class InvoiceForm extends Component
     }
 
     /*
-     | Al terminar de digitar la cédula de a quién se factura, se consulta
-     | Hacienda: tipo de identificación, actividades y, si es jurídica o el
-     | nombre está vacío, el nombre oficial (el que la factura tiene que llevar).
+     | Al terminar de digitar una cédula se consulta Hacienda y se completan el
+     | nombre y el tipo, se facture o no a esa persona. Las actividades solo
+     | importan si es a quien se factura.
      */
     public function updatedSenderIdentification(): void
     {
@@ -261,17 +261,25 @@ class InvoiceForm extends Component
 
     private function autocompletarDesdeHacienda(string $parte): void
     {
-        if (! $this->facturaA($parte)) {
-            return;
-        }
-
         [$campoNombre, $campoTipo, $campoId] = match ($parte) {
             Invoice::BILL_TO_SENDER => ['sender_name', 'sender_identification_type', 'sender_identification'],
             Invoice::BILL_TO_OTHER  => ['billing_name', 'billing_identification_type', 'billing_identification'],
             default                 => ['recipient_name', 'recipient_identification_type', 'recipient_identification'],
         };
 
+        $esQuienSeFactura = $this->facturaA($parte);
+
+        // Consultar a alguien a quien no se factura no puede borrar las
+        // actividades ni el aviso de quien sí.
+        $actividades = $this->actividadesHacienda;
+        $aviso = $this->avisoHacienda;
+
         $resultado = $this->consultarContribuyente($this->{$campoId});
+
+        if (! $esQuienSeFactura) {
+            $this->actividadesHacienda = $actividades;
+            $this->avisoHacienda = $aviso;
+        }
 
         if (($resultado['name'] ?? null) === null) {
             return;
@@ -279,12 +287,10 @@ class InvoiceForm extends Component
 
         $this->{$campoId} = preg_replace('/\D/', '', (string) $this->{$campoId});
         $this->{$campoTipo} = $resultado['id_type'] ?? $this->{$campoTipo};
+        $this->ponerNombreDeHacienda($campoNombre, $resultado['name'], $this->{$campoTipo});
 
-        if ($this->{$campoTipo} === '02' || blank($this->{$campoNombre})) {
-            $this->{$campoNombre} = $resultado['name'];
-        }
-
-        if (! in_array($this->billing_activity_code, array_column($this->actividadesHacienda, 'code'), true)) {
+        if ($esQuienSeFactura
+            && ! in_array($this->billing_activity_code, array_column($this->actividadesHacienda, 'code'), true)) {
             $this->billing_activity_code = (string) $this->actividadPrincipal();
         }
     }

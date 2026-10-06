@@ -176,6 +176,51 @@ class CorreccionDeFacturaTest extends TestCase
             ->assertSet('billing_activity_code', '523101');
     }
 
+    /** El destinatario se autocompleta aunque la guía vaya como tiquete. */
+    public function test_la_cedula_del_destinatario_completa_el_nombre_aunque_no_se_facture(): void
+    {
+        $this->haciendaConoce('JOSE FERNANDEZ MORA', '01', []);
+
+        Livewire::actingAs($this->admin)
+            ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
+            ->set('recipient_identification', '1-1234-0567')
+            ->assertSet('recipient_name', 'JOSE FERNANDEZ MORA')
+            ->assertSet('recipient_identification', '112340567');
+    }
+
+    /** Un nombre de persona digitado a mano no se pisa; el que puso Hacienda sí. */
+    public function test_no_pisa_un_nombre_digitado_a_mano(): void
+    {
+        $this->haciendaConoce('JOSE FERNANDEZ MORA', '01', []);
+
+        Livewire::actingAs($this->admin)
+            ->test(InvoiceForm::class)
+            ->set('recipient_name', 'Pepe')
+            ->set('recipient_identification', '112340567')
+            ->assertSet('recipient_name', 'Pepe');
+    }
+
+    public function test_al_crear_un_cliente_la_cedula_completa_nombre_tipo_y_actividad(): void
+    {
+        $this->haciendaConoce('IMPORTADORA SOLANO SOCIEDAD ANONIMA', '02', [
+            ['code' => '523101', 'description' => 'Venta al por menor', 'principal' => true],
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(\App\Livewire\Customers\CustomerIndex::class)
+            ->call('create')
+            ->set('identification', '3-101-654321')
+            ->assertSet('identification', '3101654321')
+            ->assertSet('name', 'IMPORTADORA SOLANO SOCIEDAD ANONIMA')
+            ->assertSet('identification_type', '02')
+            ->assertSet('activity_code', '523101')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('customers', ['identification' => '3101654321', 'name' => 'IMPORTADORA SOLANO SOCIEDAD ANONIMA']);
+    }
+
     /** Si Hacienda no contesta, se avisa y se sigue a mano. */
     public function test_si_hacienda_no_contesta_no_traba_nada(): void
     {
