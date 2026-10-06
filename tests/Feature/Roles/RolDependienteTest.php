@@ -22,7 +22,7 @@ use Tests\TestCase;
 class RolDependienteTest extends TestCase
 {
     use RefreshDatabase;
-
+a
     private Branch $sj;
     private Branch $lim;
     private Branch $pz;

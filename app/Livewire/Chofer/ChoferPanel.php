@@ -155,7 +155,8 @@ class ChoferPanel extends Component
             return;
         }
 
-        $facturarA = $this->datosDeFactura();
+        // Solo si se le preguntó (ver InvoiceShow::entregar).
+        $facturarA = $this->puedePedirFactura($guia) ? $this->datosDeFactura() : null;
 
         try {
             $estados->entregar(

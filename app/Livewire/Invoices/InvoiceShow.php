@@ -248,7 +248,10 @@ class InvoiceShow extends Component
 
     public function entregar(GuideStatusService $estados): void
     {
-        $facturarA = $this->datosDeFactura();
+        // Solo si se le preguntó: a una guía que ya va con cédula el formulario
+        // le precarga esos datos, y mandarlos como pedido nuevo trababa la
+        // entrega cuando el comprobante ya estaba emitido.
+        $facturarA = $this->puedePedirFactura($this->invoice) ? $this->datosDeFactura() : null;
 
         try {
             $this->invoice = $estados->entregar(

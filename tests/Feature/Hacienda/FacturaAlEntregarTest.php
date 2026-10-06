@@ -138,4 +138,26 @@ class FacturaAlEntregarTest extends TestCase
 
         $this->pantalla($guia->fresh())->assertDontSee('¿Quiere factura con cédula?');
     }
+
+    /**
+     * Una guía que ya va como factura con cédula y ya tiene comprobante (se
+     * emitió al cobrarla) se entrega sin más. El formulario precargaba esos
+     * mismos datos como si quien retira los pidiera, y la entrega se trababa
+     * con «no se puede cambiar a factura con cédula desde la entrega».
+     */
+    public function test_ya_facturada_con_cedula_y_con_comprobante_se_entrega(): void
+    {
+        $guia = $this->guiaEnDestino();
+        $guia->forceFill(['bill_type'=>Invoice::BILL_INVOICE,'recipient_identification'=>'112340567'])->save();
+        Livewire::actingAs($this->admin)->test(InvoiceShow::class, ['invoice' => $guia->fresh()])->call('sendToHacienda');
+        $this->assertSame(1, ElectronicInvoice::count());
+
+        $this->pantalla($guia->fresh())
+            ->call('entregar')
+            ->assertHasNoErrors()
+            ->assertDontSee('ya tiene comprobante electrónico');
+
+        $this->assertSame(Invoice::STATUS_DELIVERED, $guia->fresh()->status);
+        $this->assertSame(1, ElectronicInvoice::count(), 'No se emite otro comprobante.');
+    }
 }
