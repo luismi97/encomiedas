@@ -1,6 +1,13 @@
 {{-- Campos de a quién se factura (ver DatosDeFactura). La cédula va primero:
      al salir del campo se consulta Hacienda y se completa el resto. --}}
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div class="sm:col-span-2">
+        <x-customer-picker
+            model="facturaClienteId"
+            search="facturaClienteBusqueda"
+            label="Cliente registrado (opcional)"
+            :resultados="$this->clientesParaFactura" />
+    </div>
     <div>
         <label class="label">Tipo de identificación</label>
         <select wire:model="facturaTipoId" class="input">

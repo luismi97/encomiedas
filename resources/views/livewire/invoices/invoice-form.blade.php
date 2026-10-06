@@ -322,9 +322,14 @@
 
             <div class="space-y-3">
                 @foreach ($items as $index => $item)
-                    <div class="grid grid-cols-2 lg:grid-cols-[repeat(18,minmax(0,1fr))] gap-3 items-end border-b border-gray-100 dark:border-gray-700 pb-3">
+                    @php $cantidad = max(1, (int) ($item['quantity'] ?? 1)); @endphp
+                    {{-- Dos filas por paquete en pantalla ancha: con los siete campos
+                         en una sola, cada columna quedaba de pocos píxeles y se
+                         cortaban el tamaño («Mec») y la descripción. Las etiquetas
+                         van en una línea para que los campos queden alineados. --}}
+                    <div wire:key="item-{{ $index }}" class="grid grid-cols-2 lg:grid-cols-12 gap-x-3 gap-y-3 items-start border-b border-gray-100 dark:border-gray-700 pb-4">
                         <div class="col-span-2 lg:col-span-3">
-                            <label class="label">Tipo de bulto</label>
+                            <label class="label whitespace-nowrap">Tipo de bulto</label>
                             <select wire:model="items.{{ $index }}.package_type_id"
                                     class="input @error('items.'.$index.'.package_type_id') input-error @enderror">
                                 @foreach ($tiposDeBulto as $tipo)
@@ -336,12 +341,12 @@
                         {{-- Varios bultos iguales en una sola línea: dos sobres no
                              necesitan dos líneas. --}}
                         <div class="lg:col-span-2">
-                            <label class="label">Cantidad</label>
+                            <label class="label whitespace-nowrap">Cantidad</label>
                             <input type="number" min="1" step="1" inputmode="numeric" wire:model.live.debounce.400ms="items.{{ $index }}.quantity" class="input @error('items.'.$index.'.quantity') input-error @enderror">
                             @error('items.'.$index.'.quantity') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
                         <div class="lg:col-span-2">
-                            <label class="label">Tamaño</label>
+                            <label class="label whitespace-nowrap">Tamaño</label>
                             <select wire:model="items.{{ $index }}.size" class="input @error('items.'.$index.'.size') input-error @enderror">
                                 <option value="S">Pequeño</option>
                                 <option value="M">Mediano</option>
@@ -350,37 +355,39 @@
                             </select>
                             @error('items.'.$index.'.size') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
+                        <div class="col-span-2 lg:col-span-5">
+                            <label class="label whitespace-nowrap">Descripción</label>
+                            <input type="text" wire:model="items.{{ $index }}.description" class="input @error('items.'.$index.'.description') input-error @enderror">
+                            @error('items.'.$index.'.description') <p class="error-text">{{ $message }}</p> @enderror
+                        </div>
+
                         <div class="lg:col-span-2">
-                            <label class="label">Peso (kg)</label>
+                            <label class="label whitespace-nowrap">Peso c/u (kg)</label>
                             <input type="number" step="0.01" wire:model.blur="items.{{ $index }}.weight" class="input @error('items.'.$index.'.weight') input-error @enderror">
                             @error('items.'.$index.'.weight') <p class="error-text">{{ $message }}</p> @enderror
                         </div>
-                        {{-- Tres campos en una sola columna quedaban de unos pocos
-                             píxeles cada uno: el grupo se lleva tres columnas. --}}
                         <div class="col-span-2 lg:col-span-4">
-                            <label class="label">L × A × H (cm)</label>
+                            <label class="label whitespace-nowrap">L × A × H (cm)</label>
                             <div class="grid grid-cols-3 gap-1">
                                 <input type="number" step="0.1" inputmode="decimal" wire:model.blur="items.{{ $index }}.length_cm" placeholder="Largo" class="input input-compacto">
                                 <input type="number" step="0.1" inputmode="decimal" wire:model.blur="items.{{ $index }}.width_cm" placeholder="Ancho" class="input input-compacto">
                                 <input type="number" step="0.1" inputmode="decimal" wire:model.blur="items.{{ $index }}.height_cm" placeholder="Alto" class="input input-compacto">
                             </div>
                         </div>
-                        <div class="col-span-2 lg:col-span-2">
-                            <label class="label">Descripción</label>
-                            <input type="text" wire:model="items.{{ $index }}.description" class="input @error('items.'.$index.'.description') input-error @enderror">
-                            @error('items.'.$index.'.description') <p class="error-text">{{ $message }}</p> @enderror
-                        </div>
                         <div class="lg:col-span-2">
-                            <label class="label">{{ (int) ($item['quantity'] ?? 1) > 1 ? 'Precio c/u (₡)' : 'Precio (₡)' }}</label>
+                            <label class="label whitespace-nowrap">Precio c/u (₡)</label>
                             <input type="number" step="0.01" wire:model.live="items.{{ $index }}.price" class="input @error('items.'.$index.'.price') input-error @enderror">
                             @error('items.'.$index.'.price') <p class="error-text">{{ $message }}</p> @enderror
-                            @if ((int) ($item['quantity'] ?? 1) > 1 && filled($item['price'] ?? null))
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    Línea: ₡{{ number_format((float) $item['price'] * (int) $item['quantity'], 2) }}
-                                </p>
-                            @endif
                         </div>
-                        <div class="lg:col-span-1">
+                        {{-- El total de la línea en su propia caja, del mismo alto
+                             que los campos: debajo del precio desalineaba la fila. --}}
+                        <div class="lg:col-span-2">
+                            <span class="label whitespace-nowrap">Total línea</span>
+                            <div class="input bg-gray-50 dark:bg-gray-900/40 tabular-nums" data-test="total-linea-{{ $index }}">
+                                ₡{{ number_format((float) ($item['price'] ?? 0) * $cantidad, 2) }}
+                            </div>
+                        </div>
+                        <div class="col-span-2 lg:col-span-2 flex items-end lg:pt-7">
                             @if (count($items) > 1)
                                 <button type="button" wire:click="removeItem({{ $index }})" class="btn-danger !py-2 !px-3 text-sm w-full">Quitar</button>
                             @endif

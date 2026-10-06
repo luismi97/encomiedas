@@ -31,6 +31,50 @@ trait DatosDeFactura
     public string $facturaEmail = '';
     public string $facturaActividad = '';
 
+    /** Buscador de clientes registrados: elegir uno copia sus datos fiscales. */
+    public string $facturaClienteBusqueda = '';
+    public $facturaClienteId = null;
+
+    /** Resultados del buscador (mismo criterio que el de la guía). */
+    public function getClientesParaFacturaProperty()
+    {
+        $termino = trim($this->facturaClienteBusqueda);
+
+        if (mb_strlen($termino) < 2) {
+            return null;
+        }
+
+        return Customer::active()->buscar($termino)->orderBy('name')->limit(15)
+            ->get(['id', 'name', 'identification']);
+    }
+
+    /**
+     * Copia los datos del cliente elegido y deja el buscador listo para otro:
+     * lo que se factura es lo que quede en los campos, que se pueden ajustar.
+     */
+    public function updatedFacturaClienteId($id): void
+    {
+        $cliente = $id ? Customer::find($id) : null;
+
+        $this->facturaClienteId = null;
+        $this->facturaClienteBusqueda = '';
+
+        if (! $cliente) {
+            return;
+        }
+
+        $this->resetErrorBag(['facturaNombre', 'facturaTipoId', 'facturaId', 'facturaEmail', 'facturaActividad']);
+        $this->actividadesHacienda = [];
+        $this->avisoHacienda = $cliente->identification ? null
+            : "{$cliente->name} no tiene cédula registrada: digitala para poder facturarle.";
+
+        $this->facturaNombre = $cliente->name;
+        $this->facturaTipoId = (string) ($cliente->identification_type ?: '01');
+        $this->facturaId = (string) $cliente->identification;
+        $this->facturaEmail = (string) $cliente->email;
+        $this->facturaActividad = (string) $cliente->activity_code;
+    }
+
     /** ¿Tiene sentido preguntar al entregar? Solo si hoy saldría como tiquete. */
     public function puedePedirFactura(?Invoice $guia): bool
     {
@@ -48,6 +92,8 @@ trait DatosDeFactura
         $this->resetErrorBag(['facturaNombre', 'facturaTipoId', 'facturaId', 'facturaEmail', 'facturaActividad']);
         $this->actividadesHacienda = [];
         $this->avisoHacienda = null;
+        $this->facturaClienteBusqueda = '';
+        $this->facturaClienteId = null;
 
         $actual = $guia?->receptorIdentificado() ? $guia->receptorDeFactura() : null;
 

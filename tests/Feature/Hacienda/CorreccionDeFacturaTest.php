@@ -140,6 +140,31 @@ class CorreccionDeFacturaTest extends TestCase
         $this->assertSame('3101654321', $guia->fresh()->billing_identification);
     }
 
+    /** Al corregir se puede elegir un cliente registrado y se copian sus datos. */
+    public function test_se_puede_elegir_un_cliente_registrado(): void
+    {
+        $cliente = \App\Models\Customer::create([
+            'name' => 'Importadora Solano S.A.', 'identification_type' => '02', 'identification' => '3101654321',
+            'email' => 'facturas@solano.test', 'activity_code' => '523101', 'is_active' => true,
+        ]);
+
+        $pantalla = Livewire::actingAs($this->admin)
+            ->test(InvoiceShow::class, ['invoice' => $this->tiquete()])
+            ->call('openBillingForm')
+            ->set('quiereFactura', true)
+            ->set('facturaClienteBusqueda', 'Solano')
+            ->assertSee('Importadora Solano S.A.')
+            ->set('facturaClienteId', $cliente->id)
+            ->assertSet('facturaNombre', 'Importadora Solano S.A.')
+            ->assertSet('facturaTipoId', '02')
+            ->assertSet('facturaId', '3101654321')
+            ->assertSet('facturaEmail', 'facturas@solano.test')
+            ->assertSet('facturaActividad', '523101')
+            ->assertSet('facturaClienteBusqueda', '');
+
+        $pantalla->call('guardarFacturacion')->assertHasNoErrors();
+    }
+
     // ── Autocompletar desde Hacienda ──────────────────────────────────
 
     public function test_al_digitar_la_cedula_se_completan_nombre_tipo_y_actividad(): void
