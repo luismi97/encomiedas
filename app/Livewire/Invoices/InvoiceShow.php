@@ -27,7 +27,10 @@ class InvoiceShow extends Component
     public string $noteReason = '';
     public $noteAmount = null;
 
-    /** Medio con que paga el cliente una guía que esperaba su cobro en caja. */
+    /**
+     * Medio con que paga el cliente: una guía que esperaba su cobro en caja,
+     * o un «por cobrar» que se cobra al entregarlo.
+     */
     public string $medioDeCobro = 'cash';
 
     public function mount(Invoice $invoice): void
@@ -161,6 +164,35 @@ class InvoiceShow extends Component
         $this->showCancelForm = true;
     }
 
+    /**
+     * Cobrar un «por cobrar» desde la guía es entregarlo: quien paga es quien
+     * lo retira, así que se piden los datos de entrega en el mismo paso. Se
+     * revisa antes de abrir el formulario lo que haría fallar la entrega, para
+     * no dejar que alguien llene nombre y firma y recién ahí se entere.
+     */
+    public function cobrarYEntregar(CajaService $caja): void
+    {
+        $usuario = auth()->user();
+
+        $problema = match (true) {
+            ! $this->invoice->tieneCobroPendiente() => 'Esta guía no tiene cobro pendiente.',
+            ! $usuario->puedeCobrar() => 'Tu usuario no cobra: el cliente paga en caja y después se le entrega.',
+            ! $this->invoice->puedePasarA(Invoice::STATUS_DELIVERED) => 'La guía todavía no se puede entregar: '
+                . 'se cobra cuando llegue a ' . ($this->invoice->deliveryBranch?->name ?? 'destino') . '.',
+            ! $caja->sesionPropiaAbierta($usuario, $this->invoice->delivery_branch_id) => 'Abrí tu caja en '
+                . ($this->invoice->deliveryBranch?->name ?? 'la sede de destino') . ' para cobrarla: ahí entra este dinero.',
+            default => null,
+        };
+
+        if ($problema) {
+            session()->flash('error', $problema);
+
+            return;
+        }
+
+        $this->openDeliveryForm();
+    }
+
     public function openDeliveryForm(): void
     {
         // Precarga el nombre del destinatario: la mayoría de las veces retira él.
@@ -252,6 +284,7 @@ class InvoiceShow extends Component
         // le precarga esos datos, y mandarlos como pedido nuevo trababa la
         // entrega cuando el comprobante ya estaba emitido.
         $facturarA = $this->puedePedirFactura($this->invoice) ? $this->datosDeFactura() : null;
+        $cobrada = $this->invoice->tieneCobroPendiente();
 
         try {
             $this->invoice = $estados->entregar(
@@ -260,7 +293,8 @@ class InvoiceShow extends Component
                 $this->receivedByName,
                 $this->receivedByIdentification ?: null,
                 $this->deliverySignature ?: null,
-                $facturarA
+                $facturarA,
+                $this->invoice->tieneCobroPendiente() ? $this->medioDeCobro : null
             );
         } catch (RuntimeException $e) {
             session()->flash('error', $e->getMessage());
@@ -270,7 +304,8 @@ class InvoiceShow extends Component
 
         $this->showDeliveryForm = false;
         $this->invoice->load(['statusHistories.user', 'statusHistories.branch', 'electronicInvoice']);
-        session()->flash('success', 'Entrega registrada a nombre de ' . $this->invoice->received_by_name . '.');
+        session()->flash('success', ($cobrada ? 'Cobrada y entregada' : 'Entrega registrada')
+            . ' a nombre de ' . $this->invoice->received_by_name . '.');
     }
 
     public function updateStatus(string $status, GuideStatusService $estados): void
@@ -556,7 +591,14 @@ class InvoiceShow extends Component
 
     public function render(QrService $qr)
     {
-        return view('livewire.invoices.invoice-show', ['qrSvg' => $qr->svg($this->invoice->trackingUrl(), 150)])
+        return view('livewire.invoices.invoice-show', [
+            'qrSvg' => $qr->svg($this->invoice->trackingUrl(), 150),
+            // Para no ofrecer «Cobrar y entregar» a quien no tiene dónde meter
+            // la plata: se cobra en la caja de la sede que entrega.
+            'cajaDeEntrega' => $this->invoice->tieneCobroPendiente() && auth()->user()->puedeCobrar()
+                ? app(CajaService::class)->sesionPropiaAbierta(auth()->user(), $this->invoice->delivery_branch_id)
+                : null,
+        ])
             ->layout('layouts.app', ['title' => $this->invoice->code]);
     }
 }

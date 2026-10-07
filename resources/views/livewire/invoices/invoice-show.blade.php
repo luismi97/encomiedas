@@ -161,10 +161,32 @@
     {{-- Entrega: nombre, cédula y firma de quien retira --}}
     @if ($showDeliveryForm)
         <div class="card border-green-200 dark:border-green-800" wire:ignore.self>
-            <h3 class="font-semibold mb-1">Registrar la entrega</h3>
+            <h3 class="font-semibold mb-1">{{ $invoice->tieneCobroPendiente() ? 'Cobrar y registrar la entrega' : 'Registrar la entrega' }}</h3>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Constancia de quién retiró el paquete.
             </p>
+
+            {{-- El «por cobrar» lo paga quien retira: se cobra en este mismo
+                 acto, en la caja de quien entrega, con el medio que usó. --}}
+            @if ($invoice->tieneCobroPendiente())
+                <div class="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 mb-4" data-test="cobro-al-entregar">
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div>
+                            <span class="label">A cobrar</span>
+                            <span class="text-lg font-bold tabular-nums">₡{{ number_format((float) $invoice->total, 2) }}</span>
+                        </div>
+                        <div>
+                            <label class="label">¿Cómo paga?</label>
+                            <select wire:model="medioDeCobro" class="input !py-1.5 w-44" data-test="medio-al-entregar">
+                                @foreach (\App\Models\Invoice::PAYMENT_METHODS as $clave => $nombre)
+                                    <option value="{{ $clave }}">{{ $nombre }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <p class="text-xs text-amber-800 dark:text-amber-200 mt-2">Recibí el dinero antes de confirmar: entra a tu caja al entregar.</p>
+                </div>
+            @endif
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -184,9 +206,16 @@
             </div>
 
             <div class="flex gap-3 mt-4">
-                <x-action-button action="entregar" variant="success" loadingText="Registrando...">
-                    <x-icon name="check" class="w-4 h-4" /> Confirmar entrega
-                </x-action-button>
+                @if ($invoice->tieneCobroPendiente())
+                    <x-action-button action="entregar" variant="success" loadingText="Registrando..."
+                        :confirm="'Cobrar ₡' . number_format((float) $invoice->total, 2) . ' y entregar la guía ' . $invoice->code . '. ¿Continuar?'">
+                        <x-icon name="check" class="w-4 h-4" /> Cobrar ₡{{ number_format((float) $invoice->total, 2) }} y entregar
+                    </x-action-button>
+                @else
+                    <x-action-button action="entregar" variant="success" loadingText="Registrando...">
+                        <x-icon name="check" class="w-4 h-4" /> Confirmar entrega
+                    </x-action-button>
+                @endif
                 <x-ayuda posicion="izquierda">Cierra la guía como entregada: quedan registrados el nombre de quien retira y su firma. Si es por cobrar, el cobro entra a tu caja en este mismo acto.</x-ayuda>
                 <button type="button" wire:click="$set('showDeliveryForm', false)" class="btn-secondary">Cancelar</button>
             </div>
@@ -604,6 +633,26 @@
                         Se cobra en la caja de {{ $invoice->deliveryBranch?->name ?? 'destino' }}: al entregar, o
                         antes, desde «Por cobrar en caja» si quien entrega no cobra.
                     </p>
+
+                    {{-- Quien paga un «por cobrar» es quien lo retira: cobrar
+                         desde acá es entregar, y pide los datos de entrega. --}}
+                    @if (auth()->user()->puedeCobrar() && ! $showDeliveryForm)
+                        @if (! $invoice->puedePasarA(\App\Models\Invoice::STATUS_DELIVERED))
+                            <p class="text-sm text-amber-800 dark:text-amber-200 mt-2">
+                                Todavía no llegó: se cobra y se entrega cuando esté en {{ $invoice->deliveryBranch?->name ?? 'destino' }}.
+                            </p>
+                        @elseif (! $cajaDeEntrega)
+                            <p class="text-sm text-amber-800 dark:text-amber-200 mt-2" data-test="cobrar-sin-caja">
+                                Para cobrarla, abrí tu caja en {{ $invoice->deliveryBranch?->name ?? 'la sede de destino' }}.
+                            </p>
+                        @else
+                            <div class="mt-3">
+                                <x-action-button action="cobrarYEntregar" variant="primary" loadingText="Abriendo..." data-test="cobrar-y-entregar">
+                                    <x-icon name="banknotes" class="w-4 h-4" /> Cobrar y entregar
+                                </x-action-button>
+                            </div>
+                        @endif
+                    @endif
                 </div>
             </div>
         </div>

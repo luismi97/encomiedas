@@ -385,6 +385,10 @@ class GuideStatusService
      * comprobante se crea al pasar a entregada, así que se guarda antes. Solo
      * cambia a quién se factura, nunca los montos.
      *
+     * $medioDeCobro es cómo pagó quien retira un «por cobrar». Sin él se usa
+     * el que quedó en la guía al crearla, que es una suposición: quien la
+     * mandó no sabía cómo iba a pagar el que la recoge.
+     *
      * @param  array{nombre:string, tipo:string, numero:string, email:?string, actividad:?string}|null  $facturarA
      */
     public function entregar(
@@ -393,10 +397,16 @@ class GuideStatusService
         string $nombreQuienRetira,
         ?string $identificacion = null,
         ?string $firmaDataUri = null,
-        ?array $facturarA = null
+        ?array $facturarA = null,
+        ?string $medioDeCobro = null
     ): Invoice {
         if (trim($nombreQuienRetira) === '') {
             throw new RuntimeException('Hay que registrar el nombre de quien retira la encomienda.');
+        }
+
+        if ($medioDeCobro !== null && $guia->tieneCobroPendiente()
+            && ! array_key_exists($medioDeCobro, Invoice::PAYMENT_METHODS)) {
+            throw new RuntimeException('Elegí cómo pagó el cliente.');
         }
 
         // Antes de mover nada: si el flete se cobra aquí y no hay caja abierta,
@@ -442,6 +452,11 @@ class GuideStatusService
             $guia->forceFill(CorreccionDeFactura::columnas($facturarA));
 
             $nota .= ' · pidió factura a nombre de ' . $facturarA['nombre'] . ' (' . $facturarA['numero'] . ')';
+        }
+
+        // Antes de cobrar: registrarCobro toma el medio de la guía.
+        if ($medioDeCobro !== null && $guia->tieneCobroPendiente()) {
+            $guia->forceFill(['payment_method' => $medioDeCobro]);
         }
 
         $guia->forceFill([

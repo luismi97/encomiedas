@@ -183,4 +183,105 @@ class CobroEnDestinoTest extends TestCase
             ->test(InvoiceShow::class, ['invoice' => $guia])
             ->assertDontSee('Pendiente de cobro');
     }
+
+    // ── Cobrar desde la guía ──────────────────────────────────────────
+
+    /**
+     * Cobrar un por cobrar desde la guía es entregarlo: quien paga es quien
+     * lo retira, así que pide nombre, cédula y firma en el mismo paso.
+     */
+    public function test_cobrar_y_entregar_desde_la_guia(): void
+    {
+        $sesion = $this->abrirCajaEnDestino();
+        $guia = $this->guiaPorCobrarEnDestino();
+
+        Livewire::actingAs($this->enDestino)
+            ->test(InvoiceShow::class, ['invoice' => $guia])
+            ->assertSeeHtml('data-test="cobrar-y-entregar"')
+            ->call('cobrarYEntregar')
+            ->assertSet('showDeliveryForm', true)
+            ->assertSeeHtml('data-test="cobro-al-entregar"')
+            ->assertSee('Cobrar ₡11,300.00 y entregar')
+            ->set('medioDeCobro', 'sinpe')
+            ->set('receivedByName', 'José Fernández')
+            ->set('receivedByIdentification', '112340567')
+            ->call('entregar')
+            ->assertSee('Cobrada y entregada');
+
+        $guia->refresh();
+        $this->assertSame(Invoice::STATUS_DELIVERED, $guia->status);
+        $this->assertNotNull($guia->collected_at);
+        $this->assertSame('José Fernández', $guia->received_by_name);
+
+        $cobro = CashMovement::where('invoice_id', $guia->id)->firstOrFail();
+        $this->assertSame($sesion->id, $cobro->cash_session_id);
+        // El medio que dijo quien retiró, no el que quedó en la guía al crearla.
+        $this->assertSame('sinpe', $cobro->payment_method);
+        $this->assertSame('sinpe', $guia->payment_method);
+    }
+
+    /** Entregar por el botón de estado también pregunta cómo pagó. */
+    public function test_entregar_un_por_cobrar_pide_el_medio_de_pago(): void
+    {
+        $this->abrirCajaEnDestino();
+        $guia = $this->guiaPorCobrarEnDestino();
+
+        Livewire::actingAs($this->enDestino)
+            ->test(InvoiceShow::class, ['invoice' => $guia])
+            ->call('openDeliveryForm')
+            ->assertSeeHtml('data-test="medio-al-entregar"')
+            ->set('medioDeCobro', 'card')
+            ->set('receivedByName', 'José')
+            ->call('entregar');
+
+        $this->assertSame('card', CashMovement::where('invoice_id', $guia->id)->value('payment_method'));
+    }
+
+    public function test_sin_caja_en_destino_no_ofrece_cobrar_ni_abre_el_formulario(): void
+    {
+        $guia = $this->guiaPorCobrarEnDestino();
+
+        Livewire::actingAs($this->enDestino)
+            ->test(InvoiceShow::class, ['invoice' => $guia])
+            ->assertDontSeeHtml('data-test="cobrar-y-entregar"')
+            ->assertSeeHtml('data-test="cobrar-sin-caja"')
+            ->call('cobrarYEntregar')
+            ->assertSet('showDeliveryForm', false)
+            ->assertSee('Abrí tu caja en Limón');
+    }
+
+    /** En camino todavía no hay a quién entregárselo, ni quién pague. */
+    public function test_antes_de_llegar_no_se_cobra_desde_la_guia(): void
+    {
+        $this->abrirCajaEnDestino();
+        $guia = Invoice::create(['status'=>Invoice::STATUS_PENDING,'pickup_branch_id'=>$this->sj->id,
+            'delivery_branch_id'=>$this->lim->id,'sender_name'=>'Marta','recipient_name'=>'José',
+            'payment_timing'=>Invoice::TIMING_COLLECT,'payment_method'=>'cash',
+            'subtotal'=>1000,'discount_amount'=>0,'tax_total'=>0,'total'=>1000,
+            'created_by'=>$this->enOrigen->id])->fresh();
+
+        Livewire::actingAs($this->enDestino)
+            ->test(InvoiceShow::class, ['invoice' => $guia])
+            ->assertDontSeeHtml('data-test="cobrar-y-entregar"')
+            ->call('cobrarYEntregar')
+            ->assertSet('showDeliveryForm', false)
+            ->assertSee('todavía no se puede entregar');
+
+        $this->assertSame(0, CashMovement::count());
+    }
+
+    /** Quien no cobra no ve el botón: el cliente pasa por caja. */
+    public function test_un_dependiente_no_cobra_desde_la_guia(): void
+    {
+        $guia = $this->guiaPorCobrarEnDestino();
+        $dependiente = User::create(['name'=>'Laura','username'=>'laura','email'=>'laura@t.test','password'=>bcrypt('x'),
+            'role'=>User::ROLE_DEPENDIENTE,'is_active'=>true,'branch_id'=>$this->lim->id]);
+
+        Livewire::actingAs($dependiente)
+            ->test(InvoiceShow::class, ['invoice' => $guia])
+            ->assertDontSeeHtml('data-test="cobrar-y-entregar"')
+            ->call('cobrarYEntregar')
+            ->assertSet('showDeliveryForm', false)
+            ->assertSee('Tu usuario no cobra');
+    }
 }

@@ -217,7 +217,9 @@ def portada():
         tarjeta("Guías dentro de la misma sede",
                 "Un paquete que se deja y se retira en la misma sede ya puede tener su ruta. Vea la Tarea 4."),
         tarjeta("Cobrar desde la guía",
-                "Una guía que espera pago se puede cobrar desde su propia pantalla, con [[Cobrar en mi caja]]. Vea la Tarea 8."),
+                "Una guía que espera pago se puede cobrar desde su propia pantalla, con [[Cobrar en mi caja]]. "
+                "Una [[Por cobrar]] que ya llegó se cobra con [[Cobrar y entregar]], que pide de una vez los datos de quien la retira. "
+                "Vea las Tareas 7 y 8."),
         tarjeta("Los dependientes entregan y despachan",
                 "Quien tiene usuario de **Dependiente** ahora también entrega paquetes y arma los cierres del camión. "
                 "Lo que falta cobrar lo sigue cobrando un cajero. Vea las Tareas 7 y 11."),
@@ -377,7 +379,9 @@ def tarea_7():
                 "entréguele el paquete.",
              "entregar-firma.png", 369),
         recuadro("importante", "¡Importante! Si la guía es Por cobrar",
-                 "Reciba el dinero **antes** de entregar. Si usted tiene su caja abierta, el cobro entra a su caja al confirmar la entrega.",
+                 "Reciba el dinero **antes** de entregar. En el cuadro de entrega elija en [[¿Cómo paga?]] el medio que usó "
+                 "el cliente y presione [[Cobrar ₡… y entregar]]: el cobro entra a su caja en ese mismo momento. "
+                 "Necesita su caja abierta en esta sede.",
                  "Si su usuario **no cobra** (Dependiente), el sistema no le deja entregarla: mande al cliente a pagar "
                  "a la caja y entréguela cuando el cajero la haya cobrado."),
         PageBreak(),
@@ -394,7 +398,9 @@ def tarea_8():
         paso(3, "Si el cliente quiere comprobante, presione [[Recibo]] o [[Factura]]."),
         recuadro("consejo", "También desde la guía",
                  "Si ya tiene la guía abierta y dice [[Sin cobrar en caja]], puede cobrarla ahí mismo: elija el medio "
-                 "de pago y presione [[Cobrar en mi caja]]. El dinero entra a su caja de esa sede."),
+                 "de pago y presione [[Cobrar en mi caja]]. El dinero entra a su caja de esa sede.",
+                 "Si dice [[Pendiente de cobro]] (una [[Por cobrar]] que ya llegó), presione [[Cobrar y entregar]]: "
+                 "como quien paga es quien la retira, le pide su nombre, cédula y firma, y cobra y entrega en el mismo paso."),
         PageBreak(),
     ]
 
