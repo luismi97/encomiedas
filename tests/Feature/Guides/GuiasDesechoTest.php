@@ -144,16 +144,12 @@ class GuiasDesechoTest extends TestCase
         $this->assertStringContainsString('Sin retirar', $ultimo->note);
     }
 
-    /**
-     * El requisito pide que el desecho quede autorizado por alguien con
-     * permiso: apagado, el comando avisa pero no desecha.
-     */
-    public function test_el_comando_solo_reporta_las_que_ya_se_pueden_desechar(): void
+    /** Cumplidos los 3 meses sin retirar, el cron la desecha solo. */
+    public function test_a_los_tres_meses_el_cron_la_desecha(): void
     {
         config([
             'encomiendas.disposal.warn_after_days' => 30,
             'encomiendas.disposal.dispose_after_days' => 15,
-            'encomiendas.disposal.auto_dispose' => false,
         ]);
 
         $guia = $this->guiaEnDestino(100);
@@ -163,25 +159,50 @@ class GuiasDesechoTest extends TestCase
         ])->save();
 
         $this->artisan('guias:desecho')
-            ->expectsOutputToContain('Listas para desechar: 1 — las tiene que desechar un administrador')
+            ->expectsOutputToContain('Desechadas: 1')
+            ->assertSuccessful();
+
+        $guia = $guia->fresh();
+        $this->assertSame(Invoice::STATUS_DISPOSED, $guia->status);
+        $this->assertNotNull($guia->disposed_at);
+
+        // En la bitácora como automático, no a nombre de nadie.
+        $ultimo = $guia->statusHistories()->latest('id')->first();
+        $this->assertSame(Invoice::STATUS_DISPOSED, $ultimo->to_status);
+        $this->assertSame('Automático', $ultimo->sourceLabel());
+        $this->assertNull($ultimo->user_id);
+    }
+
+    /**
+     * Una de más de 3 meses que nunca se avisó (el cron estuvo apagado) se
+     * avisa y espera el plazo de gracia: desecharla en la misma corrida le
+     * quitaría al cliente el tiempo que el aviso le promete.
+     */
+    public function test_la_que_nunca_se_aviso_no_se_desecha_en_la_misma_corrida(): void
+    {
+        config([
+            'encomiendas.disposal.warn_after_days' => 30,
+            'encomiendas.disposal.dispose_after_days' => 15,
+        ]);
+
+        $guia = $this->guiaEnDestino(120);
+
+        $this->artisan('guias:desecho')
+            ->expectsOutputToContain('Desechadas: 0')
             ->assertSuccessful();
 
         $this->assertSame(Invoice::STATUS_NEAR_DISPOSAL, $guia->fresh()->status);
     }
 
-    /** Desechar es solo del administrador: ni con auto_dispose lo hace el cron. */
-    public function test_ni_con_auto_dispose_desecha_solo(): void
+    /** Dentro del plazo de gracia desde el aviso, todavía no. */
+    public function test_dentro_del_plazo_de_gracia_no_se_desecha(): void
     {
-        config([
-            'encomiendas.disposal.warn_after_days' => 30,
-            'encomiendas.disposal.dispose_after_days' => 15,
-            'encomiendas.disposal.auto_dispose' => true,
-        ]);
+        config(['encomiendas.disposal.dispose_after_days' => 15]);
 
         $guia = $this->guiaEnDestino(100);
         $guia->forceFill([
             'status' => Invoice::STATUS_NEAR_DISPOSAL,
-            'disposal_warned_at' => now()->subDays(20),
+            'disposal_warned_at' => now()->subDays(5),
         ])->save();
 
         $this->artisan('guias:desecho')->assertSuccessful();
@@ -189,8 +210,23 @@ class GuiasDesechoTest extends TestCase
         $this->assertSame(Invoice::STATUS_NEAR_DISPOSAL, $guia->fresh()->status);
     }
 
-    /** Menos de 3 meses en destino: todavía no aparece como lista para desechar. */
-    public function test_antes_de_tres_meses_no_se_lista(): void
+    public function test_dry_run_no_desecha(): void
+    {
+        $guia = $this->guiaEnDestino(100);
+        $guia->forceFill([
+            'status' => Invoice::STATUS_NEAR_DISPOSAL,
+            'disposal_warned_at' => now()->subDays(20),
+        ])->save();
+
+        $this->artisan('guias:desecho', ['--dry-run' => true])
+            ->expectsOutputToContain('Desechadas: 1')
+            ->assertSuccessful();
+
+        $this->assertSame(Invoice::STATUS_NEAR_DISPOSAL, $guia->fresh()->status);
+    }
+
+    /** Menos de 3 meses en destino: no se desecha aunque el aviso sea viejo. */
+    public function test_antes_de_tres_meses_no_se_desecha(): void
     {
         $guia = $this->guiaEnDestino(60);
         $guia->forceFill([
@@ -199,7 +235,7 @@ class GuiasDesechoTest extends TestCase
         ])->save();
 
         $this->artisan('guias:desecho')
-            ->expectsOutputToContain('Listas para desechar: 0')
+            ->expectsOutputToContain('Desechadas: 0')
             ->assertSuccessful();
     }
 

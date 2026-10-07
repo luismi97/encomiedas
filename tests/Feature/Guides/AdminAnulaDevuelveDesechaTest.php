@@ -4,6 +4,7 @@ namespace Tests\Feature\Guides;
 
 use App\Livewire\Invoices\InvoiceShow;
 use App\Models\ElectronicInvoice;
+use App\Models\GuideStatusHistory;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Services\GuideStatusService;
@@ -207,5 +208,25 @@ class AdminAnulaDevuelveDesechaTest extends TestCase
         $this->expectExceptionMessage(GuideStatusService::SOLO_ADMIN_DESECHA);
 
         $this->servicio()->cambiar($guia, Invoice::STATUS_DISPOSED, $this->cajero);
+    }
+
+    /** Sin usuario solo desecha el sistema: un cambio manual anónimo no pasa. */
+    public function test_sin_usuario_un_cambio_manual_no_desecha(): void
+    {
+        $guia = $this->servicio()->cambiar($this->guiaEnDestino(95), Invoice::STATUS_NEAR_DISPOSAL, $this->admin);
+
+        $this->expectExceptionMessage(GuideStatusService::SOLO_ADMIN_DESECHA);
+
+        $this->servicio()->cambiar($guia, Invoice::STATUS_DISPOSED);
+    }
+
+    /** Ni el sistema desecha antes de los 3 meses. */
+    public function test_el_sistema_tampoco_desecha_antes_de_tres_meses(): void
+    {
+        $guia = $this->servicio()->cambiar($this->guiaEnDestino(60), Invoice::STATUS_NEAR_DISPOSAL, $this->admin);
+
+        $this->expectExceptionMessage('antes de 3 meses');
+
+        $this->servicio()->cambiar($guia, Invoice::STATUS_DISPOSED, source: GuideStatusHistory::SOURCE_SYSTEM);
     }
 }

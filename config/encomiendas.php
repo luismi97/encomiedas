@@ -29,14 +29,13 @@ return [
      | Ciclo de desecho de guías sin retirar, en días desde que llegaron a la
      | sede destino.
      |
-     | auto_dispose ya no tiene efecto: desechar es solo del administrador y no
-     | antes de 3 meses en destino (Invoice::MESES_ANTES_DE_DESECHAR). El cron
-     | marca «próximo a desecho» y lista las que ya se pueden desechar.
+     | El cron marca «próximo a desecho» y desecha solo las que cumplen 3 meses
+     | en destino (Invoice::MESES_ANTES_DE_DESECHAR) y el plazo de gracia desde
+     | el aviso. A mano, solo un administrador, y tampoco antes de los 3 meses.
      */
     'disposal' => [
         'warn_after_days'    => (int) env('ENCOMIENDAS_DISPOSAL_WARN_DAYS', 30),
         'dispose_after_days' => (int) env('ENCOMIENDAS_DISPOSAL_GRACE_DAYS', 15),
-        'auto_dispose'       => (bool) env('ENCOMIENDAS_AUTO_DISPOSE', false),
     ],
 
     /*

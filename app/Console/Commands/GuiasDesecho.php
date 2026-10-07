@@ -15,8 +15,9 @@ use Illuminate\Console\Command;
  * plazo de gracia, a "desechado". Y de paso lista las que salieron y nadie
  * recibió, que son el otro extremo del mismo problema.
  *
- * El desecho definitivo NO se automatiza: lo hace un administrador, y no antes
- * de Invoice::MESES_ANTES_DE_DESECHAR en destino. El comando solo avisa.
+ * El desecho definitivo lo hace el comando cuando la guía cumple
+ * Invoice::MESES_ANTES_DE_DESECHAR en destino, o antes a mano un administrador
+ * —nunca antes de esos meses—.
  */
 class GuiasDesecho extends Command
 {
@@ -36,11 +37,10 @@ class GuiasDesecho extends Command
     {
         $diasAviso  = (int) config('encomiendas.disposal.warn_after_days', 30);
         $diasGracia = (int) config('encomiendas.disposal.dispose_after_days', 15);
-        $automatico = (bool) config('encomiendas.disposal.auto_dispose', false);
         $simulacion = (bool) $this->option('dry-run');
 
         $this->avisarProximasADesecho($estados, $diasAviso, $simulacion);
-        $this->desecharVencidas($estados, $diasGracia, $automatico, $simulacion);
+        $this->desecharVencidas($estados, $diasGracia, $simulacion);
         $this->listarEstancadas();
 
         return self::SUCCESS;
@@ -72,13 +72,14 @@ class GuiasDesecho extends Command
 
     /**
      * 2) Ya avisadas, con el plazo de gracia vencido y con los meses mínimos en
-     *    destino cumplidos: se listan para que un administrador las deseche.
+     *    destino cumplidos: se desechan solas, como automático en la bitácora.
      *
-     * Nunca se desechan solas. Desechar es solo del administrador y queda a su
-     * nombre (GuideStatusService::cambiar lo exige), así que auto_dispose ya no
-     * aplica.
+     * El plazo de gracia sigue contando aunque ya pasaran los meses: una guía
+     * que el cron no había avisado (estuvo apagado, por ejemplo) se avisa en
+     * esta misma corrida, y desecharla enseguida le quitaría al cliente el
+     * tiempo que el aviso le promete para retirarla.
      */
-    private function desecharVencidas(GuideStatusService $estados, int $diasGracia, bool $automatico, bool $simulacion): void
+    private function desecharVencidas(GuideStatusService $estados, int $diasGracia, bool $simulacion): void
     {
         $porDesechar = Invoice::where('status', Invoice::STATUS_NEAR_DISPOSAL)
             ->whereNotNull('disposal_warned_at')
@@ -86,13 +87,19 @@ class GuiasDesecho extends Command
             ->get()
             ->filter(fn (Invoice $guia) => $guia->yaSePuedeDesechar());
 
-        if ($automatico) {
-            $this->warn('auto_dispose está encendido, pero desechar es solo del administrador: se listan y no se desechan.');
-        }
+        $this->warn("Desechadas: {$porDesechar->count()} (" . Invoice::MESES_ANTES_DE_DESECHAR . ' meses o más en destino sin retirar)');
 
-        $this->warn("Listas para desechar: {$porDesechar->count()} — las tiene que desechar un administrador.");
         foreach ($porDesechar as $guia) {
             $this->line("  - {$guia->code} · avisada {$guia->disposal_warned_at->format('d/m/Y')}");
+
+            if (! $simulacion) {
+                $estados->cambiar(
+                    $guia,
+                    Invoice::STATUS_DISPOSED,
+                    source: GuideStatusHistory::SOURCE_SYSTEM,
+                    nota: 'Sin retirar ' . Invoice::MESES_ANTES_DE_DESECHAR . ' meses en destino.'
+                );
+            }
         }
     }
 

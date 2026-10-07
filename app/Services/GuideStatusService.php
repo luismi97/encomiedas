@@ -54,8 +54,9 @@ class GuideStatusService
             throw new RuntimeException(self::SOLO_ADMIN_ANULA);
         }
 
-        // Devolver y desechar son decisiones de un administrador. El sistema
-        // tampoco: un desecho tiene que llevar el nombre de quien lo autorizó.
+        // Devolver es decisión de un administrador. Desechar también, salvo el
+        // cron: cumplidos los meses en destino lo hace solo y queda en la
+        // bitácora como automático. Un cambio manual sin usuario no pasa.
         if ($nuevoEstado === Invoice::STATUS_RETURNED) {
             if (! $usuario?->isAdmin()) {
                 throw new RuntimeException(self::SOLO_ADMIN_DEVUELVE);
@@ -67,7 +68,9 @@ class GuideStatusService
         }
 
         if ($nuevoEstado === Invoice::STATUS_DISPOSED) {
-            if (! $usuario?->isAdmin()) {
+            $esElSistema = $usuario === null && $source === GuideStatusHistory::SOURCE_SYSTEM;
+
+            if (! $esElSistema && ! $usuario?->isAdmin()) {
                 throw new RuntimeException(self::SOLO_ADMIN_DESECHA);
             }
 
