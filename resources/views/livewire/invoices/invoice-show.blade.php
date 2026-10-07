@@ -114,7 +114,7 @@
 
     {{-- Anulación: el motivo es obligatorio y queda en la bitácora --}}
     @if ($showCancelForm)
-        <div class="card border-red-200 dark:border-red-800">
+        <div class="card border-red-200 dark:border-red-800" x-data x-init="mostrarFormulario($el)">
             <h3 class="font-semibold mb-1">Anular la guía {{ $invoice->code }}</h3>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Queda registrado quién anuló y por qué. No se puede deshacer.
@@ -140,7 +140,7 @@
 
     {{-- Devolución al remitente: solo administrador, con motivo --}}
     @if ($showReturnForm)
-        <div class="card border-red-200 dark:border-red-800">
+        <div class="card border-red-200 dark:border-red-800" x-data x-init="mostrarFormulario($el)">
             <h3 class="font-semibold mb-1">Devolver la encomienda {{ $invoice->code }}</h3>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Queda registrado quién la devolvió y por qué. No se puede deshacer.
@@ -160,7 +160,9 @@
 
     {{-- Entrega: nombre, cédula y firma de quien retira --}}
     @if ($showDeliveryForm)
-        <div class="card border-green-200 dark:border-green-800" wire:ignore.self>
+        {{-- Se dibuja arriba y «Cobrar y entregar» está más abajo: sin llevarlo
+             a la vista, el botón parecía no hacer nada. --}}
+        <div class="card border-green-200 dark:border-green-800" wire:ignore.self x-data x-init="mostrarFormulario($el)">
             <h3 class="font-semibold mb-1">{{ $invoice->tieneCobroPendiente() ? 'Cobrar y registrar la entrega' : 'Registrar la entrega' }}</h3>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Constancia de quién retiró el paquete.
@@ -226,7 +228,7 @@
 
     {{-- Incidencias: registrar un problema sin mover el estado de la guía --}}
     @if ($showIncidentForm)
-        <div class="card border-amber-200 dark:border-amber-800">
+        <div class="card border-amber-200 dark:border-amber-800" x-data x-init="mostrarFormulario($el)">
             <h3 class="font-semibold mb-1">Reportar una incidencia</h3>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Queda registrada sin cambiar el estado: un destinatario ausente deja la encomienda donde está.
