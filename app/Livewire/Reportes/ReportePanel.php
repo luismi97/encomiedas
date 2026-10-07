@@ -29,6 +29,9 @@ class ReportePanel extends Component
     public string $to = '';
     public $branchId = null;
 
+    /** Cédula del cliente cuyo detalle se mira en «Facturas por cliente». */
+    public string $cliente = '';
+
     public const REPORTES = [
         'estados'    => 'Guías por estado',
         'desecho'    => 'Próximas a desecho y desechadas',
@@ -37,6 +40,7 @@ class ReportePanel extends Component
         'cobrar'     => 'Cuentas por cobrar',
         'caja'       => 'Cierres de caja',
         'hacienda'   => 'Facturación electrónica',
+        'clientes'   => 'Facturas por cliente',
         'rutas'      => 'Volumen por ruta',
         'entrega'    => 'Tiempo promedio de entrega',
         'contable'   => 'Reporte contable (ventas e IVA)',
@@ -53,6 +57,28 @@ class ReportePanel extends Component
         $this->from = now()->startOfMonth()->toDateString();
         $this->to = now()->toDateString();
         $this->correoContador = (string) CompanySetting::instance()->accountant_email;
+
+        // Desde Clientes se llega con ?reporte=clientes&cliente=<cédula>.
+        if (array_key_exists($reporte = (string) request()->query('reporte'), self::REPORTES)) {
+            $this->reporte = $reporte;
+        }
+        $this->cliente = preg_replace('/\D/', '', (string) request()->query('cliente'));
+
+        // Lo que un cliente tiene facturado no es «lo de este mes»: se abre
+        // con el año, que es lo que suele preguntar.
+        if ($this->cliente !== '') {
+            $this->from = now()->startOfYear()->toDateString();
+        }
+    }
+
+    public function verCliente(string $cedula): void
+    {
+        $this->cliente = preg_replace('/\D/', '', $cedula);
+    }
+
+    public function updatedReporte(): void
+    {
+        $this->cliente = '';
     }
 
     /** Los reportes que este usuario puede elegir. */
@@ -130,6 +156,7 @@ class ReportePanel extends Component
             'cobrar'   => $this->cuentasPorCobrar($credito),
             'caja'     => $this->cierresDeCaja(),
             'hacienda' => $this->facturacionElectronica(),
+            'clientes' => $this->facturasPorCliente(),
             'rutas'    => $this->volumenPorRuta(),
             'entrega'  => $this->tiempoDeEntrega(),
             default    => [],
@@ -289,6 +316,76 @@ class ReportePanel extends Component
             ]);
 
         return ['columnas' => ['Estado en Hacienda', 'Comprobantes', 'Monto'], 'filas' => $filas];
+    }
+
+    /**
+     * Los comprobantes emitidos a nombre de cada cliente.
+     *
+     * Por la cédula del receptor y no por el cliente registrado: a quién se
+     * factura puede ser el remitente, el destinatario u otra persona, y lo que
+     * vale ante Hacienda es la cédula que quedó en el comprobante. Los
+     * tiquetes no tienen receptor, así que no entran.
+     *
+     * El monto es lo aceptado, con las notas de crédito restando: es lo que
+     * de verdad quedó facturado al cliente.
+     */
+    private function facturasPorCliente(): array
+    {
+        $comprobantes = ElectronicInvoice::query()
+            ->with('invoice:id,code')
+            ->whereBetween('created_at', [$this->desde(), $this->hasta()])
+            ->when($this->branchId, fn ($q) => $q->where('branch_id', $this->branchId))
+            ->whereIn('document_type', ['01', '02', '03'])
+            ->latest('id')
+            ->get()
+            ->filter(fn (ElectronicInvoice $c) => filled($c->receptor_data['numero'] ?? null));
+
+        $neto = fn (ElectronicInvoice $c) => $c->status === ElectronicInvoice::STATUS_ACCEPTED
+            ? ($c->document_type === '03' ? -1 : 1) * (float) $c->total
+            : 0.0;
+
+        if ($this->cliente !== '') {
+            $suyos = $comprobantes->filter(fn ($c) => preg_replace('/\D/', '', $c->receptor_data['numero']) === $this->cliente);
+
+            return [
+                'vista'  => 'detalle',
+                'nombre' => $suyos->first()?->receptor_data['nombre']
+                    ?? \App\Models\Customer::where('identification', $this->cliente)->value('name')
+                    ?? $this->cliente,
+                'filas'  => $suyos->map(fn (ElectronicInvoice $c) => [
+                    'id'          => $c->id,
+                    'fecha'       => ($c->issued_at ?? $c->created_at)?->format('d/m/Y'),
+                    'tipo'        => $c->typeLabel(),
+                    'consecutivo' => $c->consecutivo,
+                    'guia'        => $c->invoice,
+                    'estado'      => $c->status,
+                    'estadoNombre' => $c->statusLabel(),
+                    'total'       => (float) $c->total,
+                    'exonerado'   => ! empty($c->receptor_data['exoneracion']),
+                ])->values(),
+                'monto'  => round($suyos->sum($neto), 2),
+            ];
+        }
+
+        $problemas = [ElectronicInvoice::STATUS_REJECTED, ElectronicInvoice::STATUS_ERROR];
+
+        return [
+            'vista' => 'resumen',
+            'filas' => $comprobantes
+                ->groupBy(fn ($c) => preg_replace('/\D/', '', $c->receptor_data['numero']))
+                ->map(fn ($grupo, $cedula) => [
+                    'cedula'     => (string) $cedula,
+                    // El más reciente: si cambió de razón social, la de hoy.
+                    'nombre'     => $grupo->first()->receptor_data['nombre'] ?? (string) $cedula,
+                    'cantidad'   => $grupo->count(),
+                    'aceptados'  => $grupo->where('status', ElectronicInvoice::STATUS_ACCEPTED)->count(),
+                    'problemas'  => $grupo->whereIn('status', $problemas)->count(),
+                    'pendientes' => $grupo->whereNotIn('status', [ElectronicInvoice::STATUS_ACCEPTED, ...$problemas])->count(),
+                    'monto'      => round($grupo->sum($neto), 2),
+                ])
+                ->sortByDesc('monto')
+                ->values(),
+        ];
     }
 
     private function volumenPorRuta(): array

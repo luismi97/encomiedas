@@ -25,6 +25,8 @@
 
     @if ($reporte === 'contable')
         @include('livewire.reportes.contable')
+    @elseif ($reporte === 'clientes')
+        @include('livewire.reportes.clientes')
     @else
     <div class="card">
         <h2 class="text-lg font-semibold mb-4">

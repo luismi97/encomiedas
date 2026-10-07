@@ -144,6 +144,13 @@ class InvoiceForm extends Component
     /** @var array<int> id de impuestos seleccionados */
     public array $selectedTaxes = [];
 
+    /**
+     * Exonerar el IVA. Se marca sola al facturarle a un cliente con
+     * exoneración registrada; la exoneración declarada es siempre la de a
+     * quién se factura, que es contra quien la valida Hacienda.
+     */
+    public bool $tax_exempt = false;
+
     public function mount(?Invoice $invoice = null): void
     {
         $this->items = [
@@ -201,6 +208,7 @@ class InvoiceForm extends Component
                 'price' => $i->precioUnitario(),
             ])->toArray();
             $this->selectedTaxes = $invoice->taxes->pluck('tax_id')->filter()->toArray();
+            $this->tax_exempt = (bool) $invoice->tax_exempt;
         } else {
             $this->selectedTaxes = Tax::where('is_default', true)->pluck('id')->toArray();
 
@@ -251,6 +259,7 @@ class InvoiceForm extends Component
     {
         $this->actividadesHacienda = [];
         $this->avisoHacienda = null;
+        $this->sincronizarExoneracion();
     }
 
     /** Botón «Buscar en Hacienda» del bloque de factura. */
@@ -301,6 +310,8 @@ class InvoiceForm extends Component
      */
     public function updatedWantsInvoice(bool $value): void
     {
+        $this->sincronizarExoneracion();
+
         if (!$value) {
             $this->resetErrorBag([
                 'recipient_identification', 'recipient_identification_type',
@@ -325,6 +336,8 @@ class InvoiceForm extends Component
     public function updatedSenderCustomerId($value): void
     {
         if (! $cliente = Customer::find($value)) {
+            $this->sincronizarExoneracion();
+
             return;
         }
 
@@ -343,6 +356,7 @@ class InvoiceForm extends Component
         }
 
         $this->ajustarCobroAlRemitente($cliente);
+        $this->facturarleSiEstaExonerado($cliente, Invoice::BILL_TO_SENDER);
     }
 
     /**
@@ -407,6 +421,8 @@ class InvoiceForm extends Component
     public function updatedRecipientCustomerId($value): void
     {
         if (! $cliente = Customer::find($value)) {
+            $this->sincronizarExoneracion();
+
             return;
         }
 
@@ -424,6 +440,84 @@ class InvoiceForm extends Component
                 $this->billing_activity_code = (string) $cliente->activity_code;
             }
         }
+
+        $this->facturarleSiEstaExonerado($cliente, Invoice::BILL_TO_RECIPIENT);
+    }
+
+    /**
+     * Un cliente exonerado se lleva la factura: la exoneración solo se puede
+     * declarar en una Factura Electrónica a su nombre, porque Hacienda la
+     * contrasta con la cédula del receptor. Sin esto el cajero tendría que
+     * acordarse de tres cosas para no cobrarle un IVA que no debe.
+     */
+    private function facturarleSiEstaExonerado(Customer $cliente, string $parte): void
+    {
+        if ($cliente->estaExonerado() && $cliente->puedeFacturaElectronica()) {
+            $this->wantsInvoice = true;
+            $this->bill_to = $parte;
+
+            if ($cliente->activity_code) {
+                $this->billing_activity_code = (string) $cliente->activity_code;
+            }
+        }
+
+        $this->sincronizarExoneracion();
+    }
+
+    /** La casilla sigue a quien se factura: marcada si tiene exoneración. */
+    private function sincronizarExoneracion(): void
+    {
+        $this->tax_exempt = $this->wantsInvoice && (bool) $this->clienteFacturado()?->estaExonerado();
+        $this->resetErrorBag('tax_exempt');
+    }
+
+    /** El cliente registrado a quien va la factura, si lo hay. */
+    private function clienteFacturado(): ?Customer
+    {
+        $id = match ($this->bill_to) {
+            Invoice::BILL_TO_SENDER    => $this->sender_customer_id,
+            Invoice::BILL_TO_RECIPIENT => $this->recipient_customer_id,
+            default                    => null,
+        };
+
+        return $id ? Customer::find($id) : null;
+    }
+
+    /**
+     * La exoneración que declararía la guía si se guarda ahora.
+     *
+     * La del cliente facturado; al editar una guía cuyo cliente ya no la
+     * tiene (venció, se la quitaron), la que quedó copiada en la guía, siempre
+     * que siga facturándose a la misma cédula.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function exoneracionAplicable(): ?array
+    {
+        if (! $this->tax_exempt || ! $this->wantsInvoice) {
+            return null;
+        }
+
+        if (($cliente = $this->clienteFacturado())?->estaExonerado()) {
+            return $cliente->datosDeExoneracion();
+        }
+
+        $guardada = $this->invoice?->exoneracion();
+
+        return $guardada && ($guardada['identificacion'] ?? null) === $this->identificacionFacturada()
+            ? $guardada
+            : null;
+    }
+
+    private function identificacionFacturada(): ?string
+    {
+        $id = match ($this->bill_to) {
+            Invoice::BILL_TO_SENDER => $this->sender_identification,
+            Invoice::BILL_TO_OTHER  => $this->billing_identification,
+            default                 => $this->recipient_identification,
+        };
+
+        return preg_replace('/\D/', '', (string) $id) ?: null;
     }
 
     /**
@@ -602,11 +696,36 @@ class InvoiceForm extends Component
         );
     }
 
-    public function getTaxTotalProperty(): float
+    /** El impuesto a la tarifa, antes de la exoneración. */
+    public function getGrossTaxProperty(): float
     {
         $percent = Tax::whereIn('id', $this->selectedTaxes)->sum('percent');
 
         return round($this->taxableBase * $percent / 100, 2);
+    }
+
+    /**
+     * Lo que se exonera: la tarifa exonerada sobre la base, nunca más que el
+     * impuesto. Con 13 de 13 es todo el IVA.
+     */
+    public function getExemptTaxAmountProperty(): float
+    {
+        if (! $exo = $this->exoneracionAplicable()) {
+            return 0.0;
+        }
+
+        $percent = (float) Tax::whereIn('id', $this->selectedTaxes)->sum('percent');
+        $tarifa = min($percent, (float) ($exo['tarifa'] ?? $percent));
+
+        return $tarifa >= $percent
+            ? $this->grossTax
+            : min($this->grossTax, round($this->taxableBase * $tarifa / 100, 2));
+    }
+
+    /** Lo que efectivamente se cobra de impuesto. */
+    public function getTaxTotalProperty(): float
+    {
+        return round($this->grossTax - $this->exemptTaxAmount, 2);
     }
 
     public function getTotalProperty(): float
@@ -828,6 +947,52 @@ class InvoiceForm extends Component
      * Al editar, un descuento que ya estaba autorizado no se vuelve a pedir:
      * corregir un teléfono no puede exigir la clave de un descuento de ayer.
      */
+    /**
+     * Antes de declarar una exoneración, lo que Hacienda va a revisar: que sea
+     * una Factura Electrónica, a nombre de la cédula exonerada, vigente y que
+     * cubra el CABYS del servicio. Mejor enterarse en el mostrador que con un
+     * rechazo días después.
+     *
+     * @return array<string,mixed>|null  la exoneración a declarar
+     */
+    private function validarExoneracion(): ?array
+    {
+        if (! $this->tax_exempt) {
+            return null;
+        }
+
+        $falla = fn (string $mensaje) => throw ValidationException::withMessages(['tax_exempt' => $mensaje]);
+
+        if (! $this->wantsInvoice) {
+            $falla('La exoneración solo se declara en Factura Electrónica: marcá «Emitir Factura Electrónica» '
+                . 'a nombre del cliente exonerado, o desmarcá la exoneración.');
+        }
+
+        if (! $exo = $this->exoneracionAplicable()) {
+            $falla('A quien se factura no tiene una exoneración registrada. Registrala en Clientes '
+                . '(número de autorización de EXONET) o desmarcá la exoneración.');
+        }
+
+        if (filled($exo['identificacion'] ?? null) && $exo['identificacion'] !== $this->identificacionFacturada()) {
+            $falla("La exoneración {$exo['numero']} es de la identificación {$exo['identificacion']}: "
+                . 'la factura tiene que ir a esa misma cédula.');
+        }
+
+        if (filled($exo['vence'] ?? null) && \Carbon\Carbon::parse($exo['vence'])->endOfDay()->isPast()) {
+            $falla("La exoneración {$exo['numero']} venció el "
+                . \Carbon\Carbon::parse($exo['vence'])->format('d/m/Y') . '. Actualizala en el cliente o desmarcá la exoneración.');
+        }
+
+        $cabys = CompanySetting::instance()->default_cabys_code ?: config('hacienda.default_cabys_code');
+
+        if (! empty($exo['cabys']) && ! in_array((string) $cabys, array_map('strval', $exo['cabys']), true)) {
+            $falla("La exoneración {$exo['numero']} no cubre el CABYS del servicio ({$cabys}). "
+                . 'Hacienda la rechazaría: revisá con el cliente qué tiene autorizado en EXONET.');
+        }
+
+        return $exo;
+    }
+
     private function descuentoSinCambios(): bool
     {
         return $this->invoice?->exists
@@ -842,6 +1007,7 @@ class InvoiceForm extends Component
         $this->validarCredito();
         $this->validarDescuento();
         $this->validarCajaAbierta();
+        $exoneracion = $this->validarExoneracion();
 
         // Cómo estaba antes de guardar, para ajustar lo que cuelga de la guía.
         $antes = $this->invoice?->exists ? [
@@ -851,7 +1017,7 @@ class InvoiceForm extends Component
         ] : null;
         $avisos = [];
 
-        DB::transaction(function () use ($data, $antes, &$avisos) {
+        DB::transaction(function () use ($data, $antes, $exoneracion, &$avisos) {
             $invoice = app(RegistroDeGuia::class)->guardar($this->invoice, [
                 'pickup_branch_id' => $data['pickup_branch_id'],
                 'delivery_branch_id' => $data['delivery_branch_id'],
@@ -896,6 +1062,9 @@ class InvoiceForm extends Component
                 'assigned_to' => $data['assigned_to'],
                 'subtotal' => $this->subtotal,
                 'tax_total' => $this->taxTotal,
+                'tax_exempt' => $exoneracion !== null,
+                'exemption' => $exoneracion,
+                'exempt_tax_amount' => $exoneracion ? $this->exemptTaxAmount : 0,
                 'total' => $this->total,
                 'cobro' => $this->cobro,
                 'items' => $data['items'],
@@ -936,6 +1105,7 @@ class InvoiceForm extends Component
             $guia->bill_type,
             $guia->receptorIdentificado(),
             $guia->receptorIdentificado() ? $guia->receptorDeFactura() : null,
+            $guia->exoneracion()['numero'] ?? null,
         ]);
     }
 
@@ -1062,6 +1232,8 @@ class InvoiceForm extends Component
             'destinatarioElegido' => $this->recipient_customer_id ? Customer::find($this->recipient_customer_id) : null,
             'resultadosRemitente' => $this->sender_customer_id ? null : $this->buscarClientes($this->senderSearch),
             'resultadosDestinatario' => $this->recipient_customer_id ? null : $this->buscarClientes($this->recipientSearch),
+            'exoneracion' => $this->exoneracionAplicable(),
+            'clienteFacturado' => $this->wantsInvoice ? $this->clienteFacturado() : null,
             'remitenteEsDeCredito' => $this->sender_customer_id
                 ? (bool) Customer::find($this->sender_customer_id)?->isCredit()
                 : false,

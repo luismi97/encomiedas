@@ -204,6 +204,9 @@ class Invoice extends Model
         'subtotal',
         'discount_amount',
         'tax_total',
+        'tax_exempt',
+        'exemption',
+        'exempt_tax_amount',
         'total',
         'payment_method',
         'payment_timing',
@@ -225,6 +228,9 @@ class Invoice extends Model
             'subtotal' => 'decimal:5',
             'discount_amount' => 'decimal:5',
             'tax_total' => 'decimal:5',
+            'tax_exempt' => 'boolean',
+            'exemption' => 'array',
+            'exempt_tax_amount' => 'decimal:5',
             'total' => 'decimal:5',
             'delivered_at' => 'datetime',
             'returned_at' => 'datetime',
@@ -921,6 +927,16 @@ class Invoice extends Model
                 'email'  => $this->recipient_email,
             ],
         };
+    }
+
+    /**
+     * La exoneración que declara esta guía, o null si paga el IVA completo.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function exoneracion(): ?array
+    {
+        return $this->tax_exempt && filled($this->exemption['numero'] ?? null) ? $this->exemption : null;
     }
 
     public function billToLabel(): string

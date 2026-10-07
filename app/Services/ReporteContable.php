@@ -75,7 +75,10 @@ class ReporteContable
                 'clave'       => $c->clave,
                 'receptor'    => $c->receptor_data['nombre'] ?? 'Consumidor final',
                 'cedula'      => $c->receptor_data['numero'] ?? null,
-                'tarifa'      => $this->tarifa((float) $c->sub_total, (float) $c->total_tax),
+                'tarifa'      => (float) $c->total_exonerated > 0
+                    // Exonerado no es exento: el contador lo declara aparte.
+                    ? 'Exonerado'
+                    : $this->tarifa((float) $c->sub_total, (float) $c->total_tax),
                 'venta'       => $venta,
                 'iva'         => $iva,
                 'total'       => round($venta + $iva, 2),

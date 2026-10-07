@@ -444,6 +444,44 @@
                     </label>
                 @endforeach
             </div>
+
+            {{-- La exoneración es del cliente a quien se factura: se marca sola al
+                 elegirlo y Hacienda la valida contra su cédula. --}}
+            <div class="rounded-lg border p-4 {{ $tax_exempt
+                    ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20'
+                    : 'border-gray-200 dark:border-gray-700' }}" data-test="bloque-exoneracion">
+                <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" wire:model.live="tax_exempt" class="checkbox mt-0.5" data-test="exonerar-iva">
+                    <span>
+                        <span class="font-medium">Cliente exonerado de IVA</span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400">
+                            Solo con una exoneración autorizada (EXONET) registrada en el cliente a quien se factura.
+                            Va en la Factura Electrónica con su número de autorización.
+                        </span>
+                    </span>
+                </label>
+
+                @if ($tax_exempt)
+                    @if ($exoneracion)
+                        <p class="mt-3 text-sm text-emerald-800 dark:text-emerald-200" data-test="exoneracion-aplicada">
+                            Autorización <strong class="font-mono">{{ $exoneracion['numero'] }}</strong>
+                            · {{ \App\Services\Hacienda\Catalogs::EXEMPTION_DOCUMENT_TYPES[$exoneracion['tipo']] ?? 'Otro documento' }}
+                            · exonera {{ rtrim(rtrim(number_format((float) $exoneracion['tarifa'], 2), '0'), '.') }} puntos de IVA
+                            @if (! empty($exoneracion['vence']))
+                                · vence {{ \Carbon\Carbon::parse($exoneracion['vence'])->format('d/m/Y') }}
+                            @endif
+                        </p>
+                    @elseif (! $wantsInvoice)
+                        <p class="mt-3 text-sm text-amber-700 dark:text-amber-300">Marcá «Emitir Factura Electrónica» a nombre del cliente exonerado.</p>
+                    @else
+                        <p class="mt-3 text-sm text-amber-700 dark:text-amber-300">
+                            {{ $clienteFacturado ? $clienteFacturado->name . ' no tiene' : 'A quien se factura no es un cliente registrado con' }}
+                            una exoneración registrada: se cobrará el IVA completo hasta que se registre en Clientes.
+                        </p>
+                    @endif
+                @endif
+                @error('tax_exempt') <p class="error-text mt-2">{{ $message }}</p> @enderror
+            </div>
             {{-- Una sola decisión, porque en el mostrador son excluyentes: o lo
                  paga el remitente ahora, o lo paga quien retira, o va a la
                  cuenta del cliente. De esto depende a qué caja entra la plata. --}}
@@ -558,7 +596,15 @@
                         </div>
                     @endif
                     <div class="flex justify-between"><span>Descuento</span><span data-test="resumen-descuento">-₡{{ number_format((float) $discount_amount, 2) }}</span></div>
-                    <div class="flex justify-between"><span>Impuestos</span><span data-test="resumen-impuestos">₡{{ number_format($this->taxTotal, 2) }}</span></div>
+                    @if ($this->exemptTaxAmount > 0)
+                        <div class="flex justify-between"><span>Impuestos</span><span>₡{{ number_format($this->grossTax, 2) }}</span></div>
+                        <div class="flex justify-between text-emerald-700 dark:text-emerald-300">
+                            <span>IVA exonerado</span><span data-test="resumen-exonerado">-₡{{ number_format($this->exemptTaxAmount, 2) }}</span>
+                        </div>
+                        <div class="flex justify-between"><span>Impuesto a cobrar</span><span data-test="resumen-impuestos">₡{{ number_format($this->taxTotal, 2) }}</span></div>
+                    @else
+                        <div class="flex justify-between"><span>Impuestos</span><span data-test="resumen-impuestos">₡{{ number_format($this->taxTotal, 2) }}</span></div>
+                    @endif
                     <div class="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-700 pt-2">
                         <span>Total</span><span data-test="resumen-total">₡{{ number_format($this->total, 2) }}</span>
                     </div>

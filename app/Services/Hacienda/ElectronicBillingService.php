@@ -516,6 +516,7 @@ class ElectronicBillingService
         $electronicInvoice->signed_xml_path = $path;
         $electronicInvoice->sub_total = $totals['venta_neta'] ?? 0;
         $electronicInvoice->total_tax = $totals['impuesto'] ?? 0;
+        $electronicInvoice->total_exonerated = $totals['exonerado'] ?? 0;
         $electronicInvoice->total_discount = $totals['descuentos'] ?? 0;
         $electronicInvoice->total = $totals['total'] ?? 0;
         $electronicInvoice->save();
@@ -708,8 +709,12 @@ class ElectronicBillingService
     private function originalIvaRate(ElectronicInvoice $original): float
     {
         $base = (float) $original->sub_total;
+        // Con exoneración, total_tax es solo lo cobrado: despejar de ahí daría
+        // la tarifa neta (0 % si fue completa) y la nota cobraría el IVA que
+        // el original no cobró. La tarifa es la de la guía.
+        $exonerado = ! empty($original->receptor_data['exoneracion']);
 
-        if ($base > 0 && $original->total_tax > 0) {
+        if (! $exonerado && $base > 0 && $original->total_tax > 0) {
             return round((float) $original->total_tax / $base * 100, 2);
         }
 
@@ -864,7 +869,13 @@ class ElectronicBillingService
             return [];
         }
 
-        // Destinatario, remitente u otra persona: lo decide la guía.
-        return $invoice->receptorDeFactura();
+        // Destinatario, remitente u otra persona: lo decide la guía. La
+        // exoneración va con el receptor porque es suya: Hacienda la valida
+        // contra su cédula, y las notas la heredan al copiar receptor_data.
+        return array_filter(
+            $invoice->receptorDeFactura() + ['exoneracion' => $invoice->exoneracion()],
+            fn ($valor, $clave) => $clave !== 'exoneracion' || $valor !== null,
+            ARRAY_FILTER_USE_BOTH
+        );
     }
 }

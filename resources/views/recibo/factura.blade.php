@@ -124,6 +124,9 @@
         @empty
             <tr><td>Impuesto</td><td>{{ number_format((float) $guia->tax_total, 2) }}</td></tr>
         @endforelse
+        @if ($exo = $guia->exoneracion())
+            <tr><td>IVA exonerado {{ $exo['numero'] }}</td><td>-{{ number_format((float) $guia->exempt_tax_amount, 2) }}</td></tr>
+        @endif
         <tr class="grande"><td>TOTAL</td><td>₡{{ number_format((float) $guia->total, 2) }}</td></tr>
     </table>
 

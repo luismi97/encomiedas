@@ -50,22 +50,29 @@ abstract class NotaElectronicaXml extends FacturaElectronicaXml
         $rate = (float) ($emisor['iva_rate'] ?? config('hacienda.tax.iva_rate'));
         $this->ivaPercent = $rate;
 
-        // El monto de la nota viene con IVA incluido. Se despeja primero el
-        // IVA y la base se saca por resta, para que base + IVA dé exactamente
-        // el total y no quede un céntimo de diferencia por redondeo.
+        // El monto de la nota viene con IVA incluido —el que se cobró: con
+        // exoneración, sin la parte exonerada—. Se despeja primero el IVA y
+        // la base se saca por resta, para que base + IVA dé exactamente el
+        // total y no quede un céntimo de diferencia por redondeo.
         $amount = round(abs((float) $this->electronicInvoice->total), 2);
+        $neta = $this->tarifaNeta($rate);
 
-        if ($rate > 0) {
-            $iva  = round($amount - ($amount / (1 + $rate / 100)), 2);
-            $base = round($amount - $iva, 2);
-        } else {
-            $base = $amount;
-            $iva  = 0.0;
-        }
+        $base = $neta > 0
+            ? round($amount - round($amount - ($amount / (1 + $neta / 100)), 2), 2)
+            : $amount;
 
         $cabys = $original->emisor_data['default_cabys']
             ?? $emisor['default_cabys']
             ?? config('hacienda.default_cabys_code');
+
+        $impuesto = $this->impuestoDeLinea($base, $rate);
+
+        // Sin exoneración, el IVA despejado manda: recalcularlo sobre la base
+        // podía correrse un céntimo y la nota dejaría de sumar su monto.
+        if ($impuesto['exonerado'] <= 0) {
+            $iva = round($amount - $base, 2);
+            $impuesto = ['iva' => $iva, 'exonerado' => 0.0, 'neto' => $iva, 'tarifa_exonerada' => 0.0];
+        }
 
         $this->lines[] = [
             'numero'     => 1,
@@ -76,31 +83,13 @@ abstract class NotaElectronicaXml extends FacturaElectronicaXml
             'montoTotal' => $base,
             'descuento'  => 0,
             'subTotal'   => $base,
-            'iva'        => $iva,
             'iva_rate'   => $rate,
             'iva_codigo' => Catalogs::ivaRateCode($rate),
-            'totalLinea' => round($base + $iva, 5),
+        ] + $impuesto + [
+            'totalLinea' => round($base + $impuesto['neto'], 5),
         ];
 
-        $this->desglosePorTarifa = $this->buildDesgloseFromLines();
-
-        $gravado   = $iva > 0;
-        $isService = $this->isService($cabys);
-
-        $this->resumen = [
-            'serv_gravado' => ($gravado && $isService) ? $base : 0.0,
-            'serv_exento'  => (!$gravado && $isService) ? $base : 0.0,
-            'merc_gravada' => ($gravado && !$isService) ? $base : 0.0,
-            'merc_exenta'  => (!$gravado && !$isService) ? $base : 0.0,
-            'gravado'      => $gravado ? $base : 0.0,
-            'exento'       => $gravado ? 0.0 : $base,
-            'total_venta'  => $base,
-            'descuentos'   => 0.0,
-            'venta_neta'   => $base,
-            'impuesto'     => $iva,
-            'otros_cargos' => 0.0,
-            'total'        => round($base + $iva, 5),
-        ];
+        $this->resumirLineas();
     }
 
     /**

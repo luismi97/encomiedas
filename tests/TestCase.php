@@ -38,7 +38,11 @@ abstract class TestCase extends BaseTestCase
         // Digitar una cédula consulta a Hacienda (TaxpayerLookup). Ninguna
         // prueba sale a internet: por defecto Hacienda «no la conoce». Quien
         // necesite otra respuesta reemplaza TaxpayerLookup en el contenedor.
-        Http::fake(['api.hacienda.go.cr/fe/ae*' => Http::response(null, 404)]);
+        Http::fake([
+            'api.hacienda.go.cr/fe/ae*' => Http::response(null, 404),
+            // Lo mismo con las exoneraciones de EXONET (ExoneracionLookup).
+            'api.hacienda.go.cr/fe/ex*' => Http::response(null, 404),
+        ]);
 
         if ($this->usaBaseDeDatos()) {
             // La que dejó la migración, no una nueva: los catálogos que

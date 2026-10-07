@@ -28,6 +28,45 @@ class Catalogs
     ];
 
     /**
+     * TipoDocumentoEX1: tipo de documento de exoneracion o autorizacion
+     * (TipoExoneracionType del XSD v4.4). El 99 exige describirlo aparte.
+     */
+    public const EXEMPTION_DOCUMENT_TYPES = [
+        '01' => 'Compras autorizadas por la Dirección General de Tributación',
+        '02' => 'Ventas exentas a diplomáticos',
+        '03' => 'Autorizado por Ley Especial',
+        '04' => 'Exenciones DGH, autorización local genérica',
+        '05' => 'Exenciones DGH, Transitorio V (ingeniería, arquitectura, topografía)',
+        '06' => 'Servicios turísticos inscritos ante el ICT',
+        '07' => 'Transitorio XVII (reciclaje y reutilizables)',
+        '08' => 'Exoneración a Zona Franca',
+        '09' => 'Servicios complementarios para la exportación (art. 11 RLIVA)',
+        '10' => 'Órgano de las corporaciones municipales',
+        '11' => 'Exenciones DGH, autorización de impuesto local concreta',
+        '99' => 'Otros',
+    ];
+
+    /**
+     * NombreInstitucion: quien emitio la exoneracion (enumeracion del XSD
+     * v4.4). El 99 exige el nombre aparte.
+     */
+    public const EXEMPTION_INSTITUTIONS = [
+        '01' => 'Ministerio de Hacienda',
+        '02' => 'Ministerio de Relaciones Exteriores y Culto',
+        '03' => 'Ministerio de Agricultura y Ganadería',
+        '04' => 'Ministerio de Economía, Industria y Comercio',
+        '05' => 'Cruz Roja Costarricense',
+        '06' => 'Benemérito Cuerpo de Bomberos de Costa Rica',
+        '07' => 'Asociación Obras del Espíritu Santo',
+        '08' => 'Fecrunapa',
+        '09' => 'EARTH',
+        '10' => 'INCAE',
+        '11' => 'Junta de Protección Social',
+        '12' => 'Aresep',
+        '99' => 'Otros',
+    ];
+
+    /**
      * Etiqueta legible de la condicion de venta configurada.
      *
      * Las pantallas y el PDF la sacan de aqui en vez de escribir "Contado" a

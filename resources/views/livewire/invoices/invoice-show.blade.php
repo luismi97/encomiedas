@@ -418,6 +418,11 @@
                 @foreach ($invoice->taxes as $tax)
                     <div class="flex justify-between text-sm"><span>{{ $tax->name }} ({{ number_format($tax->percent, 2) }}%)</span><span>₡{{ number_format($tax->amount, 2) }}</span></div>
                 @endforeach
+                @if ($exo = $invoice->exoneracion())
+                    <div class="flex justify-between text-sm text-emerald-700 dark:text-emerald-300" data-test="guia-exonerado">
+                        <span>IVA exonerado ({{ $exo['numero'] }})</span><span>-₡{{ number_format((float) $invoice->exempt_tax_amount, 2) }}</span>
+                    </div>
+                @endif
                 <div class="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-700 pt-2">
                     <span>Total</span><span data-test="guia-total">₡{{ number_format($invoice->total, 2) }}</span>
                 </div>

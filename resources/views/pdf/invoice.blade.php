@@ -170,6 +170,12 @@
                 <td class="value">₡{{ number_format($tax->amount, 2) }}</td>
             </tr>
         @endforeach
+        @if ($exo = $invoice->exoneracion())
+            <tr>
+                <td class="label">IVA exonerado ({{ $exo['numero'] }})</td>
+                <td class="value">-₡{{ number_format((float) $invoice->exempt_tax_amount, 2) }}</td>
+            </tr>
+        @endif
         <tr class="grand">
             <td class="label">Total</td>
             <td class="value">₡{{ number_format($invoice->total, 2) }}</td>

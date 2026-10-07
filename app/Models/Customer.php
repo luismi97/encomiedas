@@ -50,6 +50,18 @@ class Customer extends Model
         'credit_cutoff_day',
         'notes',
         'is_active',
+        'tax_exempt',
+        'exemption_document_type',
+        'exemption_document_type_other',
+        'exemption_number',
+        'exemption_institution',
+        'exemption_institution_other',
+        'exemption_article',
+        'exemption_inciso',
+        'exemption_issued_at',
+        'exemption_expires_at',
+        'exemption_rate',
+        'exemption_cabys',
     ];
 
     protected function casts(): array
@@ -57,6 +69,11 @@ class Customer extends Model
         return [
             'is_active'    => 'boolean',
             'credit_limit' => 'decimal:2',
+            'tax_exempt'   => 'boolean',
+            'exemption_issued_at'  => 'date',
+            'exemption_expires_at' => 'date',
+            'exemption_rate'       => 'decimal:2',
+            'exemption_cabys'      => 'array',
         ];
     }
 
@@ -123,6 +140,49 @@ class Customer extends Model
     public function puedeFacturaElectronica(): bool
     {
         return filled($this->identification) && filled($this->identification_type);
+    }
+
+    /**
+     * ¿Hay que facturarle exonerado? Marcado y con el número de autorización:
+     * sin el número no hay nada que declarar en el nodo Exoneracion.
+     */
+    public function estaExonerado(): bool
+    {
+        return $this->tax_exempt && filled($this->exemption_number);
+    }
+
+    /** La exoneración ya venció a esa fecha (hoy, si no se dice). */
+    public function exoneracionVencida(?\Carbon\CarbonInterface $fecha = null): bool
+    {
+        return $this->exemption_expires_at !== null
+            && $this->exemption_expires_at->lt(($fecha ?? now())->copy()->startOfDay());
+    }
+
+    /**
+     * Lo que la guía copia para declarar la exoneración.
+     *
+     * Se copia y no se referencia, como el resto de los datos del cliente: la
+     * guía es un documento, y si la exoneración vence o la cambian después,
+     * la factura tiene que seguir declarando la que estaba vigente.
+     *
+     * @return array<string,mixed>
+     */
+    public function datosDeExoneracion(): array
+    {
+        return [
+            'tipo'             => $this->exemption_document_type,
+            'tipo_otro'        => $this->exemption_document_type_other,
+            'numero'           => $this->exemption_number,
+            'institucion'      => $this->exemption_institution,
+            'institucion_otro' => $this->exemption_institution_other,
+            'articulo'         => $this->exemption_article,
+            'inciso'           => $this->exemption_inciso,
+            'fecha_emision'    => $this->exemption_issued_at?->toDateString(),
+            'vence'            => $this->exemption_expires_at?->toDateString(),
+            'tarifa'           => (float) ($this->exemption_rate ?? 13),
+            'identificacion'   => $this->identification,
+            'cabys'            => $this->exemption_cabys ?: [],
+        ];
     }
 
     /** Cómo se muestra en listados y buscadores. */

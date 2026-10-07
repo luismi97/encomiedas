@@ -137,6 +137,113 @@
                     @endif
                 </div>
 
+                <h3 class="font-semibold border-b border-gray-200 dark:border-gray-700 pb-2">Exoneración de IVA</h3>
+                <label class="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" wire:model.live="tax_exempt" class="checkbox mt-0.5" data-test="cliente-exonerado">
+                    <span>
+                        <span class="font-medium">Cliente exonerado de IVA</span>
+                        <span class="block text-sm text-gray-500 dark:text-gray-400">
+                            Solo con una exoneración autorizada por Hacienda (EXONET, zona franca, diplomático, ley especial…).
+                            Sus guías se marcan exoneradas solas y la Factura Electrónica declara la autorización.
+                        </span>
+                    </span>
+                </label>
+
+                @if ($tax_exempt)
+                    <div class="space-y-4 rounded-lg border border-emerald-200 dark:border-emerald-800 p-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                            <div class="sm:col-span-2">
+                                <label class="label">Número de autorización</label>
+                                <input type="text" wire:model="exemption_number" maxlength="40" placeholder="Ej. AL-00012345-25"
+                                       class="input font-mono uppercase @error('exemption_number') input-error @enderror" data-test="numero-exoneracion">
+                                @error('exemption_number') <p class="error-text">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <button type="button" wire:click="consultarExoneracion" wire:loading.attr="disabled" wire:target="consultarExoneracion"
+                                        class="btn-secondary !py-2 !px-3 text-sm w-full">
+                                    <span wire:loading.remove wire:target="consultarExoneracion">Consultar en Hacienda</span>
+                                    <span wire:loading wire:target="consultarExoneracion">Consultando…</span>
+                                </button>
+                            </div>
+                        </div>
+                        @if ($avisoExoneracion)
+                            <p class="text-sm text-amber-700 dark:text-amber-300 -mt-2" data-test="aviso-exoneracion">{{ $avisoExoneracion }}</p>
+                        @endif
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="label">Tipo de documento</label>
+                                <select wire:model.live="exemption_document_type" class="input @error('exemption_document_type') input-error @enderror">
+                                    <option value="">— Elegí —</option>
+                                    @foreach (\App\Services\Hacienda\Catalogs::EXEMPTION_DOCUMENT_TYPES as $codigo => $etiqueta)
+                                        <option value="{{ $codigo }}">{{ $codigo }} - {{ $etiqueta }}</option>
+                                    @endforeach
+                                </select>
+                                @error('exemption_document_type') <p class="error-text">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="label">Institución que la emitió</label>
+                                <select wire:model.live="exemption_institution" class="input @error('exemption_institution') input-error @enderror">
+                                    <option value="">— Elegí —</option>
+                                    @foreach (\App\Services\Hacienda\Catalogs::EXEMPTION_INSTITUTIONS as $codigo => $etiqueta)
+                                        <option value="{{ $codigo }}">{{ $codigo }} - {{ $etiqueta }}</option>
+                                    @endforeach
+                                </select>
+                                @error('exemption_institution') <p class="error-text">{{ $message }}</p> @enderror
+                            </div>
+                            @if ($exemption_document_type === '99')
+                                <div>
+                                    <label class="label">Describí el documento</label>
+                                    <input type="text" wire:model="exemption_document_type_other" maxlength="100"
+                                           class="input @error('exemption_document_type_other') input-error @enderror">
+                                    @error('exemption_document_type_other') <p class="error-text">{{ $message }}</p> @enderror
+                                </div>
+                            @endif
+                            @if ($exemption_institution === '99')
+                                <div>
+                                    <label class="label">Nombre de la institución</label>
+                                    <input type="text" wire:model="exemption_institution_other" maxlength="160"
+                                           class="input @error('exemption_institution_other') input-error @enderror">
+                                    @error('exemption_institution_other') <p class="error-text">{{ $message }}</p> @enderror
+                                </div>
+                            @endif
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                            <div>
+                                <label class="label">Emitida</label>
+                                <input type="date" wire:model="exemption_issued_at" class="input @error('exemption_issued_at') input-error @enderror">
+                                @error('exemption_issued_at') <p class="error-text">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="label">Vence <span class="text-gray-400 font-normal">(opcional)</span></label>
+                                <input type="date" wire:model="exemption_expires_at" class="input @error('exemption_expires_at') input-error @enderror">
+                                @error('exemption_expires_at') <p class="error-text">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="label">Tarifa exonerada (%)</label>
+                                <input type="number" step="0.01" min="0" max="13" wire:model="exemption_rate"
+                                       class="input @error('exemption_rate') input-error @enderror">
+                                @error('exemption_rate') <p class="error-text">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="label">Artículo <span class="text-gray-400 font-normal">(opc.)</span></label>
+                                <input type="number" min="0" wire:model="exemption_article" class="input @error('exemption_article') input-error @enderror">
+                            </div>
+                            <div>
+                                <label class="label">Inciso <span class="text-gray-400 font-normal">(opc.)</span></label>
+                                <input type="number" min="0" wire:model="exemption_inciso" class="input @error('exemption_inciso') input-error @enderror">
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            Tarifa exonerada: cuántos puntos del IVA no paga; 13 es la exoneración completa.
+                            @if ($exemption_cabys)
+                                Cubre los CABYS: <span class="font-mono">{{ implode(', ', $exemption_cabys) }}</span>.
+                            @endif
+                        </p>
+                    </div>
+                @endif
+
                 <div>
                     <label class="label">Notas</label>
                     <textarea wire:model="notes" rows="2" class="input"></textarea>
@@ -165,6 +272,7 @@
                 @foreach (\App\Models\Customer::PAYMENT_CONDITIONS as $valor => $etiqueta)
                     <option value="{{ $valor }}">{{ $etiqueta }}</option>
                 @endforeach
+                <option value="exempt">Exonerados de IVA</option>
             </select>
         </div>
 
@@ -210,6 +318,10 @@
                                     : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' }}">
                                     {{ $customer->paymentConditionLabel() }}
                                 </span>
+                                @if ($customer->estaExonerado())
+                                    <span class="badge bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+                                          title="Exoneración {{ $customer->exemption_number }}">Exonerado</span>
+                                @endif
                                 @if ($customer->isCredit())
                                     <div class="text-xs text-gray-500 mt-1">
                                         Límite ₡{{ number_format($customer->credit_limit, 2) }}
@@ -226,6 +338,10 @@
                                 </x-action-button>
                             </td>
                             <td class="py-3 text-right whitespace-nowrap">
+                                @if ($customer->identification && auth()->user()->isAdmin())
+                                    <a href="{{ route('reportes.index', ['reporte' => 'clientes', 'cliente' => $customer->identification]) }}"
+                                       class="text-sm text-brand-600 dark:text-brand-400 hover:underline mr-3">Facturas</a>
+                                @endif
                                 <x-action-button action="edit({{ $customer->id }})" variant="link">Editar</x-action-button>
                             </td>
                         </tr>

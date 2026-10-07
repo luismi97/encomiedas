@@ -120,6 +120,9 @@
         @if ((float) $guia->discount_amount > 0)
             <tr><td>Descuento</td><td>-{{ number_format((float) $guia->discount_amount, 2) }}</td></tr>
         @endif
+        @if ($exo = $guia->exoneracion())
+            <tr><td>IVA exonerado {{ $exo['numero'] }}</td><td>-{{ number_format((float) $guia->exempt_tax_amount, 2) }}</td></tr>
+        @endif
         <tr><td>Impuesto</td><td>{{ number_format((float) $guia->tax_total, 2) }}</td></tr>
         <tr class="grande"><td>TOTAL</td><td>{{ number_format((float) $guia->total, 2) }}</td></tr>
         <tr><td>{{ $guia->saleConditionLabel() }}</td><td>{{ $guia->medioDePagoImpreso() }}</td></tr>

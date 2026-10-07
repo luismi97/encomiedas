@@ -146,7 +146,7 @@ abstract class XmlBuilder
             }
 
             $subTotal = round($gross - $lineDiscount, 5);
-            $iva = $rate > 0 ? round($subTotal * $rate / 100, 5) : 0.0;
+            $impuesto = $this->impuestoDeLinea($subTotal, $rate);
 
             // `price` es el total de la línea. Hacienda valida que
             // PrecioUnitario × Cantidad = MontoTotal, y el precio por bulto
@@ -162,61 +162,14 @@ abstract class XmlBuilder
                 'montoTotal' => $gross,
                 'descuento'  => $lineDiscount,
                 'subTotal'   => $subTotal,
-                'iva'        => $iva,
                 'iva_rate'   => $rate,
                 'iva_codigo' => $codigoTarifa,
-                'totalLinea' => round($subTotal + $iva, 5),
+            ] + $impuesto + [
+                'totalLinea' => round($subTotal + $impuesto['neto'], 5),
             ];
         }
 
-        $this->desglosePorTarifa = $this->buildDesgloseFromLines();
-
-        // Hacienda clasifica cada linea como mercancia o servicio por el CABYS,
-        // no por la unidad de medida. Meter todo en TotalServGravados cuando el
-        // CABYS es de un bien produce el par de rechazos -111 ("el total de
-        // servicios gravados no coincide con la suma de servicios gravados (0)")
-        // y -110 ("el resumen carece del total de mercancias gravadas, pero
-        // cuenta con mercancias gravadas").
-        $servGravado = $servExento = $mercGravada = $mercExenta = 0.0;
-
-        foreach ($this->lines as $l) {
-            $monto = (float) $l['montoTotal'];
-            $esServicio = $this->isService($l['cabys'] ?? null);
-            $esGravado = ($l['iva'] ?? 0) > 0;
-
-            if ($esGravado && $esServicio) {
-                $servGravado += $monto;
-            } elseif ($esGravado) {
-                $mercGravada += $monto;
-            } elseif ($esServicio) {
-                $servExento += $monto;
-            } else {
-                $mercExenta += $monto;
-            }
-        }
-
-        $gravado = round($servGravado + $mercGravada, 5);
-        $exento  = round($servExento + $mercExenta, 5);
-
-        $totalVenta     = round(array_sum(array_column($this->lines, 'montoTotal')), 5);
-        $totalDescuento = round(array_sum(array_column($this->lines, 'descuento')), 5);
-        $totalVentaNeta = round($totalVenta - $totalDescuento, 5);
-        $totalImpuesto  = round(array_sum(array_column($this->lines, 'iva')), 5);
-
-        $this->resumen = [
-            'serv_gravado' => round($servGravado, 5),
-            'serv_exento'  => round($servExento, 5),
-            'merc_gravada' => round($mercGravada, 5),
-            'merc_exenta'  => round($mercExenta, 5),
-            'gravado'      => $gravado,
-            'exento'       => $exento,
-            'total_venta'  => $totalVenta,
-            'descuentos'   => $totalDescuento,
-            'venta_neta'   => $totalVentaNeta,
-            'impuesto'     => $totalImpuesto,
-            'otros_cargos' => 0.0,
-            'total'        => round($totalVentaNeta + $totalImpuesto, 5),
-        ];
+        $this->resumirLineas();
     }
 
     /**
@@ -276,7 +229,9 @@ abstract class XmlBuilder
             if (!isset($desglose[$codigo])) {
                 $desglose[$codigo] = ['tarifa' => (float) $l['iva_rate'], 'monto' => 0.0];
             }
-            $desglose[$codigo]['monto'] = round($desglose[$codigo]['monto'] + (float) $l['iva'], 5);
+            // Lo cobrado: TotalImpuesto suma los netos, y Hacienda exige que el
+            // desglose cuadre con él.
+            $desglose[$codigo]['monto'] = round($desglose[$codigo]['monto'] + (float) ($l['neto'] ?? $l['iva']), 5);
         }
 
         return $desglose;
@@ -371,10 +326,13 @@ abstract class XmlBuilder
             $imp->appendChild($this->el('CodigoTarifaIVA', $l['iva_codigo']));
             $imp->appendChild($this->el('Tarifa', number_format($l['iva_rate'], 2, '.', '')));
             $imp->appendChild($this->el('Monto', number_format($l['iva'], 2, '.', '')));
+            if (($l['exonerado'] ?? 0) > 0) {
+                $imp->appendChild($this->buildExoneracion($l));
+            }
             $linea->appendChild($imp);
 
             $linea->appendChild($this->el('ImpuestoAsumidoEmisorFabrica', '0.00'));
-            $linea->appendChild($this->el('ImpuestoNeto', number_format($l['iva'], 2, '.', '')));
+            $linea->appendChild($this->el('ImpuestoNeto', number_format($l['neto'] ?? $l['iva'], 2, '.', '')));
             $linea->appendChild($this->el('MontoTotalLinea', $this->num($l['totalLinea'])));
 
             $detalle->appendChild($linea);
@@ -399,17 +357,26 @@ abstract class XmlBuilder
         if (($r['serv_exento'] ?? 0) > 0) {
             $resumen->appendChild($this->el('TotalServExentos', $this->num($r['serv_exento'])));
         }
+        if (($r['serv_exonerado'] ?? 0) > 0) {
+            $resumen->appendChild($this->el('TotalServExonerado', $this->num($r['serv_exonerado'])));
+        }
         if (($r['merc_gravada'] ?? 0) > 0) {
             $resumen->appendChild($this->el('TotalMercanciasGravadas', $this->num($r['merc_gravada'])));
         }
         if (($r['merc_exenta'] ?? 0) > 0) {
             $resumen->appendChild($this->el('TotalMercanciasExentas', $this->num($r['merc_exenta'])));
         }
+        if (($r['merc_exonerada'] ?? 0) > 0) {
+            $resumen->appendChild($this->el('TotalMercExonerada', $this->num($r['merc_exonerada'])));
+        }
         if (($r['gravado'] ?? 0) > 0) {
             $resumen->appendChild($this->el('TotalGravado', $this->num($r['gravado'])));
         }
         if (($r['exento'] ?? 0) > 0) {
             $resumen->appendChild($this->el('TotalExento', $this->num($r['exento'])));
+        }
+        if (($r['exonerado'] ?? 0) > 0) {
+            $resumen->appendChild($this->el('TotalExonerado', $this->num($r['exonerado'])));
         }
         $resumen->appendChild($this->el('TotalVenta', $this->num($r['total_venta'] ?? 0)));
         if (($r['descuentos'] ?? 0) > 0) {
@@ -520,7 +487,9 @@ abstract class XmlBuilder
 
         $rate = (float) ($emisor['iva_rate'] ?? config('hacienda.tax.iva_rate'));
         $this->ivaPercent = $rate;
-        $factor = 1 + $rate / 100;
+        // El precio digitado es lo que pagó el cliente: con exoneración, sin
+        // la parte del IVA que no se le cobró.
+        $factor = 1 + $this->tarifaNeta($rate) / 100;
 
         $defaultCabys = $original->emisor_data['default_cabys']
             ?? $emisor['default_cabys']
@@ -531,7 +500,7 @@ abstract class XmlBuilder
             $unitIncl = round(abs((float) ($line['precio'] ?? 0)), 5);
             $unitBase = $rate > 0 ? round($unitIncl / $factor, 5) : $unitIncl;
             $gross    = round($unitBase * $qty, 5);
-            $iva      = $rate > 0 ? round($gross * $rate / 100, 5) : 0.0;
+            $impuesto = $this->impuestoDeLinea($gross, $rate);
             $cabys    = !empty($line['cabys']) ? $line['cabys'] : $defaultCabys;
             $detalle  = !empty($line['detalle']) ? $line['detalle'] : ($docLabel . ' - Línea ' . ($i + 1));
 
@@ -544,53 +513,180 @@ abstract class XmlBuilder
                 'montoTotal' => $gross,
                 'descuento'  => 0,
                 'subTotal'   => $gross,
-                'iva'        => $iva,
                 'iva_rate'   => $rate,
                 'iva_codigo' => Catalogs::ivaRateCode($rate),
-                'totalLinea' => round($gross + $iva, 5),
+            ] + $impuesto + [
+                'totalLinea' => round($gross + $impuesto['neto'], 5),
             ];
         }
 
-        $this->desglosePorTarifa = $this->buildDesgloseFromLines();
+        $this->resumirLineas();
+    }
 
-        $servGravado = $servExento = $mercGravada = $mercExenta = 0.0;
-        $totalBase = $totalIva = 0.0;
+    // ---------------------------------------------------------------------
+    // Impuesto y exoneración
+    // ---------------------------------------------------------------------
 
-        foreach ($this->lines as $l) {
-            $isService = $this->isService($l['cabys']);
-            $gravado   = $l['iva'] > 0;
-
-            if ($gravado && $isService) {
-                $servGravado += $l['montoTotal'];
-            } elseif ($gravado) {
-                $mercGravada += $l['montoTotal'];
-            } elseif ($isService) {
-                $servExento += $l['montoTotal'];
-            } else {
-                $mercExenta += $l['montoTotal'];
-            }
-
-            $totalBase += $l['subTotal'];
-            $totalIva  += $l['iva'];
+    /**
+     * La exoneración que declara el comprobante, o null.
+     *
+     * Viaja en receptor_data porque es del receptor: Hacienda la contrasta con
+     * EXONET por la cédula de quien se factura. Las notas copian receptor_data
+     * del original, así que la heredan sin hacer nada. Un tiquete no tiene
+     * receptor y no puede declararla.
+     *
+     * @return array<string,mixed>|null
+     */
+    protected function exoneracion(): ?array
+    {
+        if (!$this->includesReceptor()) {
+            return null;
         }
 
-        $totalBase = round($totalBase, 5);
-        $totalIva  = round($totalIva, 5);
+        $exo = $this->electronicInvoice->receptor_data['exoneracion'] ?? null;
 
-        $this->resumen = [
-            'serv_gravado' => round($servGravado, 5),
-            'serv_exento'  => round($servExento, 5),
-            'merc_gravada' => round($mercGravada, 5),
-            'merc_exenta'  => round($mercExenta, 5),
-            'gravado'      => round($servGravado + $mercGravada, 5),
-            'exento'       => round($servExento + $mercExenta, 5),
-            'total_venta'  => $totalBase,
-            'descuentos'   => 0.0,
-            'venta_neta'   => $totalBase,
-            'impuesto'     => $totalIva,
-            'otros_cargos' => 0.0,
-            'total'        => round($totalBase + $totalIva, 5),
+        return is_array($exo) && filled($exo['numero'] ?? null) ? $exo : null;
+    }
+
+    /** Lo que efectivamente se cobra de IVA, en puntos porcentuales. */
+    protected function tarifaNeta(float $rate): float
+    {
+        $exo = $this->exoneracion();
+
+        return $exo ? max(0.0, $rate - (float) ($exo['tarifa'] ?? $rate)) : $rate;
+    }
+
+    /**
+     * IVA de una línea: el de la tarifa (Monto), lo exonerado
+     * (MontoExoneracion) y lo cobrado (ImpuestoNeto = Monto − exonerado).
+     *
+     * Con exoneración los tres van a dos decimales ANTES de restar: así salen
+     * en el XML, y redondear después podía dejar un neto que no fuera
+     * exactamente Monto − MontoExoneracion.
+     *
+     * @return array{iva:float, exonerado:float, neto:float, tarifa_exonerada:float}
+     */
+    protected function impuestoDeLinea(float $base, float $rate): array
+    {
+        $iva = $rate > 0 ? round($base * $rate / 100, 5) : 0.0;
+        $exo = $this->exoneracion();
+
+        if (!$exo || $iva <= 0) {
+            return ['iva' => $iva, 'exonerado' => 0.0, 'neto' => $iva, 'tarifa_exonerada' => 0.0];
+        }
+
+        // MontoExoneracion = BaseImponible × TarifaExonerada / 100. No puede
+        // exonerarse más de lo que la tarifa cobra.
+        $tarifaExonerada = min($rate, max(0.0, (float) ($exo['tarifa'] ?? $rate)));
+        $iva = round($iva, 2);
+        $exonerado = $tarifaExonerada >= $rate ? $iva : round($base * $tarifaExonerada / 100, 2);
+
+        return [
+            'iva'              => $iva,
+            'exonerado'        => $exonerado,
+            'neto'             => round($iva - $exonerado, 2),
+            'tarifa_exonerada' => $tarifaExonerada,
         ];
+    }
+
+    /**
+     * Desglose y resumen a partir de las líneas.
+     *
+     * Hacienda clasifica cada línea como mercancía o servicio por el CABYS,
+     * no por la unidad de medida. Meter todo en TotalServGravados cuando el
+     * CABYS es de un bien produce el par de rechazos -111 ("el total de
+     * servicios gravados no coincide con la suma de servicios gravados (0)")
+     * y -110 ("el resumen carece del total de mercancias gravadas, pero
+     * cuenta con mercancias gravadas").
+     *
+     * Una línea exonerada reparte su MontoTotal: la parte de la tarifa que se
+     * exoneró va a «exonerado» y el resto sigue «gravado». Con la exoneración
+     * completa (13 de 13) todo es exonerado. TotalVenta es la suma de gravado,
+     * exento y exonerado, y TotalImpuesto la de los ImpuestoNeto.
+     */
+    protected function resumirLineas(): void
+    {
+        $this->desglosePorTarifa = $this->buildDesgloseFromLines();
+
+        $t = array_fill_keys([
+            'serv_gravado', 'serv_exento', 'serv_exonerado',
+            'merc_gravada', 'merc_exenta', 'merc_exonerada',
+        ], 0.0);
+
+        foreach ($this->lines as $l) {
+            $monto = (float) $l['montoTotal'];
+            $esServicio = $this->isService($l['cabys'] ?? null);
+
+            if (($l['iva'] ?? 0) <= 0) {
+                $t[$esServicio ? 'serv_exento' : 'merc_exenta'] += $monto;
+                continue;
+            }
+
+            $rate = (float) $l['iva_rate'];
+            $proporcion = ($l['exonerado'] ?? 0) > 0 && $rate > 0
+                ? min(1.0, (float) $l['tarifa_exonerada'] / $rate)
+                : 0.0;
+            $exonerado = round($monto * $proporcion, 5);
+
+            $t[$esServicio ? 'serv_exonerado' : 'merc_exonerada'] += $exonerado;
+            $t[$esServicio ? 'serv_gravado' : 'merc_gravada'] += $monto - $exonerado;
+        }
+
+        $t = array_map(fn ($v) => round($v, 5), $t);
+
+        $totalVenta     = round(array_sum(array_column($this->lines, 'montoTotal')), 5);
+        $totalDescuento = round(array_sum(array_column($this->lines, 'descuento')), 5);
+        $totalVentaNeta = round($totalVenta - $totalDescuento, 5);
+        $totalImpuesto  = round(array_sum(array_map(fn ($l) => (float) ($l['neto'] ?? $l['iva']), $this->lines)), 5);
+
+        $this->resumen = $t + [
+            'gravado'      => round($t['serv_gravado'] + $t['merc_gravada'], 5),
+            'exento'       => round($t['serv_exento'] + $t['merc_exenta'], 5),
+            'exonerado'    => round($t['serv_exonerado'] + $t['merc_exonerada'], 5),
+            'iva_exonerado' => round(array_sum(array_column($this->lines, 'exonerado')), 5),
+            'total_venta'  => $totalVenta,
+            'descuentos'   => $totalDescuento,
+            'venta_neta'   => $totalVentaNeta,
+            'impuesto'     => $totalImpuesto,
+            'otros_cargos' => 0.0,
+            'total'        => round($totalVentaNeta + $totalImpuesto, 5),
+        ];
+    }
+
+    /**
+     * Nodo Exoneracion (ExoneracionType v4.4), dentro de Impuesto y después de
+     * Monto. Los «Otros» (99) exigen describirse; el resto, no llevarlo.
+     */
+    protected function buildExoneracion(array $l): DOMElement
+    {
+        $exo = $this->exoneracion() ?? [];
+        $nodo = $this->doc->createElement('Exoneracion');
+
+        $tipo = (string) ($exo['tipo'] ?? '99');
+        $nodo->appendChild($this->el('TipoDocumentoEX1', $tipo));
+        if ($tipo === '99') {
+            $nodo->appendChild($this->el('TipoDocumentoOTRO', mb_substr((string) ($exo['tipo_otro'] ?? ''), 0, 100)));
+        }
+        $nodo->appendChild($this->el('NumeroDocumento', mb_substr((string) $exo['numero'], 0, 40)));
+        if (filled($exo['articulo'] ?? null)) {
+            $nodo->appendChild($this->el('Articulo', (string) (int) $exo['articulo']));
+        }
+        if (filled($exo['inciso'] ?? null)) {
+            $nodo->appendChild($this->el('Inciso', (string) (int) $exo['inciso']));
+        }
+
+        $institucion = (string) ($exo['institucion'] ?? '99');
+        $nodo->appendChild($this->el('NombreInstitucion', $institucion));
+        if ($institucion === '99') {
+            $nodo->appendChild($this->el('NombreInstitucionOtros', mb_substr((string) ($exo['institucion_otro'] ?? ''), 0, 160)));
+        }
+
+        $fecha = Carbon::parse($exo['fecha_emision'] ?? $this->electronicInvoice->issued_at, config('app.timezone') ?: 'America/Costa_Rica');
+        $nodo->appendChild($this->el('FechaEmisionEX', $fecha->format('Y-m-d\TH:i:sP')));
+        $nodo->appendChild($this->el('TarifaExonerada', number_format((float) $l['tarifa_exonerada'], 2, '.', '')));
+        $nodo->appendChild($this->el('MontoExoneracion', number_format((float) $l['exonerado'], 2, '.', '')));
+
+        return $nodo;
     }
 
     // ---------------------------------------------------------------------

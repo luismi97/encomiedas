@@ -44,6 +44,7 @@ class ElectronicInvoice extends Model
         'exchange_rate',
         'sub_total',
         'total_tax',
+        'total_exonerated',
         'total_discount',
         'total_other_charges',
         'total',
