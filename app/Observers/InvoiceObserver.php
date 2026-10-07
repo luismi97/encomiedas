@@ -55,9 +55,10 @@ class InvoiceObserver
     }
 
     /**
-     * Cuando una guía se entrega se reserva la clave de Hacienda y el
-     * comprobante queda en "pendientes de envío": nunca se transmite solo
-     * (requisito de negocio).
+     * Al entregar se asegura que exista el comprobante. Normalmente ya se
+     * reservó al recibir el paquete (ver RegistroDeGuia); esto cubre las guías
+     * de antes de ese cambio y las que no pudieron reservar en su momento.
+     * Nunca se transmite solo (requisito de negocio).
      */
     public function updated(Invoice $invoice): void
     {

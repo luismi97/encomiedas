@@ -276,6 +276,84 @@ test.describe('Administración', () => {
     expect(cuerpo.length).toBeLessThan(200_000);
   });
 
+  /* ─────────── El consecutivo en el recibo, desde que se recibe ─────────── */
+
+  /**
+   * El comprobante se reserva al recibir el paquete: el recibo que se lleva el
+   * cliente ya trae su consecutivo. La clave no: lleva la fecha de emisión,
+   * que es la del envío (Hacienda rechaza fechas anteriores). Reservar no es
+   * enviar; el comprobante queda en «Pendientes de envío» para que el
+   * administrador decida.
+   */
+  test('el recibo sale con el consecutivo desde que se recibe el paquete', async ({ page }) => {
+    const empresa = await empresaOperando(page);
+    await configurarEmpresa(page);
+    artisan(`e2e:facturacion-de-prueba ${empresa.slug}`);
+    await abrirCaja(page, { sede: empresa.origen, fondo: 10000 });
+
+    const guia = await crearGuia(page, {
+      origen: empresa.origen,
+      destino: empresa.destino,
+      precio: 3000,
+      sinImpuestos: true,
+    });
+    const id = idDeLaGuia(page);
+
+    // La guía ya muestra su comprobante pendiente, con clave provisional.
+    await expect(page.locator('body')).toContainText('Pendiente de envío');
+    await expect(page.locator('body')).toContainText('la fecha se pone al enviar');
+    const texto = await page.locator('body').innerText();
+    const consecutivo = texto.match(/\b\d{20}\b/)?.[0];
+    const clave = texto.match(/\b\d{50}\b/)?.[0];
+    expect(consecutivo).toBeTruthy();
+
+    const recibo = await (await page.request.get(`/invoices/${id}/recibo`)).text();
+    expect(recibo).toContain(consecutivo);
+    expect(recibo).toContain('se asigna al enviarse a Hacienda');
+    expect(recibo).not.toContain('Clave numérica');
+    expect(recibo).not.toContain(clave);
+    expect(recibo).toContain('Tiquete Electrónico');
+
+    // Está en pendientes, con el estado de la guía a la vista, y no se envió.
+    await visitar(page, '/hacienda/pending');
+    const fila = page.locator('tr', { hasText: guia.codigo });
+    await expect(fila).toContainText('Recibido');
+    await expect(fila).toContainText('Pendiente de envío');
+  });
+
+  test('si al retirar pide factura con cédula, el comprobante reservado se rehace', async ({ page }) => {
+    const empresa = await empresaOperando(page);
+    await configurarEmpresa(page);
+    artisan(`e2e:facturacion-de-prueba ${empresa.slug}`);
+    await abrirCaja(page, { sede: empresa.origen, fondo: 10000 });
+
+    await crearGuia(page, { origen: empresa.origen, destino: empresa.destino, precio: 3000, sinImpuestos: true });
+    const id = idDeLaGuia(page);
+    const consecutivoDelTiquete = (await page.locator('body').innerText()).match(/\b\d{20}\b/)[0];
+
+    await corregirEstado(page, { a: 'Llegó al destino', motivo: 'Llegó en el camión de hoy' });
+
+    page.once('dialog', (d) => d.accept());
+    await page.click('button:has-text("Entregado")');
+    await page.fill('[wire\\:model="receivedByName"]', 'Ana Mora');
+    await page.locator('input[wire\\:model\\.live="quiereFactura"]').check();
+    await page.locator('[wire\\:model="facturaTipoId"]').selectOption('03');
+    await page.fill('[wire\\:model\\.blur="facturaId"]', `1${Date.now().toString().slice(-11)}`);
+    await page.fill('[wire\\:model="facturaNombre"]', 'Ana Mora');
+    await page.click('button:has-text("Confirmar entrega")');
+    await expect(page.locator('body')).toContainText('Entrega registrada');
+
+    await page.reload();
+    await esperarLivewire(page);
+    await expect(page.locator('body')).toContainText('Factura Electrónica');
+    const consecutivoNuevo = (await page.locator('body').innerText()).match(/\b\d{20}\b/)[0];
+    expect(consecutivoNuevo).not.toBe(consecutivoDelTiquete);
+
+    const recibo = await (await page.request.get(`/invoices/${id}/recibo`)).text();
+    expect(recibo).toContain(consecutivoNuevo);
+    expect(recibo).not.toContain(consecutivoDelTiquete);
+  });
+
   test('un correo mal escrito no se reenvía', async ({ page }) => {
     const empresa = await empresaOperando(page);
     await configurarEmpresa(page);

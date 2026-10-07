@@ -311,9 +311,12 @@ que dejen la guía en un estado del que el flujo normal ya no sabe salir.
 | Corregir estado | adelanta un estado, se entrega normalmente, se deshace la entrega (la evidencia desaparece) y se vuelve a entregar |
 | Corregir estado | no ofrece «Anulado» (eso es «Anular», con su nota de crédito) ni el estado actual |
 | Estado de cuenta por fechas | el PDF del rango sale; fechas al revés avisan; el reporte no corta nada y el corte posterior sigue encontrando la guía |
+| Consecutivo desde la recepción | con la facturación activa, la guía nace con su comprobante pendiente y el recibo trae el consecutivo, pero no la clave (lleva la fecha de emisión, que es la del envío: Hacienda rechaza fechas anteriores); no se envía solo; si al retirar piden factura con cédula, el comprobante se rehace y el recibo reimpreso trae el consecutivo nuevo |
 | Comprobante aceptado | el recibo lleva la clave numérica; el reenvío a otro correo sale (en local, al log) con el PDF; el PDF pesa menos de 200 KB |
 
-El comprobante aceptado lo arma `php artisan e2e:comprobante-aceptado
+La facturación «lista» la pone `php artisan e2e:facturacion-de-prueba
+{empresa}`, con credenciales de mentira: alcanza para reservar claves, no para
+transmitir. El comprobante aceptado lo arma `php artisan e2e:comprobante-aceptado
 {código}`: en local no hay certificado ni conexión con Hacienda, así que no
 hay otra forma de llegar a lo que pasa después de la aceptación. Usa el XML
 que produciría el sistema de verdad, sin firma, y se niega a correr en

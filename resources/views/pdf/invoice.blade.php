@@ -184,8 +184,10 @@
         <div class="legal">
             <strong>Comprobante electrónico (Ministerio de Hacienda, Costa Rica)</strong><br>
             Tipo: {{ $invoice->electronicInvoice->typeLabel() }} · Estado: {{ $invoice->electronicInvoice->statusLabel() }}<br>
-            Consecutivo: {{ $invoice->electronicInvoice->consecutivo }}<br>
-            Clave: <span class="clave">{{ $invoice->electronicInvoice->clave }}</span>
+            Consecutivo: {{ $invoice->electronicInvoice->consecutivo }}
+            @if ($invoice->electronicInvoice->claveEsDefinitiva())
+                <br>Clave: <span class="clave">{{ $invoice->electronicInvoice->clave }}</span>
+            @endif
         </div>
     @endif
 

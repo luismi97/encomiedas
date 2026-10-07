@@ -149,6 +149,27 @@ class ElectronicInvoice extends Model
         return in_array($this->document_type, ['02', '03'], true);
     }
 
+    /**
+     * Todavía no llegó a Hacienda (o la rechazó): se puede rehacer con otros
+     * datos y clave nueva sin que haga falta una nota.
+     */
+    public function sePuedeRehacer(): bool
+    {
+        return in_array($this->status, [self::STATUS_PENDING, self::STATUS_REJECTED], true);
+    }
+
+    /**
+     * La clave ya es la que tiene (o puede tener) Hacienda. Antes de eso es
+     * provisional: al enviarse se le pone la fecha del envío, porque Hacienda
+     * rechaza una FechaEmision anterior a la generación del comprobante. Con un
+     * intento de transmisión encima ya no se toca: pudo haber llegado.
+     */
+    public function claveEsDefinitiva(): bool
+    {
+        return $this->status !== self::STATUS_REJECTED
+            && ($this->send_attempts > 0 || in_array($this->status, [self::STATUS_SENT, self::STATUS_ACCEPTED], true));
+    }
+
     /** Ya no se puede tocar: solo cabe emitir una nota contra él. */
     public function isSettled(): bool
     {

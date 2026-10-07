@@ -78,9 +78,15 @@ trait DatosDeFactura
     /** ¿Tiene sentido preguntar al entregar? Solo si hoy saldría como tiquete. */
     public function puedePedirFactura(?Invoice $guia): bool
     {
-        return $guia !== null
-            && ! $guia->receptorIdentificado()
-            && ! $guia->electronicInvoice()->exists();
+        if ($guia === null || $guia->receptorIdentificado()) {
+            return false;
+        }
+
+        // El comprobante se reserva al recibir: mientras no haya salido a
+        // Hacienda, todavía se puede rehacer a nombre de quien retira.
+        $comprobante = $guia->electronicInvoice()->first();
+
+        return ! $comprobante || $comprobante->sePuedeRehacer();
     }
 
     /**

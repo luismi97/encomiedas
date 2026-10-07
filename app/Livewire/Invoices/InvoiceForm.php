@@ -929,10 +929,15 @@ class InvoiceForm extends Component
         $this->redirect(route('invoices.show', $this->invoice), navigate: false);
     }
 
-    /** Lo que define a quién y cómo se factura: si cambia, el comprobante también. */
+    /**
+     * Lo que define a quién y cómo se factura: si cambia, el comprobante
+     * también. La sede de origen va porque su código de sucursal es parte de
+     * la clave.
+     */
     private function firmaDeFacturacion(Invoice $guia): string
     {
         return json_encode([
+            (int) $guia->pickup_branch_id,
             $guia->bill_type,
             $guia->receptorIdentificado(),
             $guia->receptorIdentificado() ? $guia->receptorDeFactura() : null,
@@ -975,14 +980,11 @@ class InvoiceForm extends Component
         // datos nuevos; el que ya llegó no se puede cambiar.
         if ($comprobante = $guia->electronicInvoice()->first()) {
             $cambioLaFacturacion = $this->firmaDeFacturacion($guia) !== $antes['facturaA'];
-            $editable = in_array($comprobante->status, [
-                \App\Models\ElectronicInvoice::STATUS_PENDING,
-                \App\Models\ElectronicInvoice::STATUS_REJECTED,
-            ], true);
+            $editable = $comprobante->sePuedeRehacer();
 
             if ($editable && $cambioLaFacturacion) {
                 app(\App\Services\Hacienda\ElectronicBillingService::class)->rehacerPorCambioDeReceptor($comprobante);
-                $avisos[] = 'Su comprobante pendiente se rehízo con los datos de facturación nuevos.';
+                $avisos[] = 'Su comprobante pendiente se rehízo con consecutivo nuevo: reimprimí el recibo del cliente.';
             } elseif (! $editable && ($cambioElTotal || $cambioLaFacturacion)) {
                 $avisos[] = 'Ojo: el comprobante electrónico ya está en Hacienda («' . $comprobante->statusLabel() . '») '
                     . 'y no cambió. Si hay que corregir lo declarado, emití una nota de crédito o débito desde la guía.';

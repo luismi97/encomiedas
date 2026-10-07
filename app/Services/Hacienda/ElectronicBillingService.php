@@ -21,10 +21,13 @@ use RuntimeException;
  * encomienda: reservar clave -> (en cola) -> construir XML -> firmar ->
  * transmitir -> seguir el estado.
  *
- * A diferencia de un POS, aquí el envío NUNCA es automático: cuando la
- * factura se marca "entregada" solo se reserva la clave y se agrega a la
- * lista de "pendientes de envío a Hacienda" (ver queueForInvoice). Un
- * administrador decide después, uno por uno o en bloque, cuáles transmitir.
+ * A diferencia de un POS, aquí el envío NUNCA es automático: al recibir el
+ * paquete solo se reserva el consecutivo —para que el recibo del cliente lo
+ * lleve— y el comprobante queda en la lista de "pendientes de envío a
+ * Hacienda" (ver queueForInvoice y RegistroDeGuia). Si no se pudo reservar
+ * entonces, se reserva al entregar. Un administrador decide después, uno por
+ * uno o en bloque, cuáles transmitir; la fecha de emisión es la del envío
+ * (ver fecharAlEmitir).
  */
 class ElectronicBillingService
 {
@@ -41,9 +44,10 @@ class ElectronicBillingService
     }
 
     /**
-     * Se llama cuando una factura pasa a "entregada". Reserva la clave y dej
-     * a el comprobante en estado 'pending' (lista de pendientes de envío).
-     * Idempotente: si ya existe un comprobante para la factura, no hace nada.
+     * Reserva la clave y deja el comprobante en estado 'pending' (lista de
+     * pendientes de envío). Se llama al recibir el paquete y, por si entonces
+     * no se pudo, otra vez al entregarlo. Idempotente: si ya existe un
+     * comprobante para la factura, no hace nada.
      */
     public function queueForInvoice(Invoice $invoice): ?ElectronicInvoice
     {
@@ -169,6 +173,7 @@ class ElectronicBillingService
         $letter   = $this->letterForDocumentType($electronicInvoice->document_type);
 
         try {
+            $this->fecharAlEmitir($electronicInvoice);
             $this->buildAndSign($electronicInvoice, $letter);
             $this->transmit($electronicInvoice, $settings);
         } catch (\Throwable $e) {
@@ -491,6 +496,27 @@ class ElectronicBillingService
             '03' => 'NC',
             default => 'TE',
         };
+    }
+
+    /**
+     * Hacienda no acepta una FechaEmision anterior a la generación del
+     * comprobante (solo con situación «sin internet», que no es el caso). Y el
+     * comprobante se reserva al recibir el paquete pero sale cuando el
+     * administrador decide, a veces días después: se fecha aquí, justo antes de
+     * firmarlo. La fecha va también dentro de la clave; el consecutivo
+     * reservado no cambia.
+     */
+    private function fecharAlEmitir(ElectronicInvoice $electronicInvoice): void
+    {
+        if ($electronicInvoice->claveEsDefinitiva()) {
+            return;
+        }
+
+        $issuedAt = Carbon::now(config('app.timezone') ?: 'America/Costa_Rica');
+
+        $electronicInvoice->clave = $this->claveGenerator->conFecha($electronicInvoice->clave, $issuedAt);
+        $electronicInvoice->issued_at = $issuedAt;
+        $electronicInvoice->save();
     }
 
     private function buildAndSign(ElectronicInvoice $electronicInvoice, string $letter): void

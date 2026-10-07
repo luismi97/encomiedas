@@ -131,15 +131,20 @@
     {{-- Con qué comprobante se declaró el servicio: el cliente lo busca por
          la clave en su contabilidad y en el correo que le llega de Hacienda.
          Solo si ya existe y no fue rechazado: una clave rechazada se rehace
-         con otra y la impresa no serviría para nada. --}}
+         con otra y la impresa no serviría para nada. La clave, además, solo
+         cuando ya salió: lleva la fecha de emisión, que es la del envío. --}}
     @php $comprobante = $guia->electronicInvoice; @endphp
     @if ($comprobante && ! $comprobante->wasRejected())
         <div class="regla"></div>
         <div class="etiqueta">{{ $comprobante->typeLabel() }}</div>
         <div class="etiqueta" style="margin-top: 1mm;">Consecutivo</div>
         <div class="clave">{{ $comprobante->consecutivo }}</div>
-        <div class="etiqueta" style="margin-top: 1mm;">Clave numérica</div>
-        <div class="clave nota">{{ $comprobante->clave }}</div>
+        @if ($comprobante->claveEsDefinitiva())
+            <div class="etiqueta" style="margin-top: 1mm;">Clave numérica</div>
+            <div class="clave nota">{{ $comprobante->clave }}</div>
+        @else
+            <div class="nota" style="margin-top: 1mm;">La clave numérica se asigna al enviarse a Hacienda.</div>
+        @endif
     @endif
 
     <div class="firma">Recibí conforme · nombre, cédula y firma</div>

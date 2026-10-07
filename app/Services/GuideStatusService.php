@@ -430,15 +430,21 @@ class GuideStatusService
         }
 
         $nota = 'Retirada por ' . trim($nombreQuienRetira);
+        $comprobanteARehacer = null;
 
         if ($facturarA) {
-            // Con el comprobante ya creado, cambiar la guía no cambia lo que
-            // se le manda a Hacienda: avisar en vez de fingir que se aplicó.
-            if ($guia->electronicInvoice()->exists()) {
-                throw new RuntimeException("La guía {$guia->code} ya tiene comprobante electrónico: "
+            // El comprobante se reserva al recibir el paquete, así que casi
+            // siempre existe. Si no salió a Hacienda se rehace a nombre de
+            // quien lo pidió; si ya salió, cambiar la guía no cambiaría lo
+            // declarado: avisar en vez de fingir que se aplicó.
+            $comprobante = $guia->electronicInvoice()->first();
+
+            if ($comprobante && ! $comprobante->sePuedeRehacer()) {
+                throw new RuntimeException("La guía {$guia->code} ya tiene comprobante electrónico enviado a Hacienda: "
                     . 'no se puede cambiar a factura con cédula desde la entrega.');
             }
 
+            $comprobanteARehacer = $comprobante;
             $guia->forceFill(CorreccionDeFactura::columnas($facturarA));
 
             $nota .= ' · pidió factura a nombre de ' . $facturarA['nombre'] . ' (' . $facturarA['numero'] . ')';
@@ -449,6 +455,10 @@ class GuideStatusService
             'received_by_identification' => $identificacion ? preg_replace('/\D/', '', $identificacion) : null,
             'delivery_signature'         => $firma,
         ])->save();
+
+        if ($comprobanteARehacer) {
+            app(ElectronicBillingService::class)->rehacerPorCambioDeReceptor($comprobanteARehacer);
+        }
 
         $entregada = $this->cambiar(
             $guia,

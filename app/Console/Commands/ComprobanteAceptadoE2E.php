@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\CompanySetting;
 use App\Models\ElectronicInvoice;
 use App\Models\Invoice;
 use App\Services\Hacienda\ElectronicBillingService;
@@ -51,7 +50,7 @@ class ComprobanteAceptadoE2E extends Command
         }
 
         return CompanyContext::para($guia->company_id, function () use ($guia, $servicio) {
-            $this->facturacionDePrueba();
+            FacturacionDePruebaE2E::activar();
 
             $comprobante = $servicio->queueForInvoice($guia->fresh());
             $xml = $comprobante->document_type === '01'
@@ -77,20 +76,5 @@ class ComprobanteAceptadoE2E extends Command
 
             return self::SUCCESS;
         });
-    }
-
-    /** Lo mínimo para que el sistema acepte emitir: credenciales de mentira. */
-    private function facturacionDePrueba(): void
-    {
-        $empresa = CompanySetting::instance();
-
-        $empresa->forceFill(array_filter([
-            'enabled'          => true,
-            'environment'      => 'sandbox',
-            'certificate_path' => $empresa->certificate_path ?: 'certs/e2e.p12',
-            'certificate_pin'  => $empresa->decryptedOrNull('certificate_pin') ? null : '1234',
-            'atv_username'     => $empresa->decryptedOrNull('atv_username') ? null : 'e2e@stag.comprobanteselectronicos.go.cr',
-            'atv_password'     => $empresa->decryptedOrNull('atv_password') ? null : 'e2e',
-        ], fn ($valor) => $valor !== null))->save();
     }
 }

@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\Invoice;
 use App\Models\Tax;
 use App\Models\User;
+use App\Services\Hacienda\ElectronicBillingService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Guarda una guía: la fila, sus bultos, sus impuestos y su cobro.
@@ -61,7 +63,9 @@ class RegistroDeGuia
                 && ! $yaCobrada
                 && ($invoice->awaiting_cashier || ! $usuario->puedeCobrar());
 
-            if (! $invoice->exists) {
+            $esNueva = ! $invoice->exists;
+
+            if ($esNueva) {
                 $invoice->created_by = $usuario->id;
                 $invoice->status = Invoice::STATUS_PENDING;
 
@@ -111,7 +115,32 @@ class RegistroDeGuia
                 $this->caja->registrarCobro($invoice, $usuario);
             }
 
+            if ($esNueva) {
+                $this->reservarComprobante($invoice);
+            }
+
             return $invoice;
         });
+    }
+
+    /**
+     * Reserva el consecutivo del comprobante desde que se recibe el paquete,
+     * para que el recibo del cliente salga con él.
+     *
+     * Solo reserva: el comprobante queda «pendiente de envío» y lo transmite
+     * el administrador cuando decida, igual que antes. La fecha de emisión
+     * —y con ella la clave definitiva— se pone al enviarlo: Hacienda no acepta
+     * fechas anteriores a la generación del comprobante.
+     *
+     * Un fallo acá no puede tumbar la guía: el paquete ya se recibió. Queda
+     * sin clave en el recibo y se reserva al entregar, como antes.
+     */
+    private function reservarComprobante(Invoice $invoice): void
+    {
+        try {
+            app(ElectronicBillingService::class)->queueForInvoice($invoice->fresh());
+        } catch (\Throwable $e) {
+            Log::warning("No se pudo reservar el comprobante de la guía {$invoice->code}: {$e->getMessage()}");
+        }
     }
 }

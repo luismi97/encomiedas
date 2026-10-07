@@ -77,6 +77,10 @@
                                 <a href="{{ route('invoices.show', $ei->invoice_id) }}" class="font-medium text-brand-600 dark:text-brand-300">
                                     {{ $ei->invoice?->code }}
                                 </a>
+                                {{-- Se reserva al recibir: la guía puede no haberse entregado todavía. --}}
+                                @if ($ei->invoice)
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ $ei->invoice->statusLabel() }}</div>
+                                @endif
                             </td>
                             <td class="py-3">{{ $ei->typeLabel() }}</td>
                             <td class="py-3 text-xs break-all max-w-[220px]">{{ $ei->clave }}</td>
@@ -123,6 +127,9 @@
                                 {{ $ei->invoice?->code }}
                             </a>
                             <div class="text-sm text-gray-500">{{ $ei->typeLabel() }} · {{ $ei->statusLabel() }}</div>
+                            @if ($ei->invoice)
+                                <div class="text-xs text-gray-500 dark:text-gray-400">Guía: {{ $ei->invoice->statusLabel() }}</div>
+                            @endif
                         </div>
                     </div>
                     <div class="mt-2 text-xs text-gray-500 break-all">{{ $ei->clave }}</div>

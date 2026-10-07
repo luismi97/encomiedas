@@ -153,8 +153,11 @@
         <div>{{ $guia->electronicInvoice->typeLabel() }} · {{ $guia->electronicInvoice->statusLabel() }}</div>
         <div class="etiqueta" style="margin-top: 1mm;">Consecutivo</div>
         <div class="clave">{{ $guia->electronicInvoice->consecutivo }}</div>
-        <div class="etiqueta" style="margin-top: 1mm;">Clave</div>
-        <div class="clave nota">{{ $guia->electronicInvoice->clave }}</div>
+        {{-- La clave lleva la fecha de emisión, que es la del envío. --}}
+        @if ($guia->electronicInvoice->claveEsDefinitiva())
+            <div class="etiqueta" style="margin-top: 1mm;">Clave</div>
+            <div class="clave nota">{{ $guia->electronicInvoice->clave }}</div>
+        @endif
     @endif
 
     @if ($guia->notes)

@@ -199,9 +199,10 @@ class InvoiceShow extends Component
 
         $this->showBillingForm = false;
         $this->invoice->load(['electronicInvoice', 'activityLogs.user']);
-        session()->flash('success', $datos
+        session()->flash('success', ($datos
             ? 'Facturación corregida: sale como Factura Electrónica a nombre de ' . $datos['nombre'] . '.'
-            : 'Facturación corregida: sale como Tiquete Electrónico.');
+            : 'Facturación corregida: sale como Tiquete Electrónico.')
+            . ($this->invoice->electronicInvoice ? ' El consecutivo cambió: reimprimí el recibo del cliente.' : ''));
     }
 
     public function openReturnForm(): void

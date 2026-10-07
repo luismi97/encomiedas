@@ -65,6 +65,13 @@ class PendingQueue extends Component
 
         return ElectronicInvoice::with('invoice')
             ->whereIn('status', $statusMap[$this->tab] ?? $statusMap['pending'])
+            // El comprobante se reserva al recibir el paquete: si la guía se
+            // anuló antes de enviarlo, no se envía nunca (ver sendBlocker) y
+            // no tiene nada que hacer en la lista. Las notas sí: la de crédito
+            // de una anulación es justamente la que hay que mandar.
+            ->when($this->tab === 'pending', fn ($q) => $q->where(fn ($q) => $q
+                ->whereIn('document_type', ['02', '03'])
+                ->orWhereHas('invoice', fn ($guia) => $guia->where('status', '!=', \App\Models\Invoice::STATUS_CANCELLED))))
             ->latest();
     }
 

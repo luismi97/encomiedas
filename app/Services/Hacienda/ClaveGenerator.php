@@ -47,6 +47,12 @@ class ClaveGenerator
         ];
     }
 
+    /** La misma clave con otra fecha (dígitos 4 a 9): consecutivo y código de seguridad no cambian. */
+    public function conFecha(string $clave, Carbon $issuedAt): string
+    {
+        return substr_replace($clave, $issuedAt->format('dmy'), strlen(config('hacienda.country_code')), 6);
+    }
+
     /** Consecutivo que la empresa no haya emitido nunca (evita duplicados tras restaurar un backup). */
     private function allocateUnusedConsecutivo(Branch $branch, string $documentCode): string
     {

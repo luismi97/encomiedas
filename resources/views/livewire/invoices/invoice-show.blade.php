@@ -466,7 +466,11 @@
                 <div class="space-y-2 text-sm">
                     <div><strong>Tipo:</strong> {{ $ei->typeLabel() }}</div>
                     <div><strong>Consecutivo:</strong> {{ $ei->consecutivo }}</div>
-                    <div><strong>Clave:</strong> <span class="break-all">{{ $ei->clave }}</span></div>
+                    <div><strong>Clave:</strong> <span class="break-all">{{ $ei->clave }}</span>
+                        @unless ($ei->claveEsDefinitiva())
+                            <span class="text-xs text-gray-500 dark:text-gray-400">(provisional: la fecha se pone al enviar)</span>
+                        @endunless
+                    </div>
                     <div><strong>Estado:</strong> {{ $ei->statusLabel() }}</div>
                     @if ($ei->error_message && !$ei->wasRejected())
                         <div class="text-red-600 dark:text-red-400">{{ $ei->error_message }}</div>

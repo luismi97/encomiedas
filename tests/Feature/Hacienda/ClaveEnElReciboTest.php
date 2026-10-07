@@ -11,7 +11,8 @@ use Tests\TestCase;
 
 /**
  * El recibo del cliente lleva el consecutivo y la clave numérica del
- * comprobante: es con lo que lo busca en su contabilidad y en el correo.
+ * comprobante: es con lo que lo busca en su contabilidad y en el correo. La
+ * clave, solo una vez enviado.
  */
 class ClaveEnElReciboTest extends TestCase
 {
@@ -28,7 +29,7 @@ class ClaveEnElReciboTest extends TestCase
         Bus::fake();
         $this->companySettings();
         $guia = $this->deliveredInvoice($this->branch());
-        $comprobante = app(ElectronicBillingService::class)->queueForInvoice($guia);
+        $comprobante = $this->markAccepted(app(ElectronicBillingService::class)->queueForInvoice($guia));
 
         $this->actingAs($this->admin())
             ->get(route('invoices.recibo', $guia))
@@ -37,6 +38,25 @@ class ClaveEnElReciboTest extends TestCase
             ->assertSee($comprobante->clave)
             ->assertSee('Consecutivo')
             ->assertSee($comprobante->consecutivo);
+    }
+
+    /**
+     * Mientras no sale, la clave es provisional: la fecha de emisión va dentro
+     * y es la del envío. El consecutivo sí está reservado.
+     */
+    public function test_pendiente_de_envio_lleva_el_consecutivo_pero_no_la_clave(): void
+    {
+        Bus::fake();
+        $this->companySettings();
+        $guia = $this->deliveredInvoice($this->branch());
+        $comprobante = app(ElectronicBillingService::class)->queueForInvoice($guia);
+
+        $this->actingAs($this->admin())
+            ->get(route('invoices.recibo', $guia))
+            ->assertOk()
+            ->assertSee($comprobante->consecutivo)
+            ->assertDontSee($comprobante->clave)
+            ->assertSee('se asigna al enviarse a Hacienda');
     }
 
     public function test_sin_comprobante_el_recibo_no_inventa_clave(): void
