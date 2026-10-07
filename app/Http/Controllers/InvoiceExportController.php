@@ -220,7 +220,13 @@ class InvoiceExportController extends Controller
     {
         $usuario = $request->user();
 
-        if ($caja = app(CajaService::class)->sesionPropiaAbierta($usuario)?->register) {
+        // Con turnos en varias sedes, el de la sede de la guía.
+        $servicio = app(CajaService::class);
+        $turno = $servicio->sesionPropiaAbierta($usuario, $invoice->pickup_branch_id)
+            ?? $servicio->sesionPropiaAbierta($usuario, $invoice->delivery_branch_id)
+            ?? $servicio->sesionPropiaAbierta($usuario);
+
+        if ($caja = $turno?->register) {
             return $caja;
         }
 

@@ -33,6 +33,21 @@
         @endif
     </div>
 
+    {{-- Un turno por sede: quien atiende varias necesita ver de un vistazo
+         cuáles tiene abiertos, sin recorrer el selector. --}}
+    @if ($misTurnos->count() > 1)
+        <div class="flex flex-wrap items-center gap-2" data-test="mis-turnos">
+            <span class="text-sm text-gray-500 dark:text-gray-400">Tus turnos abiertos:</span>
+            @foreach ($misTurnos as $turno)
+                <button type="button"
+                        wire:click="$set('registerId', {{ $turno->cash_register_id }})"
+                        class="btn-secondary !py-1.5 !px-3 text-sm {{ (int) $registerId === $turno->cash_register_id ? 'ring-2 ring-brand-500' : '' }}">
+                    {{ $turno->register?->branch?->name ?? 'Sin sede' }} · {{ $turno->register?->name }}
+                </button>
+            @endforeach
+        </div>
+    @endif
+
     {{-- Sin cajas, el selector salía vacío y el botón respondía «elegí una caja»
          señalando a una lista que no tenía nada que elegir. --}}
     @if ($cajas->isEmpty())
@@ -87,17 +102,17 @@
             </div>
         </div>
     @elseif (! $sesion && $turnoPropioEnOtra)
-        {{-- Un turno por persona: con dos abiertos, cada cobro caería en el que
-             el sistema eligiera y ninguno de los dos arqueos cuadraría. --}}
+        {{-- Un turno por persona en cada sede: con dos abiertos en la misma, cada
+             cobro caería en el que el sistema eligiera y ninguno cuadraría. --}}
         <div class="card border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20" data-test="turno-propio-en-otra">
             <div class="flex items-start gap-3">
                 <x-icon name="warning" class="w-5 h-5 mt-0.5 text-amber-600 dark:text-amber-400" />
                 <div>
-                    <h2 class="text-lg font-semibold text-amber-900 dark:text-amber-100">Ya tenés una caja abierta</h2>
+                    <h2 class="text-lg font-semibold text-amber-900 dark:text-amber-100">Ya tenés una caja abierta en esta sede</h2>
                     <p class="mt-1 text-sm text-amber-800 dark:text-amber-200">
                         Tu turno en «{{ $turnoPropioEnOtra->register?->name }}»@if ($turnoPropioEnOtra->register?->branch) ({{ $turnoPropioEnOtra->register->branch->name }})@endif
                         sigue abierto desde el {{ $turnoPropioEnOtra->opened_at->format('d/m/Y H:i') }}.
-                        Cerralo antes de abrir otra caja.
+                        Cerralo antes de abrir otra caja en la misma sede.
                     </p>
                     <div class="mt-3">
                         <button type="button" class="btn-secondary !py-2 !px-3 text-sm"

@@ -138,7 +138,7 @@ class MultiplesCajasTest extends TestCase
         $servicio->abrir($caja, $this->cajero('Beto', 'beto'), 5000);
     }
 
-    /** Un cajero con dos turnos abiertos no sabría a cuál arqueo entra cada cobro. */
+    /** Con dos turnos en la misma sede no sabría a cuál arqueo entra cada cobro. */
     public function test_un_cajero_no_abre_dos_cajas_a_la_vez(): void
     {
         $primera = $this->sj->cashRegisters()->firstOrFail();
@@ -158,17 +158,88 @@ class MultiplesCajasTest extends TestCase
         $this->assertSame(1, CashSession::where('opened_by', $ana->id)->count());
     }
 
-    /** Tampoco en otra sede: el turno es de la persona, no de la sucursal. */
-    public function test_tampoco_abre_una_caja_en_otra_sede(): void
+    private function limon(): Branch
     {
-        $lim = Branch::create(['name' => 'Limón', 'prefix' => 'LIM',
+        return Branch::create(['name' => 'Limón', 'prefix' => 'LIM',
             'sucursal_code' => '006', 'terminal_code' => '00001', 'is_active' => true]);
+    }
+
+    /**
+     * En otra sede sí: quien atiende dos sucursales lleva un turno en cada
+     * una, y cada cobro va al de la sede donde se cobra la guía.
+     */
+    public function test_abre_una_caja_en_otra_sede_con_la_suya_abierta(): void
+    {
+        $lim = $this->limon();
         $ana = $this->cajero('Ana', 'ana');
+        $servicio = app(CajaService::class);
+
+        $enSj = $servicio->abrir($this->sj->cashRegisters()->firstOrFail(), $ana, 10000);
+        $enLim = $servicio->abrir($lim->cashRegisters()->firstOrFail(), $ana, 5000);
+
+        $this->assertTrue($enSj->fresh()->estaAbierta());
+        $this->assertTrue($enLim->estaAbierta());
+        $this->assertSame($enSj->id, $servicio->sesionPropiaAbierta($ana, $this->sj->id)->id);
+        $this->assertSame($enLim->id, $servicio->sesionPropiaAbierta($ana, $lim->id)->id);
+    }
+
+    /** El administrador también: puede cubrir dos sedes el mismo día. */
+    public function test_el_administrador_abre_una_caja_por_sede(): void
+    {
+        $lim = $this->limon();
+        $servicio = app(CajaService::class);
+
+        $servicio->abrir($this->sj->cashRegisters()->firstOrFail(), $this->admin, 0);
+        $servicio->abrir($lim->cashRegisters()->firstOrFail(), $this->admin, 0);
+
+        $this->assertSame(2, CashSession::where('opened_by', $this->admin->id)
+            ->where('status', CashSession::STATUS_OPEN)->count());
+    }
+
+    /** Con un turno en cada sede, el cobro no se cruza de gaveta. */
+    public function test_cada_cobro_entra_al_turno_de_su_sede(): void
+    {
+        $lim = $this->limon();
+        $ana = $this->cajero('Ana', 'ana');
+        $servicio = app(CajaService::class);
+
+        $enSj = $servicio->abrir($this->sj->cashRegisters()->firstOrFail(), $ana, 0);
+        $enLim = $servicio->abrir($lim->cashRegisters()->firstOrFail(), $ana, 0);
+
+        $guia = \App\Models\Invoice::create([
+            'status' => \App\Models\Invoice::STATUS_PENDING,
+            'pickup_branch_id' => $lim->id, 'delivery_branch_id' => $this->sj->id,
+            'sender_name' => 'Marta', 'recipient_name' => 'José',
+            'subtotal' => 3000, 'discount_amount' => 0, 'tax_total' => 0, 'total' => 3000,
+            'payment_method' => 'cash', 'created_by' => $ana->id,
+        ])->fresh();
+
+        $movimiento = $servicio->registrarCobro($guia, $ana);
+
+        $this->assertSame($enLim->id, $movimiento->cash_session_id);
+        $this->assertSame(0, $enSj->movements()->count());
+    }
+
+    /** El panel deja abrir en la otra sede y ofrece saltar entre los turnos. */
+    public function test_el_panel_abre_en_otra_sede_y_lista_los_turnos(): void
+    {
+        $lim = $this->limon();
+        $ana = $this->cajero('Ana', 'ana');
+        $ana->branches()->attach($lim->id);
+        $cajaLim = $lim->cashRegisters()->firstOrFail();
 
         app(CajaService::class)->abrir($this->sj->cashRegisters()->firstOrFail(), $ana, 10000);
 
-        $this->expectExceptionMessage('Cerrala antes de abrir otra');
-        app(CajaService::class)->abrir($lim->cashRegisters()->firstOrFail(), $ana, 0);
+        Livewire::actingAs($ana)->test(CajaPanel::class)
+            ->set('registerId', $cajaLim->id)
+            ->assertDontSeeHtml('data-test="turno-propio-en-otra"')
+            ->assertSeeHtml('data-test="fondo-inicial"')
+            ->set('openingFloat', 5000)
+            ->call('abrir')
+            ->assertSee('Turno abierto')
+            ->assertSeeHtml('data-test="mis-turnos"');
+
+        $this->assertNotNull($cajaLim->fresh()->sesionAbierta());
     }
 
     public function test_cerrada_la_suya_puede_abrir_otra(): void

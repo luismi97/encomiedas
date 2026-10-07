@@ -39,9 +39,12 @@ class CajaService
                 );
             }
 
-            // Un turno por persona: con dos abiertos, cada cobro cae en el que
-            // el sistema elija y ninguno de los dos arqueos cuadra.
+            // Un turno por persona en cada sede: con dos abiertos en la misma,
+            // cada cobro cae en el que el sistema elija y ninguno de los dos
+            // arqueos cuadra. En sedes distintas no hay duda: cada cobro va al
+            // turno de la sede donde se cobra la guía.
             $propia = CashSession::where('opened_by', $usuario->id)
+                ->where('branch_id', $caja->branch_id)
                 ->where('status', CashSession::STATUS_OPEN)
                 ->lockForUpdate()
                 ->first();
@@ -53,7 +56,7 @@ class CajaService
                     "Ya tenés abierta la caja «{$propia->register?->name}»"
                     . ($propia->register?->branch ? " en {$propia->register->branch->name}" : '')
                     . ' desde el ' . $propia->opened_at->format('d/m/Y H:i')
-                    . '. Cerrala antes de abrir otra.'
+                    . '. Cerrala antes de abrir otra en la misma sede.'
                 );
             }
 

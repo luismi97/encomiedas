@@ -46,7 +46,11 @@ class CajaPanel extends Component
         // Quien solo recibe paquetes no maneja dinero: no abre caja.
         abort_unless(auth()->user()->puedeCobrar(), 403, 'Tu usuario no cobra: la caja la opera un cajero.');
 
-        $this->seleccionarCajaPorDefecto($caja->sesionPropiaAbierta(auth()->user()));
+        // Con turnos en varias sedes, arranca en el de su sede base.
+        $usuario = auth()->user();
+        $this->seleccionarCajaPorDefecto(
+            $caja->sesionPropiaAbierta($usuario, $usuario->branch_id) ?? $caja->sesionPropiaAbierta($usuario)
+        );
     }
 
     /**
@@ -347,10 +351,17 @@ class CajaPanel extends Component
 
     public function render(CajaService $servicio)
     {
+        $caja = $this->caja();
         $sesion = $this->sesion();
 
+        $misTurnos = CashSession::with('register.branch')
+            ->where('opened_by', auth()->id())
+            ->where('status', CashSession::STATUS_OPEN)
+            ->orderBy('opened_at')
+            ->get();
+
         return view('livewire.caja.caja-panel', [
-            'caja'          => $this->caja(),
+            'caja'          => $caja,
             'sesion'        => $sesion?->load(['movements.invoice', 'movements.creator', 'opener']),
             'esperado'      => $sesion ? $servicio->efectivoEsperado($sesion) : 0.0,
             'porMedio'      => $sesion ? $servicio->totalesPorMedio($sesion) : collect(),
@@ -361,8 +372,12 @@ class CajaPanel extends Component
                 ->groupBy(fn ($c) => $c->branch?->name ?? 'Sin sede'),
             // La vista necesita saberlo para no ofrecer botones que van a fallar.
             'turnoAjeno'    => $this->turnoAjeno(),
-            // Su turno abierto en otra caja: para abrir esta, primero lo cierra.
-            'turnoPropioEnOtra' => $sesion ? null : $servicio->sesionPropiaAbierta(auth()->user())?->load('register.branch'),
+            // Su turno abierto en otra caja de la MISMA sede: para abrir esta,
+            // primero lo cierra. Uno en otra sede no estorba.
+            'turnoPropioEnOtra' => $sesion || ! $caja ? null
+                : $misTurnos->firstWhere('branch_id', $caja->branch_id),
+            // Con turnos en más de una sede, atajos para saltar entre ellos.
+            'misTurnos'     => $misTurnos,
             'paraCobrar'    => $this->paraCobrar($sesion),
             'ultimaCobrada' => $this->ultimaCobradaId ? Invoice::find($this->ultimaCobradaId) : null,
             'sinSedes'      => ! Branch::where('is_active', true)->exists(),
