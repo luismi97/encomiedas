@@ -32,9 +32,10 @@ class User extends Authenticatable
     public const ROLE_DESPACHADOR = 'despachador';
 
     /**
-     * Atiende el mostrador: solo crea guías. No abre caja (sus guías de
-     * contado quedan esperando que un cajero las cobre), no ve sumas de
-     * dinero ni reportes, y puede atender varias sedes (branch_user).
+     * Atiende el mostrador: crea guías, entrega paquetes y arma y despacha los
+     * cierres de envío. No abre caja (sus guías de contado quedan esperando
+     * que un cajero las cobre, y no entrega lo que falta cobrar), no ve sumas
+     * de dinero ni reportes, y puede atender varias sedes (branch_user).
      */
     public const ROLE_DEPENDIENTE = 'dependiente';
 
@@ -310,11 +311,13 @@ class User extends Authenticatable
     /**
      * Arma y despacha cierres de envío, y recibe los que llegan.
      *
-     * Es todo lo que hace: no cobra, no crea guías y no toca la configuración.
-     * El rol existe para la persona de bodega que carga el camión.
+     * Para el despachador es todo lo que hace: no cobra, no crea guías y no
+     * toca la configuración; el rol existe para la persona de bodega que carga
+     * el camión. El dependiente también: en una sede chica, quien atiende el
+     * mostrador es el mismo que carga el camión.
      */
     public function puedeDespachar(): bool
     {
-        return $this->isAdmin() || $this->isCajero() || $this->isDespachador();
+        return $this->isAdmin() || $this->isCajero() || $this->isDespachador() || $this->isDependiente();
     }
 }

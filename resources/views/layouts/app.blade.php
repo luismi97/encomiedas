@@ -74,7 +74,7 @@
                 </a>
             @endif
 
-            {{-- Los cierres los ve también el despachador, que no opera caja. --}}
+            {{-- Los cierres los ven también el despachador y el dependiente, que no operan caja. --}}
             @if (auth()->user()->puedeDespachar())
                 <a href="{{ route('dispatches.index') }}" class="nav-link {{ request()->routeIs('dispatches.*') ? 'nav-link-active' : '' }}">
                     <x-icon name="truck" /> <span>Cierres de envío</span>

@@ -135,9 +135,10 @@ Route::middleware('auth')->group(function () {
 
     /*
      | Cierres de envío. El despachador entra SOLO acá: arma el camión, lo
-     | despacha y recibe lo que llega. No cobra ni crea guías.
+     | despacha y recibe lo que llega. No cobra ni crea guías. El dependiente
+     | también despacha, en sus sedes (ver User::puedeDespachar).
      */
-    Route::middleware('role:admin,cajero,despachador')->group(function () {
+    Route::middleware('role:admin,cajero,despachador,dependiente')->group(function () {
         Route::get('/dispatches', DispatchIndex::class)->name('dispatches.index');
         Route::get('/dispatches/{dispatch}/pdf', [InvoiceExportController::class, 'dispatchPdf'])->name('dispatches.pdf');
     });

@@ -13,7 +13,8 @@ use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
- * Rol Dependiente: atiende el mostrador y solo crea guías.
+ * Rol Dependiente: atiende el mostrador. Crea guías, entrega paquetes y
+ * despacha los cierres de envío de sus sedes.
  *
  * No abre caja (sus guías de contado quedan esperando que un cajero las
  * cobre), no ve sumas de dinero ni reportes, y puede atender varias sedes que
@@ -150,9 +151,54 @@ class RolDependienteTest extends TestCase
             ->assertDontSee(route('caja.index'));
     }
 
-    public function test_no_despacha_ni_configura(): void
+    public function test_despacha_cierres_de_envio(): void
     {
-        $this->actingAs($this->dependiente)->get(route('dispatches.index'))->assertForbidden();
+        $this->assertTrue($this->dependiente->puedeDespachar());
+
+        $this->actingAs($this->dependiente)
+            ->get(route('dispatches.index'))
+            ->assertOk()
+            ->assertSee('Cierres de envío');
+    }
+
+    /** Arma el camión de su sede desde la pantalla de cierres y lo despacha. */
+    public function test_arma_y_despacha_un_cierre_de_su_sede(): void
+    {
+        $guia = $this->guia($this->sj, $this->pz, 'SJ-PZ-00001');
+
+        Livewire::actingAs($this->dependiente)
+            ->test(\App\Livewire\Dispatches\DispatchIndex::class)
+            ->call('create')
+            ->set('origin_branch_id', $this->sj->id)
+            ->set('destination_branch_id', $this->pz->id)
+            ->call('save')
+            ->assertHasNoErrors()
+            ->call('agregar', $guia->id)
+            ->call('despachar');
+
+        $this->assertSame(Invoice::STATUS_DISPATCHED, $guia->fresh()->status);
+        $this->assertSame($this->dependiente->id, \App\Models\Dispatch::firstOrFail()->dispatched_by);
+    }
+
+    /** Lo pagado lo entrega; lo que falta cobrar sigue siendo del cajero. */
+    public function test_entrega_lo_pagado_pero_no_lo_que_falta_cobrar(): void
+    {
+        $estados = app(\App\Services\GuideStatusService::class);
+
+        $pagada = $this->guia($this->lim, $this->sj, 'LIM-SJ-00001');
+        $pagada->forceFill(['status' => Invoice::STATUS_AT_DESTINATION, 'payment_timing' => Invoice::TIMING_PREPAID])->save();
+        $estados->entregar($pagada->fresh(), $this->dependiente, 'José');
+        $this->assertSame(Invoice::STATUS_DELIVERED, $pagada->fresh()->status);
+
+        $porCobrar = $this->guia($this->lim, $this->sj, 'LIM-SJ-00002');
+        $porCobrar->forceFill(['status' => Invoice::STATUS_AT_DESTINATION, 'payment_timing' => Invoice::TIMING_COLLECT])->save();
+
+        $this->expectExceptionMessage('Tu usuario no cobra');
+        $estados->entregar($porCobrar->fresh(), $this->dependiente, 'José');
+    }
+
+    public function test_no_configura(): void
+    {
         $this->actingAs($this->dependiente)->get(route('users.index'))->assertForbidden();
     }
 
