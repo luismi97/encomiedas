@@ -98,11 +98,13 @@
         {{ $dispatch->lines->count() }} guía(s)
         @php $aDomicilio = $dispatch->lines->filter(fn ($l) => $l->invoice?->esADomicilio())->count(); @endphp
         @if ($aDomicilio) ({{ $aDomicilio }} a domicilio) @endif
-        · {{ $dispatch->totalPaquetes() }} paquete(s) ·
-        valor declarado ₡{{ number_format($dispatch->valorDeclaradoTotal(), 2) }}
+        · {{ $dispatch->totalPaquetes() }} paquete(s)
+        {{-- Sin el valor declarado total: el manifiesto viaja en el camión y
+             no tiene por qué anunciar cuánto vale la carga. --}}
         @php $porCobrar = $dispatch->lines->filter(fn ($l) => $l->invoice?->tieneCobroPendiente()); @endphp
         @if ($porCobrar->isNotEmpty())
-            <br><strong>Por cobrar en destino: {{ $porCobrar->count() }} guía(s) · ₡{{ number_format((float) $porCobrar->sum(fn ($l) => $l->invoice->total), 2) }}</strong>
+            {{-- Sin el monto total: cada guía ya dice cuánto cobrar. --}}
+            <br><strong>Por cobrar en destino: {{ $porCobrar->count() }} guía(s)</strong>
         @endif
     </div>
 

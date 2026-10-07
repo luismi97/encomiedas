@@ -9,29 +9,32 @@ use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
- * Paginar usuarios daba 405: sin WithPagination, los enlaces de página que
- * se pintaban tras una acción de Livewire apuntaban a /livewire/update.
+ * Los listados no paginan: crecen hacia abajo con scroll infinito, igual que
+ * guías y clientes. Ver App\Livewire\Concerns\ScrollInfinito.
  */
 class PaginacionDeUsuariosTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_cambiar_de_pagina_funciona_y_no_apunta_a_livewire_update(): void
+    public function test_los_usuarios_cargan_por_tandas_sin_paginas(): void
     {
         $admin = User::create(['name' => 'Admin', 'username' => 'admin', 'email' => 'admin@t.test',
             'password' => bcrypt('x'), 'role' => User::ROLE_ADMIN, 'is_active' => true]);
 
-        foreach (range(1, 14) as $n) {
+        foreach (range(1, 55) as $n) {
             User::create(['name' => sprintf('Usuario %02d', $n), 'email' => "u{$n}@t.test",
                 'password' => bcrypt('x'), 'role' => User::ROLE_REPARTIDOR, 'is_active' => true]);
         }
 
+        // Orden por nombre: «Admin» y luego Usuario 01..49 llenan la primera tanda de 50.
         Livewire::actingAs($admin)
             ->test(UserIndex::class)
-            ->call('create') // cualquier acción: es después de una que se rompía
-            ->assertDontSee('livewire/update?page', false)
-            ->call('gotoPage', 2)
-            ->assertSee('Usuario 14')
-            ->assertDontSee('Usuario 01');
+            ->assertSee('Usuario 49')
+            ->assertDontSee('Usuario 50')
+            ->assertSee('Cargar más')
+            ->assertDontSee('?page=', false)
+            ->call('cargarMas')
+            ->assertSee('Usuario 55')
+            ->assertSee('No hay más usuarios');
     }
 }

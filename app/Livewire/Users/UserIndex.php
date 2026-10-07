@@ -8,15 +8,15 @@ use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use App\Livewire\Concerns\ScrollInfinito;
 use Livewire\Component;
-use Livewire\WithPagination;
 
 class UserIndex extends Component
 {
     // Sin esto los enlaces de página son <a> comunes, y después de cualquier
     // acción de Livewire apuntan a /livewire/update?page=2: un GET a una ruta
     // que solo acepta POST, o sea 405.
-    use WithPagination;
+    use ScrollInfinito;
 
     public bool $showForm = false;
     public $editingId = null;
@@ -166,8 +166,11 @@ class UserIndex extends Component
 
     public function render()
     {
+        $tanda = $this->tanda(User::with(['branch', 'branches'])->orderBy('name'));
+
         return view('livewire.users.user-index', [
-            'users' => User::with(['branch', 'branches'])->orderBy('name')->paginate(10),
+            'users' => $tanda['items'],
+            'scroll' => $tanda,
             'branches' => Branch::orderBy('name')->get(),
         ])->layout('layouts.app', ['title' => 'Usuarios']);
     }

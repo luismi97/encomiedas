@@ -8,8 +8,8 @@ use App\Services\CompanyEraser;
 use App\Services\CompanyProvisioner;
 use App\Support\CompanyContext;
 use Illuminate\Validation\Rule;
+use App\Livewire\Concerns\ScrollInfinito;
 use Livewire\Component;
-use Livewire\WithPagination;
 use Throwable;
 
 /**
@@ -21,7 +21,7 @@ use Throwable;
  */
 class CompanyIndex extends Component
 {
-    use WithPagination;
+    use ScrollInfinito;
 
     public string $search = '';
 
@@ -112,7 +112,7 @@ class CompanyIndex extends Component
 
     public function updatingSearch(): void
     {
-        $this->resetPage();
+        $this->reiniciarScroll();
     }
 
     public function create(): void
@@ -284,18 +284,18 @@ class CompanyIndex extends Component
     {
         // Sin empresa en contexto el ámbito global no filtra, que es justo lo
         // que hace falta acá: los conteos son de todas las empresas.
-        $empresas = CompanyContext::sinAlcance(fn () => Company::query()
+        $tanda = CompanyContext::sinAlcance(fn () => $this->tanda(Company::query()
             ->when($this->search, fn ($q) => $q->where(
                 fn ($q) => $q->where('name', 'like', "%{$this->search}%")
                     ->orWhere('identification', 'like', "%{$this->search}%")
                     ->orWhere('email', 'like', "%{$this->search}%")
             ))
             ->withCount(['users', 'branches', 'invoices'])
-            ->orderBy('name')
-            ->paginate(15));
+            ->orderBy('name')));
 
         return view('livewire.superadmin.company-index', [
-            'empresas' => $empresas,
+            'empresas' => $tanda['items'],
+            'scroll'   => $tanda,
             'totales'  => CompanyContext::sinAlcance(fn () => [
                 'empresas' => Company::count(),
                 'activas'  => Company::active()->count(),

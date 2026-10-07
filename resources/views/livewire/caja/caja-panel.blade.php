@@ -144,7 +144,11 @@
                     <label class="label">Fondo inicial (₡)</label>
                     <input type="number" step="0.01" wire:model="openingFloat" class="input sm:w-48" data-test="fondo-inicial">
                 </div>
-                <x-action-button action="abrir" variant="primary" loadingText="Abriendo...">
+                {{-- La caja viene preseleccionada y puede no ser la del mostrador
+                     donde está parado: que confirme dónde abre antes de que el
+                     fondo quede en el arqueo de otra caja. --}}
+                <x-action-button action="abrir" variant="primary" loadingText="Abriendo..."
+                    :confirm="$caja ? '¿Abrir el turno en «' . $caja->name . '» de la sede ' . ($caja->branch?->name ?? 'sin sede') . '?' : null">
                     <x-icon name="check-circle" class="w-4 h-4" /> Abrir caja
                 </x-action-button>
                 <x-ayuda posicion="izquierda">Abre tu turno con el fondo inicial. Sin turno abierto no se puede cobrar de contado: el dinero no entraría a ningún arqueo.</x-ayuda>

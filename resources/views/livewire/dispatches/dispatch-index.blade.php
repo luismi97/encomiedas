@@ -283,6 +283,6 @@
             </table>
         </div>
 
-        <div>{{ $dispatches->links() }}</div>
+        <x-scroll-mas :hayMas="$scroll['hayMas']" :enElTope="$scroll['enElTope']" :visibles="$scroll['visibles']" etiqueta="cierres" />
     </div>
 </div>

@@ -396,4 +396,15 @@ class MultiplesCajasTest extends TestCase
             ->get(route('cash-registers.index'))
             ->assertOk();
     }
+
+    /** La caja viene preseleccionada: antes de abrir, confirma cuál y en qué sede. */
+    public function test_abrir_caja_confirma_la_caja_y_la_sede(): void
+    {
+        $mostrador = $this->sj->cashRegisters()->create(['name' => 'Mostrador 2', 'is_active' => true]);
+
+        Livewire::actingAs($this->cajero('Ana', 'ana'))
+            ->test(CajaPanel::class)
+            ->set('registerId', $mostrador->id)
+            ->assertSeeHtml('wire:confirm="¿Abrir el turno en «Mostrador 2» de la sede San José?"');
+    }
 }

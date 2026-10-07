@@ -248,5 +248,5 @@
         </table>
     </div>
 
-    {{ $empresas->links() }}
+    <x-scroll-mas :hayMas="$scroll['hayMas']" :enElTope="$scroll['enElTope']" :visibles="$scroll['visibles']" etiqueta="empresas" />
 </div>

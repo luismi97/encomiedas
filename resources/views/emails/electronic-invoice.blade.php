@@ -20,4 +20,8 @@ Cualquier consulta sobre este comprobante: {{ $emisor['email'] }}
 
 Gracias,<br>
 {{ $emisor['commercial_name'] ?: ($emisor['name'] ?? config('app.name')) }}
+
+@slot('subcopy')
+Sistema de facturación electrónica provisto por **FLK Development**. [info@flkdevelopment.com](mailto:info@flkdevelopment.com).
+@endslot
 @endcomponent

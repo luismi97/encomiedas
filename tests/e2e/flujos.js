@@ -112,7 +112,11 @@ export async function abrirCaja(page, { sede, fondo }) {
   await elegirCaja(page, sede);
 
   await page.fill('[data-test="fondo-inicial"]', String(fondo));
+  // Confirma en qué caja y sede abre: la preseleccionada puede no ser la suya.
+  let confirmacion = '';
+  page.once('dialog', (d) => { confirmacion = d.message(); d.accept(); });
   await page.click('button:has-text("Abrir caja")');
+  await expect.poll(() => confirmacion).toContain(sede);
 
   await expect(page.locator('body')).toContainText('Turno abierto');
 }

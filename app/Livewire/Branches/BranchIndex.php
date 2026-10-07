@@ -7,12 +7,12 @@ use App\Models\Branch;
 use Illuminate\Database\QueryException;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use App\Livewire\Concerns\ScrollInfinito;
 use Livewire\Component;
-use Livewire\WithPagination;
 
 class BranchIndex extends Component
 {
-    use WithPagination;
+    use ScrollInfinito;
 
     public bool $showForm = false;
     public $editingId = null;
@@ -327,11 +327,11 @@ class BranchIndex extends Component
 
     public function render()
     {
+        $tanda = $this->tanda(Branch::query()->withCount('users')->orderBy('name'));
+
         return view('livewire.branches.branch-index', [
-            'branches' => Branch::query()
-                ->withCount('users')
-                ->orderBy('name')
-                ->paginate(10),
+            'branches' => $tanda['items'],
+            'scroll'   => $tanda,
         ])->layout('layouts.app', ['title' => 'Sucursales']);
     }
 }

@@ -12,13 +12,13 @@ use App\Models\User;
 use App\Services\DispatchService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use App\Livewire\Concerns\ScrollInfinito;
 use Livewire\Component;
-use Livewire\WithPagination;
 use RuntimeException;
 
 class DispatchIndex extends Component
 {
-    use WithPagination;
+    use ScrollInfinito;
 
     public string $filterStatus = '';
 
@@ -334,18 +334,24 @@ class DispatchIndex extends Component
             ->findOrFail($this->openId);
     }
 
+    public function updatedFilterStatus(): void
+    {
+        $this->reiniciarScroll();
+    }
+
     public function render(DispatchService $servicio)
     {
         $abierto = $this->openId ? $this->manifiesto() : null;
+        $tanda = $this->tanda(Dispatch::with(['originBranch', 'destinationBranch', 'driver'])
+            ->when($this->filterStatus !== '', fn ($q) => $q->where('status', $this->filterStatus))
+            ->withCount('lines')
+            ->latest());
 
         return view('livewire.dispatches.dispatch-index', [
             'abierto'     => $abierto,
             'disponibles' => $abierto?->estaAbierto() ? $servicio->disponiblesPara($abierto) : collect(),
-            'dispatches'  => Dispatch::with(['originBranch', 'destinationBranch', 'driver'])
-                ->when($this->filterStatus !== '', fn ($q) => $q->where('status', $this->filterStatus))
-                ->withCount('lines')
-                ->latest()
-                ->paginate(10),
+            'dispatches'  => $tanda['items'],
+            'scroll'      => $tanda,
             'branches'    => Branch::where('is_active', true)->orderBy('name')->get(['id', 'name', 'prefix']),
             // Las de la misma sede no: ese paquete no viaja, y el cierre exige
             // dos sedes distintas.

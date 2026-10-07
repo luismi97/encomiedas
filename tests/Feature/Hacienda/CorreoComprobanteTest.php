@@ -111,6 +111,19 @@ class CorreoComprobanteTest extends TestCase
         }
     }
 
+    /** Al pie va quién provee el sistema y cómo contactarlo. */
+    public function test_el_correo_menciona_a_flk_development(): void
+    {
+        $ei = $this->comprobanteAceptado();
+
+        $html = (string) (new SendElectronicInvoice($ei))->toMail(
+            (object) ['routes' => ['mail' => 'jose@cliente.test']]
+        )->render();
+
+        $this->assertStringContainsString('FLK Development', $html);
+        $this->assertStringContainsString('info@flkdevelopment.com', $html);
+    }
+
     /** Un comprobante rechazado no se le manda al cliente. */
     public function test_un_rechazo_no_dispara_correo_al_cliente(): void
     {

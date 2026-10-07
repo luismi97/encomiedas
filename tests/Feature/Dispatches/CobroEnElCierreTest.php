@@ -91,7 +91,10 @@ class CobroEnElCierreTest extends TestCase
         $this->assertStringContainsString('POR COBRAR ₡4,520.00', $html);
         $this->assertStringContainsString('Pagado', $html);
         $this->assertStringContainsString('Crédito', $html);
-        $this->assertStringContainsString('Por cobrar en destino: 1 guía(s) · ₡4,520.00', $html);
+        $this->assertStringContainsString('Por cobrar en destino: 1 guía(s)', $html);
+        // Al pie no van montos totales: ni el valor declarado ni lo por cobrar.
+        $this->assertStringNotContainsString('valor declarado ₡', $html);
+        $this->assertStringNotContainsString('guía(s) · ₡', $html);
     }
 
     /** Un «por cobrar» que ya se cobró deja de pedirse. */

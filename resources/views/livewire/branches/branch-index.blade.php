@@ -178,6 +178,6 @@
             @endforelse
         </div>
 
-        <div class="mt-4">{{ $branches->links() }}</div>
+        <div class="mt-4"><x-scroll-mas :hayMas="$scroll['hayMas']" :enElTope="$scroll['enElTope']" :visibles="$scroll['visibles']" etiqueta="sucursales" /></div>
     </div>
 </div>
