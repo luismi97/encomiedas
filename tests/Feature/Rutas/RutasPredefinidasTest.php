@@ -89,16 +89,63 @@ class RutasPredefinidasTest extends TestCase
             ->assertHasErrors('destination_branch_id');
     }
 
-    public function test_el_origen_y_el_destino_tienen_que_ser_distintos(): void
+    /** Lo que se deja y se retira en la misma sede, como en la guía. */
+    public function test_una_ruta_puede_quedarse_en_la_misma_sede(): void
     {
         Livewire::actingAs($this->admin)
             ->test(ShippingRouteIndex::class)
             ->call('create')
-            ->set('name', 'A ninguna parte')
+            ->set('name', 'Retiro en San José')
             ->set('origin_branch_id', $this->sj->id)
             ->set('destination_branch_id', $this->sj->id)
             ->call('save')
-            ->assertHasErrors('destination_branch_id');
+            ->assertHasNoErrors();
+
+        $ruta = ShippingRoute::firstOrFail();
+        $this->assertSame($ruta->origin_branch_id, $ruta->destination_branch_id);
+
+        // Tampoco se repite.
+        Livewire::actingAs($this->admin)
+            ->test(ShippingRouteIndex::class)
+            ->call('create')
+            ->set('name', 'Otra en San José')
+            ->set('origin_branch_id', $this->sj->id)
+            ->set('destination_branch_id', $this->sj->id)
+            ->call('save')
+            ->assertHasErrors('destination_branch_id')
+            ->assertSee('dentro de esa sede');
+    }
+
+    public function test_la_guia_con_ruta_de_la_misma_sede_se_guarda(): void
+    {
+        $ruta = $this->ruta($this->sj, $this->sj, null);
+
+        Livewire::actingAs($this->admin)
+            ->test(InvoiceForm::class)
+            ->set('shipping_route_id', $ruta->id)
+            ->assertSet('pickup_branch_id', $this->sj->id)
+            ->assertSet('delivery_branch_id', $this->sj->id)
+            ->set('cobro', InvoiceForm::COBRO_COLLECT)
+            ->set('sender_name', 'Marta')
+            ->set('recipient_name', 'José')
+            ->set('items.0.price', 1000)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $guia = Invoice::firstOrFail();
+        $this->assertSame($ruta->id, $guia->shipping_route_id);
+        $this->assertTrue($guia->esMismaSede());
+    }
+
+    /** No viaja: el cierre no la ofrece. */
+    public function test_el_cierre_no_ofrece_rutas_de_la_misma_sede(): void
+    {
+        $this->ruta($this->sj, $this->sj, null)->update(['name' => 'Retiro en San José']);
+        $this->ruta()->update(['name' => 'Limón directo']);
+
+        $rutas = Livewire::actingAs($this->admin)->test(DispatchIndex::class)->viewData('rutas');
+
+        $this->assertSame(['Limón directo'], $rutas->pluck('name')->all());
     }
 
     /** Borrarla dejaría sin fecha prometida a guías que ya salieron con ella. */

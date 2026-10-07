@@ -36,7 +36,10 @@ class ShippingRouteIndex extends Component
             'name' => 'required|string|max:80',
             'origin_branch_id' => ['required', DeLaEmpresa::en('branches')],
             'destination_branch_id' => [
-                'required', 'different:origin_branch_id', DeLaEmpresa::en('branches'),
+                // Puede ser la misma sede que el origen: el paquete que alguien
+                // deja y otro recoge ahí mismo, igual que en la guía (ver
+                // Invoice::esMismaSede). No viaja en ningún cierre.
+                'required', DeLaEmpresa::en('branches'),
                 // El par no se repite: dos rutas iguales con nombres distintos
                 // obligan a adivinar cuál usar, y ninguna de las dos está mal.
                 Rule::unique('shipping_routes', 'destination_branch_id')
@@ -55,8 +58,9 @@ class ShippingRouteIndex extends Component
             'name.required' => 'Ponele un nombre a la ruta, por ejemplo «Limón directo».',
             'origin_branch_id.required' => 'Elegí la sede de origen.',
             'destination_branch_id.required' => 'Elegí la sede de destino.',
-            'destination_branch_id.different' => 'El destino tiene que ser una sede distinta del origen.',
-            'destination_branch_id.unique' => 'Ya existe una ruta entre esas dos sedes. Editá esa en vez de crear otra.',
+            'destination_branch_id.unique' => $this->origin_branch_id == $this->destination_branch_id
+                ? 'Ya existe una ruta dentro de esa sede. Editá esa en vez de crear otra.'
+                : 'Ya existe una ruta entre esas dos sedes. Editá esa en vez de crear otra.',
             'transit_days.max' => 'Sesenta días de tránsito es más un extravío que una ruta.',
         ];
     }

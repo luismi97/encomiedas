@@ -347,7 +347,10 @@ class DispatchIndex extends Component
                 ->latest()
                 ->paginate(10),
             'branches'    => Branch::where('is_active', true)->orderBy('name')->get(['id', 'name', 'prefix']),
+            // Las de la misma sede no: ese paquete no viaja, y el cierre exige
+            // dos sedes distintas.
             'rutas'       => ShippingRoute::active()->with(['originBranch', 'destinationBranch'])
+                ->whereColumn('origin_branch_id', '!=', 'destination_branch_id')
                 ->orderBy('name')->get(),
             'choferes'    => User::where('role', User::ROLE_REPARTIDOR)->where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ])->layout('layouts.app', ['title' => 'Cierres de envío']);
