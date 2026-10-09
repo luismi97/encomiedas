@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    @include('partials.tamano-letra')
     <title>Guías sin conexión</title>
     {{-- Solo el CSS: esta pantalla la sirve el service worker sin red, y
          Livewire/Alpine necesitan al servidor para todo. --}}

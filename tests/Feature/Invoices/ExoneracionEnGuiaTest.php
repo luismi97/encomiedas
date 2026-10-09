@@ -139,6 +139,7 @@ class ExoneracionEnGuiaTest extends TestCase
         $this->formulario()
             ->set('sender_name', 'Marta Solano')
             ->set('wantsInvoice', true)
+            ->set('bill_to', Invoice::BILL_TO_RECIPIENT)
             ->set('recipient_identification', '112340567')
             ->set('tax_exempt', true)
             ->call('save')

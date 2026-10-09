@@ -163,12 +163,13 @@ test.describe('Facturas', () => {
 
     await page.click('button:has-text("Guardar factura")');
 
-    await expect(page.locator('body')).toContainText('identificación del receptor');
+    // Por defecto se le factura al remitente, que es quien paga en ventanilla.
+    await expect(page.locator('body')).toContainText('Para facturarle al remitente hace falta su identificación');
     await expect(page).not.toHaveURL(/\/invoices\/\d+/);
 
     // Quien guardó está al pie: se lo lleva al campo que falta y se le resume
     // el error junto al botón.
-    const cedula = page.locator('[wire\\:model\\.blur="recipient_identification"]');
+    const cedula = page.locator('[wire\\:model\\.blur="sender_identification"]');
     await expect(cedula).toBeInViewport();
     await expect(cedula).toBeFocused();
     await expect(page.locator('[data-resumen-errores]')).toContainText('No se guardó la guía.');

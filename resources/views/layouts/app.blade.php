@@ -5,6 +5,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    @include('partials.tamano-letra')
     <title>{{ $title ?? config('app.name') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
@@ -141,21 +142,25 @@
 
     <div class="lg:pl-72">
         <!-- Topbar -->
-        <header class="sticky top-0 z-20 h-16 flex items-center justify-between gap-3 px-4 sm:px-6 bg-white/90 dark:bg-gray-800/90 backdrop-blur border-b border-gray-200 dark:border-gray-700">
-            <div class="flex items-center gap-3">
+        <header class="sticky top-0 z-20 h-16 flex items-center justify-between gap-3 px-3 sm:px-6 bg-white/90 dark:bg-gray-800/90 backdrop-blur border-b border-gray-200 dark:border-gray-700">
+            {{-- min-w-0 + truncate, acá y en el bloque del usuario: con la
+                 letra agrandada, el título y el nombre se recortan en vez de
+                 empujar «Salir» fuera de la pantalla (WCAG 1.4.10). Los
+                 botones no se achican nunca. --}}
+            <div class="flex items-center gap-3 min-w-0">
                 <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Abrir menú">
                     <x-icon name="menu" class="w-6 h-6" />
                 </button>
-                <h1 class="text-lg sm:text-xl font-semibold">{{ $title ?? 'Inicio' }}</h1>
+                <h1 class="text-lg sm:text-xl font-semibold truncate" title="{{ $title ?? 'Inicio' }}">{{ $title ?? 'Inicio' }}</h1>
             </div>
 
-            <div class="flex items-center gap-2 sm:gap-4">
+            <div class="flex items-center gap-1 sm:gap-4 shrink-0 sm:shrink sm:min-w-0">
                 {{-- Reabrir el recorrido de esta pantalla. Solo aparece donde
                      hay uno definido: un botón que a veces no hace nada enseña
                      a no confiar en él. --}}
                 @if (\App\Support\GuiasDePantalla::para(request()->route()?->getName()))
                     <button type="button" x-on:click="$dispatch('abrir-guia')"
-                            class="px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium
+                            class="shrink-0 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium
                                    inline-flex items-center gap-2"
                             data-test="boton-guia">
                         <x-icon name="clipboard-list" class="w-5 h-5" />
@@ -163,14 +168,16 @@
                     </button>
                 @endif
 
-                <button @click="dark = !dark" type="button" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cambiar tema">
+                <x-tamano-letra />
+
+                <button @click="dark = !dark" type="button" class="shrink-0 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cambiar tema">
                     <span x-show="!dark"><x-icon name="moon" class="w-5 h-5" /></span>
                     <span x-show="dark" x-cloak><x-icon name="sun" class="w-5 h-5" /></span>
                 </button>
 
-                <div class="hidden sm:block text-right leading-tight">
-                    <div class="font-medium">{{ auth()->user()->name }}</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400" data-test="identidad-sesion">
+                <div class="hidden sm:block text-right leading-tight min-w-0">
+                    <div class="font-medium truncate">{{ auth()->user()->name }}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 truncate" data-test="identidad-sesion">
                         {{-- La empresa va primero: con varias en el mismo sistema,
                              saber en cuál se está trabajando importa más que el rol. --}}
                         @if ($empresaActiva = \App\Support\CompanyContext::actual())
@@ -180,7 +187,7 @@
                     </div>
                 </div>
 
-                <form method="POST" action="{{ route('logout') }}">
+                <form method="POST" action="{{ route('logout') }}" class="shrink-0">
                     @csrf
                     <button type="submit" class="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium">
                         Salir

@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    @include('partials.tamano-letra')
     <meta name="robots" content="noindex, nofollow">
     @php($marca = ($empresa ?? null)?->name ?: config('app.name'))
     <title>Seguimiento de encomienda — {{ $marca }}</title>

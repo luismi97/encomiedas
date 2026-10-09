@@ -54,13 +54,15 @@ class TipoComprobanteTest extends TestCase
      * Una guía nueva arranca en Factura Electrónica: olvidarse de marcarla
      * dejaba un tiquete que, ya aceptado, solo se arreglaba con nota de crédito.
      * Sin cédula no se guarda hasta que alguien elija tiquete a conciencia.
+     * Y se le factura al remitente, que es quien está pagando en ventanilla.
      */
     public function test_por_defecto_se_emite_factura_y_sin_cedula_no_se_guarda(): void
     {
         $this->formulario()
             ->assertSet('wantsInvoice', true)
+            ->assertSet('bill_to', Invoice::BILL_TO_SENDER)
             ->call('save')
-            ->assertHasErrors('recipient_identification')
+            ->assertHasErrors('sender_identification')
             ->assertSee('desmarcá «Emitir Factura Electrónica»');
 
         $this->assertSame(0, Invoice::count());
@@ -89,6 +91,7 @@ class TipoComprobanteTest extends TestCase
     {
         $this->formulario()
             ->set('wantsInvoice', true)
+            ->set('bill_to', Invoice::BILL_TO_RECIPIENT)
             ->call('save')
             ->assertHasErrors('recipient_identification')
             ->assertSee('hace falta la identificación del receptor');
@@ -100,6 +103,7 @@ class TipoComprobanteTest extends TestCase
     {
         $this->formulario()
             ->set('wantsInvoice', true)
+            ->set('bill_to', Invoice::BILL_TO_RECIPIENT)
             ->set('recipient_identification_type', '01')
             ->set('recipient_identification', '112340567')
             ->call('save')
@@ -115,6 +119,7 @@ class TipoComprobanteTest extends TestCase
     {
         $this->formulario()
             ->set('wantsInvoice', true)
+            ->set('bill_to', Invoice::BILL_TO_RECIPIENT)
             ->set('recipient_identification', '1-1234-0567')
             ->call('save')
             ->assertHasNoErrors();
@@ -126,6 +131,7 @@ class TipoComprobanteTest extends TestCase
     {
         $this->formulario()
             ->set('wantsInvoice', true)
+            ->set('bill_to', Invoice::BILL_TO_RECIPIENT)
             ->set('recipient_identification', '123')
             ->call('save')
             ->assertHasErrors('recipient_identification');
@@ -161,6 +167,7 @@ class TipoComprobanteTest extends TestCase
     {
         $this->formulario()
             ->set('wantsInvoice', true)
+            ->set('bill_to', Invoice::BILL_TO_RECIPIENT)
             ->set('recipient_identification', '112340567')
             ->set('wantsInvoice', false)
             ->assertSet('recipient_identification', '112340567')
@@ -193,6 +200,7 @@ class TipoComprobanteTest extends TestCase
     {
         $this->formulario()
             ->set('wantsInvoice', true)
+            ->set('bill_to', Invoice::BILL_TO_RECIPIENT)
             ->set('recipient_identification', '112340567')
             ->call('save')
             ->assertHasNoErrors();

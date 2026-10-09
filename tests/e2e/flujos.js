@@ -328,6 +328,8 @@ export async function crearGuia(page, opciones) {
 
   if (conFactura) {
     await page.locator('[wire\\:model\\.live="wantsInvoice"]').check();
+    // Por defecto se le factura al remitente; conFactura trae la del receptor.
+    await page.locator('[wire\\:model\\.live="bill_to"][value="recipient"]').check();
     await page
       .locator('[wire\\:model="recipient_identification_type"]')
       .selectOption(conFactura.tipo ?? '01');

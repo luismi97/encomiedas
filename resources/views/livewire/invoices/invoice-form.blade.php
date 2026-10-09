@@ -95,7 +95,7 @@
         <div class="card space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-lg font-semibold">Remitente</h2>
-                <div class="min-w-[280px]">
+                <div class="w-full sm:w-auto sm:min-w-[17.5rem]">
                     <x-customer-picker
                         model="sender_customer_id"
                         search="senderSearch"
@@ -120,7 +120,7 @@
                     </select>
                 </div>
                 <div>
-                    <label class="label">Identificación</label>
+                    <label class="label">Identificación @unless ($wantsInvoice && $bill_to === \App\Models\Invoice::BILL_TO_SENDER)<span class="text-gray-400 font-normal">(opcional)</span>@endunless</label>
                     <input type="text" wire:model.blur="sender_identification" class="input @error('sender_identification') input-error @enderror">
                     @error('sender_identification') <p class="error-text">{{ $message }}</p> @enderror
                 </div>
@@ -132,7 +132,7 @@
         <div class="card space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-lg font-semibold">Receptor</h2>
-                <div class="min-w-[280px]">
+                <div class="w-full sm:w-auto sm:min-w-[17.5rem]">
                     <x-customer-picker
                         model="recipient_customer_id"
                         search="recipientSearch"
@@ -614,7 +614,7 @@
 
         <x-resumen-errores titulo="No se guardó la guía." />
 
-        <div class="flex gap-3">
+        <div class="flex flex-wrap gap-3">
             <x-action-button type="submit" target="save" variant="primary" loadingText="Guardando..."><x-icon name="check" class="w-4 h-4" /> Guardar factura</x-action-button>
             <a href="{{ route('invoices.index') }}" class="btn-secondary">Cancelar</a>
         </div>

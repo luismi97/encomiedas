@@ -4,6 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    @include('partials.tamano-letra')
     <title>{{ $title }} — {{ config('app.name') }}</title>
     @vite(['resources/css/app.css'])
     {{-- Antes del primer pintado para que no parpadee el tema claro. --}}

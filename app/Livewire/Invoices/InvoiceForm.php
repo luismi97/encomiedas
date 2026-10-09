@@ -132,8 +132,12 @@ class InvoiceForm extends Component
      */
     public bool $wantsInvoice = true;
 
-    /** A quién se factura: destinatario, remitente u otra persona. */
-    public string $bill_to = Invoice::BILL_TO_RECIPIENT;
+    /**
+     * A quién se factura: destinatario, remitente u otra persona. Una guía
+     * nueva arranca en el remitente: es quien está en ventanilla pagando y
+     * quien puede dar la cédula en ese momento.
+     */
+    public string $bill_to = Invoice::BILL_TO_SENDER;
     public string $billing_name = '';
     public string $billing_identification_type = '01';
     public string $billing_identification = '';
