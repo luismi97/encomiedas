@@ -149,7 +149,7 @@ class GuideStatusService
 
         // Ante Hacienda una factura aceptada no se anula: se revierte con una
         // nota de crédito por lo que quede sin acreditar.
-        if ($comprobante && ($saldo = $this->saldoSinAcreditar($comprobante)) > 0) {
+        if ($comprobante && ($saldo = $comprobante->saldoSinAcreditar()) > 0) {
             try {
                 app(ElectronicBillingService::class)->issueNote(
                     $comprobante,
@@ -192,17 +192,6 @@ class GuideStatusService
         }
 
         return $comprobante->status === ElectronicInvoice::STATUS_ACCEPTED ? $comprobante : null;
-    }
-
-    /** Total del comprobante menos las notas de crédito que ya tiene (salvo rechazadas). */
-    private function saldoSinAcreditar(ElectronicInvoice $comprobante): float
-    {
-        $acreditado = (float) ElectronicInvoice::where('reference_invoice_id', $comprobante->id)
-            ->where('document_type', \App\Services\Hacienda\Catalogs::documentCode('NC'))
-            ->where('status', '!=', ElectronicInvoice::STATUS_REJECTED)
-            ->sum('total');
-
-        return round((float) $comprobante->total - $acreditado, 5);
     }
 
     public const SOLO_ADMIN_CORRIGE = 'Solo un administrador puede corregir el estado de una guía.';

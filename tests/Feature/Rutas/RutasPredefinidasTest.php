@@ -122,6 +122,7 @@ class RutasPredefinidasTest extends TestCase
 
         Livewire::actingAs($this->admin)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('shipping_route_id', $ruta->id)
             ->assertSet('pickup_branch_id', $this->sj->id)
             ->assertSet('delivery_branch_id', $this->sj->id)
@@ -179,6 +180,7 @@ class RutasPredefinidasTest extends TestCase
 
         Livewire::actingAs($this->admin)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('shipping_route_id', $ruta->id)
             ->assertSet('pickup_branch_id', $this->sj->id)
             ->assertSet('delivery_branch_id', $this->lim->id);
@@ -189,6 +191,7 @@ class RutasPredefinidasTest extends TestCase
     {
         Livewire::actingAs($this->admin)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('pickup_branch_id', $this->sj->id)
             ->set('delivery_branch_id', $this->her->id)
             ->assertSet('shipping_route_id', null)
@@ -205,6 +208,7 @@ class RutasPredefinidasTest extends TestCase
 
         Livewire::actingAs($this->admin)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('shipping_route_id', $ruta->id)
             ->assertSet('shipping_route_id', $ruta->id)
             ->set('delivery_branch_id', $this->her->id)
@@ -217,6 +221,7 @@ class RutasPredefinidasTest extends TestCase
 
         Livewire::actingAs($this->admin)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('shipping_route_id', $ruta->id)
             // Por cobrar: así la prueba no depende de tener una caja abierta,
             // que es otra cosa y ya tiene sus propias pruebas.

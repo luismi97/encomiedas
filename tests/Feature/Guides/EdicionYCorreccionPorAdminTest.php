@@ -156,7 +156,7 @@ class EdicionYCorreccionPorAdminTest extends TestCase
         $this->assertSame(ElectronicInvoice::STATUS_PENDING, $comprobante->status);
     }
 
-    /** Uno aceptado no se toca: se avisa que corresponde una nota. */
+    /** Uno aceptado no se toca solo: se manda a «Corregir datos de facturación», que lo anula y reemite. */
     public function test_con_comprobante_aceptado_avisa_que_hace_falta_una_nota(): void
     {
         $guia = $this->guiaEditable();
@@ -172,7 +172,7 @@ class EdicionYCorreccionPorAdminTest extends TestCase
             ->assertHasNoErrors();
 
         $this->assertSame($clave, $comprobante->fresh()->clave);
-        $this->assertStringContainsString('nota de crédito o débito', (string) session('info'));
+        $this->assertStringContainsString('Corregir datos de facturación', (string) session('info'));
     }
 
     // ── Corregir el estado ────────────────────────────────────────────

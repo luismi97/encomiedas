@@ -175,6 +175,7 @@ test.describe('Envíos', () => {
     await abrirCaja(page, { sede: empresa.origen, fondo: 10000 });
 
     await visitar(page, '/invoices-create');
+    await page.locator('[wire\\:model\\.live="wantsInvoice"]').uncheck(); // sin cédula: tiquete
     await page.locator('[wire\\:model\\.live="pickup_branch_id"]').selectOption({ label: empresa.origen });
     await page.locator('[wire\\:model\\.live="delivery_branch_id"]').selectOption({ label: empresa.origen });
     await page.fill('[wire\\:model="sender_name"]', 'Marta Solano');

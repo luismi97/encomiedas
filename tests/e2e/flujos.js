@@ -320,6 +320,12 @@ export async function crearGuia(page, opciones) {
     await page.fill('[wire\\:model\\.live="declared_value"]', String(valorDeclarado));
   }
 
+  // La guía nueva arranca en Factura Electrónica: sin cédula, se pide tiquete
+  // desmarcando, como haría el cajero.
+  if (!conFactura) {
+    await page.locator('[wire\\:model\\.live="wantsInvoice"]').uncheck();
+  }
+
   if (conFactura) {
     await page.locator('[wire\\:model\\.live="wantsInvoice"]').check();
     await page

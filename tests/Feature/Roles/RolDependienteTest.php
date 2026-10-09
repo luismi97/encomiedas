@@ -78,6 +78,7 @@ class RolDependienteTest extends TestCase
     {
         Livewire::actingAs($this->dependiente)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->assertSet('pickup_branch_id', $this->sj->id)
             ->set('delivery_branch_id', $this->pz->id)
             ->set('sender_name', 'Marta')
@@ -95,6 +96,7 @@ class RolDependienteTest extends TestCase
     {
         $form = fn (Branch $origen) => Livewire::actingAs($this->dependiente)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('pickup_branch_id', $origen->id)
             ->set('delivery_branch_id', $this->sj->id)
             ->set('sender_name', 'Marta')

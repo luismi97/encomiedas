@@ -72,6 +72,7 @@ class TipoDeBultoTest extends TestCase
     {
         return Livewire::actingAs($this->admin)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('pickup_branch_id', $this->sj->id)
             ->set('delivery_branch_id', $this->lim->id)
             ->set('sender_name', 'Marta Solano')
@@ -84,6 +85,7 @@ class TipoDeBultoTest extends TestCase
     {
         Livewire::actingAs($this->admin)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->assertSet('items.0.package_type_id', PackageType::porDefecto()->id);
     }
 

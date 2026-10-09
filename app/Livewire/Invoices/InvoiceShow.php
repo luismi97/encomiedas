@@ -230,10 +230,14 @@ class InvoiceShow extends Component
         }
 
         $this->showBillingForm = false;
-        $this->invoice->load(['electronicInvoice', 'activityLogs.user']);
-        session()->flash('success', $datos
+        $this->invoice->load(['electronicInvoice', 'electronicNotes', 'electronicInvoices', 'activityLogs.user']);
+        $reemitido = $this->invoice->electronicInvoices->whereIn('document_type', ['01', '04'])->count() > 1
+            && $this->invoice->electronicInvoice?->status === \App\Models\ElectronicInvoice::STATUS_PENDING;
+
+        session()->flash('success', ($datos
             ? 'Facturación corregida: sale como Factura Electrónica a nombre de ' . $datos['nombre'] . '.'
-            : 'Facturación corregida: sale como Tiquete Electrónico.');
+            : 'Facturación corregida: sale como Tiquete Electrónico.')
+            . ($reemitido ? ' El comprobante anterior se anuló con nota de crédito; el nuevo quedó pendiente de envío a Hacienda.' : ''));
     }
 
     public function openReturnForm(): void

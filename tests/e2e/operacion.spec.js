@@ -30,6 +30,7 @@ test.describe('Operación de una empresa nueva', () => {
    */
   async function crearGuia(page, { origen, destino, remitente, destinatario, precio }) {
     await visitar(page, '/invoices-create');
+    await page.locator('[wire\\:model\\.live="wantsInvoice"]').uncheck(); // sin cédula: tiquete
 
     // Por nombre y no por posición: el selector ordena alfabéticamente, así que
     // «Limón» queda antes que «Sede de prueba» y el código guía salía al revés.

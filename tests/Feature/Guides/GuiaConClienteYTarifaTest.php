@@ -54,6 +54,7 @@ class GuiaConClienteYTarifaTest extends TestCase
 
         return Livewire::actingAs($this->admin())
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('pickup_branch_id', $this->sj->id)
             ->set('delivery_branch_id', $this->lim->id);
     }
@@ -89,7 +90,12 @@ class GuiaConClienteYTarifaTest extends TestCase
             ->assertSet('wantsInvoice', true);
     }
 
-    public function test_un_receptor_sin_cedula_no_activa_la_factura(): void
+    /**
+     * Un cliente sin cédula no apaga la factura por su cuenta: si la guía
+     * pedía factura, sigue pidiéndola y quien la llena decide si pasa a
+     * tiquete. Apagarla sola era volver al tiquete por descuido.
+     */
+    public function test_un_receptor_sin_cedula_no_cambia_el_tipo_elegido(): void
     {
         $cliente = Customer::create(['name' => 'Marta Solano', 'phone' => '8811-2233']);
 
@@ -97,6 +103,11 @@ class GuiaConClienteYTarifaTest extends TestCase
             ->set('recipient_customer_id', $cliente->id)
             ->assertSet('recipient_name', 'Marta Solano')
             ->assertSet('wantsInvoice', false);
+
+        $this->formulario()
+            ->set('wantsInvoice', true)
+            ->set('recipient_customer_id', $cliente->id)
+            ->assertSet('wantsInvoice', true);
     }
 
     public function test_el_tarifario_propone_el_precio_de_cada_paquete(): void

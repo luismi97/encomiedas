@@ -177,8 +177,8 @@
                     <span>
                         <span class="font-medium">Emitir Factura Electrónica</span>
                         <span class="block text-sm text-gray-500 dark:text-gray-400">
-                            Requiere la identificación de a quién se factura. Si lo dejás sin marcar se emite un
-                            <strong>Tiquete Electrónico</strong>, que no la necesita.
+                            Requiere la identificación de a quién se factura. Si el cliente no da cédula, desmarcalo
+                            y se emite un <strong>Tiquete Electrónico</strong>, que no la necesita.
                         </span>
                     </span>
                 </label>

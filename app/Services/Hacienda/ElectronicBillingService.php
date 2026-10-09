@@ -301,6 +301,39 @@ class ElectronicBillingService
         return $electronicInvoice->fresh();
     }
 
+    /**
+     * Emite un comprobante nuevo para una guía cuyo comprobante aceptado ya
+     * quedó anulado por completo con notas de crédito (p. ej. un tiquete al
+     * que después le pidieron factura con cédula).
+     *
+     * queueForInvoice() no sirve acá: es idempotente y devolvería el anulado.
+     * El nuevo nace 'pending', igual que cualquier otro: lo envía el admin.
+     */
+    public function reemitir(Invoice $invoice): ElectronicInvoice
+    {
+        $settings = CompanySetting::instance();
+        if (!$settings->isReady()) {
+            throw new RuntimeException('La facturación electrónica no está configurada.');
+        }
+
+        return DB::transaction(function () use ($invoice, $settings) {
+            Invoice::whereKey($invoice->id)->lockForUpdate()->first();
+
+            $vigente = $invoice->electronicInvoice()->first();
+
+            if ($vigente && $vigente->status !== ElectronicInvoice::STATUS_ACCEPTED) {
+                throw new RuntimeException('La guía ya tiene un comprobante sin cerrar («' . $vigente->statusLabel() . '»).');
+            }
+
+            if ($vigente && $vigente->saldoSinAcreditar() > 0) {
+                throw new RuntimeException('El comprobante ' . $vigente->consecutivo . ' sigue vigente: '
+                    . 'hay que anularlo con una nota de crédito antes de emitir otro.');
+            }
+
+            return $this->createPendingInvoice($invoice->fresh(), $settings);
+        });
+    }
+
     /** Vuelve a fotografiar al emisor y al receptor con lo configurado hoy. */
     private function refreshEmisorSnapshot(ElectronicInvoice $electronicInvoice, CompanySetting $settings): void
     {

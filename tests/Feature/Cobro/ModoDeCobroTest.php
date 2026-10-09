@@ -63,6 +63,7 @@ class ModoDeCobroTest extends TestCase
     {
         return Livewire::actingAs($this->cajero)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('pickup_branch_id', $this->sj->id)
             ->set('delivery_branch_id', $this->lim->id)
             ->set('sender_name', 'Marta')
@@ -171,6 +172,7 @@ class ModoDeCobroTest extends TestCase
 
         Livewire::actingAs($this->cajero)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('sender_customer_id', $cliente->id)
             ->assertSet('cobro', 'credit')
             ->assertSee('Disponible');
@@ -182,6 +184,7 @@ class ModoDeCobroTest extends TestCase
 
         Livewire::actingAs($this->cajero)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('sender_customer_id', $contado->id)
             ->assertSet('cobro', 'prepaid');
     }

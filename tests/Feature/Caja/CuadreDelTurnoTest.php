@@ -44,6 +44,7 @@ class CuadreDelTurnoTest extends TestCase
     {
         Livewire::actingAs($this->cajera)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('pickup_branch_id', $this->sj->id)
             ->set('delivery_branch_id', $this->lim->id)
             ->set('sender_name', 'Marta')

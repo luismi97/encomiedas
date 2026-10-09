@@ -124,8 +124,13 @@ class InvoiceForm extends Component
     /**
      * Factura electrónica (con receptor identificado) o tiquete. Es una
      * elección explícita: deducirla de si venía la cédula emitía FE sin querer.
+     *
+     * Una guía nueva arranca en factura: olvidarse de marcarla dejaba un
+     * tiquete que, una vez aceptado, solo se arregla con nota de crédito. Así
+     * el tiquete hay que pedirlo desmarcando, y sin cédula no se guarda hasta
+     * que alguien lo decida.
      */
-    public bool $wantsInvoice = false;
+    public bool $wantsInvoice = true;
 
     /** A quién se factura: destinatario, remitente u otra persona. */
     public string $bill_to = Invoice::BILL_TO_RECIPIENT;
@@ -798,9 +803,10 @@ class InvoiceForm extends Component
         return [
             'pickup_branch_id.in' => 'Solo podés recibir encomiendas en las sedes que tenés asignadas.',
             'recipient_identification.required' => 'Para emitir Factura Electrónica hace falta la identificación del receptor. '
-                . 'Sin ella el comprobante debe ser Tiquete Electrónico.',
+                . 'Si no la tiene, desmarcá «Emitir Factura Electrónica» y sale como Tiquete Electrónico.',
             'recipient_identification.regex' => 'La identificación son de 9 a 12 dígitos, sin guiones ni espacios.',
-            'sender_identification.required' => 'Para facturarle al remitente hace falta su identificación.',
+            'sender_identification.required' => 'Para facturarle al remitente hace falta su identificación. '
+                . 'Si no la tiene, desmarcá «Emitir Factura Electrónica» y sale como Tiquete Electrónico.',
             'sender_identification.regex' => 'La identificación son de 9 a 12 dígitos, sin guiones ni espacios.',
             'billing_name.required' => 'Indicá a nombre de quién va la factura.',
             'billing_identification.required' => 'Para emitir Factura Electrónica hace falta la identificación de a quién se factura.',
@@ -1155,7 +1161,10 @@ class InvoiceForm extends Component
                 $avisos[] = 'Su comprobante pendiente se rehízo con los datos de facturación nuevos.';
             } elseif (! $editable && ($cambioElTotal || $cambioLaFacturacion)) {
                 $avisos[] = 'Ojo: el comprobante electrónico ya está en Hacienda («' . $comprobante->statusLabel() . '») '
-                    . 'y no cambió. Si hay que corregir lo declarado, emití una nota de crédito o débito desde la guía.';
+                    . 'y no cambió. ' . ($cambioLaFacturacion && $comprobante->status === \App\Models\ElectronicInvoice::STATUS_ACCEPTED
+                        ? 'Para que salga a nombre de quien corresponde, usá «Corregir datos de facturación» en la guía: '
+                            . 'anula el aceptado con nota de crédito y emite uno nuevo.'
+                        : 'Si hay que corregir lo declarado, emití una nota de crédito o débito desde la guía.');
             }
         }
 

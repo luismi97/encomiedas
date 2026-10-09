@@ -348,13 +348,16 @@
         {{-- Corregir a quién se factura: solo datos de Hacienda, nunca montos. --}}
         @if (auth()->user()->isAdmin() && $invoice->status !== \App\Models\Invoice::STATUS_CANCELLED)
             @php
-                $comprobanteFijo = $invoice->electronicInvoice
+                // Aceptado sí se corrige (nota de crédito + comprobante nuevo);
+                // mientras Hacienda no contesta, no.
+                $comprobanteAceptado = $invoice->electronicInvoice?->status === \App\Models\ElectronicInvoice::STATUS_ACCEPTED;
+                $comprobanteFijo = $invoice->electronicInvoice && ! $comprobanteAceptado
                     && ! in_array($invoice->electronicInvoice->status, [\App\Models\ElectronicInvoice::STATUS_PENDING, \App\Models\ElectronicInvoice::STATUS_REJECTED], true);
             @endphp
             <div class="mt-3">
                 @if ($comprobanteFijo)
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        El comprobante ya se envió a Hacienda: los datos de facturación no se pueden cambiar. Si hay un error, corregilo con una nota de crédito.
+                        El comprobante está en Hacienda esperando respuesta: los datos de facturación se pueden corregir cuando lo acepten o rechacen.
                     </p>
                 @elseif (! $showBillingForm)
                     <x-action-button action="openBillingForm" variant="secondary" loadingText="Abriendo..." class="!py-1.5 !px-3 text-sm">
@@ -368,7 +371,10 @@
                     <h3 class="font-semibold mb-1">Datos de facturación</h3>
                     <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
                         Solo cambia a quién se factura; los montos no se tocan.
-                        @if ($invoice->electronicInvoice)
+                        @if ($comprobanteAceptado)
+                            El {{ $invoice->electronicInvoice->typeLabel() }} {{ $invoice->electronicInvoice->consecutivo }} ya fue aceptado por Hacienda:
+                            se anula con una nota de crédito (que se envía de una vez) y se emite un comprobante nuevo, que queda pendiente de envío.
+                        @elseif ($invoice->electronicInvoice)
                             Su comprobante pendiente se rehace con clave nueva.
                         @endif
                     </p>
@@ -385,7 +391,9 @@
                     @endif
                     <div class="flex gap-3 mt-4">
                         <x-action-button action="guardarFacturacion" variant="primary" loadingText="Guardando..."
-                            confirm="¿Guardar los datos de facturación? Queda registrado en la bitácora.">
+                            confirm="{{ $comprobanteAceptado
+                                ? '¿Anular el comprobante aceptado con una nota de crédito y emitir uno nuevo? Se consumen dos consecutivos. Queda registrado en la bitácora.'
+                                : '¿Guardar los datos de facturación? Queda registrado en la bitácora.' }}">
                             <x-icon name="check" class="w-4 h-4" /> Guardar
                         </x-action-button>
                         <button type="button" wire:click="$set('showBillingForm', false)" class="btn-secondary">Cancelar</button>
@@ -580,6 +588,32 @@
                             <x-action-button action="issueNote" variant="primary" loadingText="Emitiendo...">Emitir y enviar</x-action-button>
                             <x-action-button action="closeNoteForm" variant="link-muted">Cancelar</x-action-button>
                         </div>
+                    </div>
+                @endif
+
+                {{-- Los que se anularon con nota y se reemplazaron por el de arriba. --}}
+                @php
+                    $reemplazados = $invoice->electronicInvoices
+                        ->whereIn('document_type', ['01', '04'])
+                        ->where('id', '!=', $ei->id)
+                        ->sortByDesc('id');
+                @endphp
+                @if ($reemplazados->isNotEmpty())
+                    <div class="mt-4 border-t border-gray-100 dark:border-gray-700 pt-3">
+                        <h4 class="font-semibold text-sm mb-2">Comprobantes reemplazados</h4>
+                        <ul class="space-y-1 text-sm">
+                            @foreach ($reemplazados as $anterior)
+                                <li class="flex flex-wrap items-baseline justify-between gap-2">
+                                    <span>{{ $anterior->typeLabel() }} · {{ $anterior->consecutivo }}</span>
+                                    <span class="text-gray-500">
+                                        ₡{{ number_format((float) $anterior->total, 2) }} · {{ $anterior->statusLabel() }}
+                                        @if ($anterior->pdf_path)
+                                            <a href="{{ route('electronic-invoices.pdf', $anterior) }}" target="_blank" class="text-brand-600 ml-2">PDF</a>
+                                        @endif
+                                    </span>
+                                </li>
+                            @endforeach
+                        </ul>
                     </div>
                 @endif
 

@@ -50,9 +50,25 @@ class TipoComprobanteTest extends TestCase
             ->set('items.0.price', 10000);
     }
 
-    public function test_por_defecto_se_emite_tiquete(): void
+    /**
+     * Una guía nueva arranca en Factura Electrónica: olvidarse de marcarla
+     * dejaba un tiquete que, ya aceptado, solo se arreglaba con nota de crédito.
+     * Sin cédula no se guarda hasta que alguien elija tiquete a conciencia.
+     */
+    public function test_por_defecto_se_emite_factura_y_sin_cedula_no_se_guarda(): void
     {
-        $this->formulario()->assertSet('wantsInvoice', false)->call('save')->assertHasNoErrors();
+        $this->formulario()
+            ->assertSet('wantsInvoice', true)
+            ->call('save')
+            ->assertHasErrors('recipient_identification')
+            ->assertSee('desmarcá «Emitir Factura Electrónica»');
+
+        $this->assertSame(0, Invoice::count());
+    }
+
+    public function test_desmarcando_se_emite_tiquete(): void
+    {
+        $this->formulario()->set('wantsInvoice', false)->call('save')->assertHasNoErrors();
 
         $invoice = Invoice::firstOrFail();
         $this->assertSame(Invoice::BILL_TICKET, $invoice->bill_type);
@@ -110,6 +126,7 @@ class TipoComprobanteTest extends TestCase
     public function test_un_tiquete_guarda_la_identificacion_opcional(): void
     {
         $this->formulario()
+            ->set('wantsInvoice', false)
             ->set('recipient_identification_type', '01')
             ->set('recipient_identification', '1-1234-0567')
             ->call('save')
@@ -124,7 +141,7 @@ class TipoComprobanteTest extends TestCase
 
     public function test_un_tiquete_sin_identificacion_no_guarda_tipo(): void
     {
-        $this->formulario()->call('save')->assertHasNoErrors();
+        $this->formulario()->set('wantsInvoice', false)->call('save')->assertHasNoErrors();
 
         $invoice = Invoice::firstOrFail();
         $this->assertNull($invoice->recipient_identification);

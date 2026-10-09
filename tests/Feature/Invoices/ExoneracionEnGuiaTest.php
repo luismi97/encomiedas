@@ -57,6 +57,7 @@ class ExoneracionEnGuiaTest extends TestCase
 
         return Livewire::actingAs($this->admin())
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('pickup_branch_id', $this->sj->id)
             ->set('delivery_branch_id', $al->id)
             ->set('recipient_name', 'José Fernández')

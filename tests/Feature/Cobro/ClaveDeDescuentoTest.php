@@ -53,6 +53,7 @@ class ClaveDeDescuentoTest extends TestCase
     {
         return Livewire::actingAs($this->cajero)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('pickup_branch_id', $this->sj->id)
             ->set('delivery_branch_id', $this->lim->id)
             ->set('sender_name', 'Marta')

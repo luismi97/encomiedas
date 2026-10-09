@@ -52,6 +52,7 @@ class SedesDistintasTest extends TestCase
     {
         return Livewire::actingAs($this->admin)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('sender_name', 'Marta Solano')
             ->set('recipient_name', 'José Fernández')
             ->set('items.0.package_code', 'PKG-1')

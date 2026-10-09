@@ -156,6 +156,17 @@ class ElectronicInvoice extends Model
         return $this->status === self::STATUS_ACCEPTED;
     }
 
+    /** Total del comprobante menos las notas de crédito que ya tiene (salvo rechazadas). */
+    public function saldoSinAcreditar(): float
+    {
+        $acreditado = (float) $this->referencedNotes()
+            ->where('document_type', '03')
+            ->where('status', '!=', self::STATUS_REJECTED)
+            ->sum('total');
+
+        return round((float) $this->total - $acreditado, 5);
+    }
+
     public function typeLabel(): string
     {
         return match ($this->document_type) {

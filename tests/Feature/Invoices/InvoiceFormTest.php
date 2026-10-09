@@ -44,6 +44,7 @@ class InvoiceFormTest extends TestCase
     {
         return Livewire::actingAs($this->admin())
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('pickup_branch_id', $a->id)
             ->set('delivery_branch_id', $b->id)
             ->set('sender_name', 'Marta Solano')

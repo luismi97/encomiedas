@@ -62,6 +62,7 @@ class CajaPropiaTest extends TestCase
     {
         return Livewire::actingAs($quien)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('pickup_branch_id', $this->sj->id)
             ->set('delivery_branch_id', $this->lim->id)
             ->set('sender_name', 'Marta')
@@ -115,6 +116,7 @@ class CajaPropiaTest extends TestCase
 
         Livewire::actingAs($enLimon)
             ->test(InvoiceForm::class)
+            ->set('wantsInvoice', false)
             ->set('pickup_branch_id', $this->sj->id)
             ->set('delivery_branch_id', $this->lim->id)
             ->set('sender_name', 'Marta')

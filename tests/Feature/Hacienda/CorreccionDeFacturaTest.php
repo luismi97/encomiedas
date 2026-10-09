@@ -101,15 +101,91 @@ class CorreccionDeFacturaTest extends TestCase
         $this->assertSame('523101', $guia->receptorDeFactura()['activity_code']);
     }
 
-    public function test_un_comprobante_aceptado_no_se_toca(): void
+    /**
+     * El caso que quedaba trabado: el tiquete ya fue aceptado y después el
+     * cliente pidió factura. Se anula con nota de crédito y sale una factura
+     * nueva, pendiente de envío.
+     */
+    public function test_un_tiquete_aceptado_se_anula_con_nota_y_sale_una_factura_nueva(): void
+    {
+        $guia = $this->tiquete();
+        $tiquete = $this->markAccepted(app(ElectronicBillingService::class)->queueForInvoice($guia));
+
+        app(CorreccionDeFactura::class)->corregir($guia, $this->admin, self::DATOS);
+
+        $nota = ElectronicInvoice::where('reference_invoice_id', $tiquete->id)->sole();
+        $this->assertSame('03', $nota->document_type);
+        $this->assertEqualsWithDelta((float) $tiquete->total, (float) $nota->total, 0.001);
+        $this->assertSame(0.0, $tiquete->fresh()->saldoSinAcreditar());
+
+        $nueva = $guia->fresh()->electronicInvoice;
+        $this->assertNotSame($tiquete->id, $nueva->id);
+        $this->assertSame('01', $nueva->document_type);
+        $this->assertSame(ElectronicInvoice::STATUS_PENDING, $nueva->status);
+        $this->assertSame('3101654321', $nueva->receptor_data['numero']);
+        $this->assertSame(ElectronicInvoice::STATUS_ACCEPTED, $tiquete->fresh()->status);
+    }
+
+    /** Si la nota ya se había emitido a mano, no se emite otra. */
+    public function test_si_ya_estaba_acreditado_no_emite_otra_nota(): void
+    {
+        $guia = $this->tiquete();
+        $servicio = app(ElectronicBillingService::class);
+        $tiquete = $this->markAccepted($servicio->queueForInvoice($guia));
+        $servicio->issueNote($tiquete, 'NC', 'Anulación manual del tiquete', (float) $tiquete->total);
+
+        app(CorreccionDeFactura::class)->corregir($guia, $this->admin, self::DATOS);
+
+        $this->assertSame(1, ElectronicInvoice::where('reference_invoice_id', $tiquete->id)->count());
+        $this->assertSame('01', $guia->fresh()->electronicInvoice->document_type);
+    }
+
+    /** Anular y reemitir gasta dos consecutivos: no por guardar lo mismo. */
+    public function test_un_aceptado_con_los_mismos_datos_no_se_reemite(): void
+    {
+        $guia = $this->tiquete();
+        $this->markAccepted(app(ElectronicBillingService::class)->queueForInvoice($guia));
+
+        try {
+            app(CorreccionDeFactura::class)->corregir($guia, $this->admin, null);
+            $this->fail('Debió rechazar la corrección sin cambios.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('no hay nada que corregir', $e->getMessage());
+        }
+
+        $this->assertSame(1, ElectronicInvoice::where('invoice_id', $guia->id)->count());
+    }
+
+    public function test_mientras_hacienda_no_contesta_no_se_toca(): void
     {
         $guia = $this->tiquete();
         app(ElectronicBillingService::class)->queueForInvoice($guia)
-            ->forceFill(['status' => ElectronicInvoice::STATUS_ACCEPTED])->save();
+            ->forceFill(['status' => ElectronicInvoice::STATUS_SENT])->save();
 
-        $this->expectExceptionMessage('nota de crédito');
+        $this->expectExceptionMessage('Esperá la respuesta');
 
         app(CorreccionDeFactura::class)->corregir($guia, $this->admin, self::DATOS);
+    }
+
+    public function test_desde_la_pantalla_con_el_tiquete_ya_aceptado(): void
+    {
+        $guia = $this->tiquete();
+        $this->markAccepted(app(ElectronicBillingService::class)->queueForInvoice($guia));
+
+        Livewire::actingAs($this->admin)
+            ->test(InvoiceShow::class, ['invoice' => $guia])
+            ->assertSee('Corregir datos de facturación')
+            ->call('openBillingForm')
+            ->assertSee('se anula con una nota de crédito')
+            ->set('quiereFactura', true)
+            ->set('facturaTipoId', '02')
+            ->set('facturaId', '3101654321')
+            ->set('facturaNombre', 'Importadora Solano S.A.')
+            ->call('guardarFacturacion')
+            ->assertHasNoErrors()
+            ->assertSee('Comprobantes reemplazados');
+
+        $this->assertSame('01', $guia->fresh()->electronicInvoice->document_type);
     }
 
     public function test_solo_el_administrador(): void
