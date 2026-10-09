@@ -262,6 +262,54 @@
             el.querySelector('input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea')
                 ?.focus({ preventScroll: true });
         };
+
+        // Llevar al primer error tras guardar. El botón está al pie y el error
+        // suele quedar junto a un campo de arriba, fuera de la pantalla: quien
+        // guardó no veía nada y creía que no había pasado nada.
+        window.mostrarPrimerError = function (raiz) {
+            const visible = (el) => el.getClientRects().length > 0;
+            const aviso = Array.from(raiz.querySelectorAll('[data-aviso-error], .error-text, [data-resumen-errores]'))
+                .find(visible);
+
+            if (!aviso) {
+                return;
+            }
+
+            aviso.style.scrollMarginTop = '5rem';
+            aviso.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // Junto al mensaje de un campo, el cursor queda listo en ese campo.
+            if (aviso.matches('.error-text')) {
+                aviso.parentElement
+                    ?.querySelector('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([disabled]), select:not([disabled]), textarea')
+                    ?.focus({ preventScroll: true });
+            }
+        };
+
+        // Solo tras enviar un formulario (wire:submit): Livewire conserva los
+        // errores entre peticiones, y sin esta condición cualquier clic
+        // —«Agregar paquete», recotizar— volvería a saltar al error viejo.
+        document.addEventListener('livewire:init', function () {
+            const enviados = new Set();
+
+            document.addEventListener('submit', function (e) {
+                const esLivewire = Array.from(e.target.attributes || []).some((a) => a.name.startsWith('wire:submit'));
+                const raiz = e.target.closest('[wire\\:id]');
+
+                if (esLivewire && raiz) {
+                    enviados.add(raiz.getAttribute('wire:id'));
+                }
+            }, true);
+
+            Livewire.hook('commit', function ({ component, succeed }) {
+                if (!enviados.has(component.id)) {
+                    return;
+                }
+
+                enviados.delete(component.id);
+                succeed(() => requestAnimationFrame(() => window.mostrarPrimerError(component.el)));
+            });
+        });
     </script>
 </body>
 </html>

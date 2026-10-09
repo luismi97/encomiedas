@@ -612,6 +612,8 @@
             </div>
         </div>
 
+        <x-resumen-errores titulo="No se guardó la guía." />
+
         <div class="flex gap-3">
             <x-action-button type="submit" target="save" variant="primary" loadingText="Guardando..."><x-icon name="check" class="w-4 h-4" /> Guardar factura</x-action-button>
             <a href="{{ route('invoices.index') }}" class="btn-secondary">Cancelar</a>

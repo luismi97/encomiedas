@@ -112,7 +112,7 @@ test.describe('Facturas', () => {
 
   /* ─────────────────── 1.2 Qué comprobante sale ─────────────────── */
 
-  test('por defecto sale tiquete electrónico', async ({ page }) => {
+  test('desmarcando la factura sale tiquete electrónico', async ({ page }) => {
     const empresa = await empresaOperando(page);
     await abrirCaja(page, { sede: empresa.origen, fondo: 10000 });
 
@@ -165,6 +165,13 @@ test.describe('Facturas', () => {
 
     await expect(page.locator('body')).toContainText('identificación del receptor');
     await expect(page).not.toHaveURL(/\/invoices\/\d+/);
+
+    // Quien guardó está al pie: se lo lleva al campo que falta y se le resume
+    // el error junto al botón.
+    const cedula = page.locator('[wire\\:model\\.blur="recipient_identification"]');
+    await expect(cedula).toBeInViewport();
+    await expect(cedula).toBeFocused();
+    await expect(page.locator('[data-resumen-errores]')).toContainText('No se guardó la guía.');
   });
 
   /* ─────────────────── 1.3 Cómo se paga ─────────────────── */

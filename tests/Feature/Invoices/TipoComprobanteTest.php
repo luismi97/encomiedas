@@ -66,6 +66,15 @@ class TipoComprobanteTest extends TestCase
         $this->assertSame(0, Invoice::count());
     }
 
+    /** El error se ve junto al botón de guardar, no solo junto al campo de más arriba. */
+    public function test_al_fallar_el_guardado_se_resume_junto_al_boton(): void
+    {
+        $this->formulario()
+            ->call('save')
+            ->assertSeeHtml('data-resumen-errores')
+            ->assertSee('No se guardó la guía.');
+    }
+
     public function test_desmarcando_se_emite_tiquete(): void
     {
         $this->formulario()->set('wantsInvoice', false)->call('save')->assertHasNoErrors();
