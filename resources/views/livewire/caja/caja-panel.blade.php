@@ -380,7 +380,13 @@
                 <tbody>
                     @forelse ($historial as $t)
                         <tr class="border-b border-gray-100 dark:border-gray-700/50">
-                            <td class="py-2 text-sm">{{ $t->register?->name }} · {{ $t->register?->branch?->name }}</td>
+                            @php($sedeTurno = $t->branch ?? $t->register?->branch)
+                            <td class="py-2 text-sm">
+                                {{-- Varias sedes tienen su «Caja principal»: sin la sede delante no se distinguen. --}}
+                                <span class="badge bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 font-mono" title="{{ $sedeTurno?->name ?? 'Sin sede' }}">{{ $sedeTurno?->prefixLabel() ?: '—' }}</span>
+                                {{ $t->register?->name }}
+                                <span class="block text-xs text-gray-500 dark:text-gray-400">{{ $sedeTurno?->name ?? 'Sin sede' }}</span>
+                            </td>
                             <td class="py-2 text-sm">{{ $t->closed_at?->format('d/m/Y H:i') }}</td>
                             <td class="py-2 text-sm">{{ $t->closer?->name }}</td>
                             <td class="py-2 text-right text-sm">₡{{ number_format((float) $t->expected_cash, 2) }}</td>

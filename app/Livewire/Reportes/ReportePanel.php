@@ -286,13 +286,15 @@ class ReportePanel extends Component
 
     private function cierresDeCaja(): array
     {
-        $filas = CashSession::with(['register.branch', 'closer'])
+        $filas = CashSession::with(['branch', 'register.branch', 'closer'])
             ->where('status', CashSession::STATUS_CLOSED)
             ->whereBetween('closed_at', [$this->desde(), $this->hasta()])
             ->when($this->branchId, fn ($q) => $q->where('branch_id', $this->branchId))
             ->get()
             ->map(fn (CashSession $s) => [
-                'etiqueta' => ($s->register?->name ?? 'Caja') . ' · ' . $s->closed_at?->format('d/m/Y H:i'),
+                // El prefijo de la sede delante: «Caja principal» se repite en cada sede.
+                'etiqueta' => (($s->branch ?? $s->register?->branch)?->prefixLabel() ?: 'Sin sede')
+                    . ' · ' . ($s->register?->name ?? 'Caja') . ' · ' . $s->closed_at?->format('d/m/Y H:i'),
                 'extra'    => $s->closer?->name . ' · esperado ₡' . number_format((float) $s->expected_cash, 2),
                 'cantidad' => $s->cuadra() ? 0 : 1,
                 'monto'    => (float) $s->discrepancy,

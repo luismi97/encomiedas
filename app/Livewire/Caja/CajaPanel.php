@@ -382,7 +382,7 @@ class CajaPanel extends Component
             'ultimaCobrada' => $this->ultimaCobradaId ? Invoice::find($this->ultimaCobradaId) : null,
             'sinSedes'      => ! Branch::where('is_active', true)->exists(),
             'puedeCrearCajas' => auth()->user()->puedeConfigurar(),
-            'historial'     => CashSession::with(['opener', 'closer', 'register.branch'])
+            'historial'     => CashSession::with(['opener', 'closer', 'branch', 'register.branch'])
                 ->where('status', CashSession::STATUS_CLOSED)
                 ->latest('closed_at')
                 ->limit(10)
