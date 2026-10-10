@@ -3,12 +3,15 @@
 namespace App\Livewire\Reportes;
 
 use App\Models\Branch;
+use App\Models\CashMovement;
 use App\Models\CashSession;
 use App\Models\CreditStatement;
 use App\Models\ElectronicInvoice;
 use App\Models\Invoice;
 use App\Models\CompanySetting;
+use App\Models\User;
 use App\Notifications\EnviarReporteContable;
+use App\Services\CajaService;
 use App\Services\CreditoService;
 use App\Services\ReporteContable;
 use Illuminate\Support\Facades\Notification;
@@ -31,6 +34,12 @@ class ReportePanel extends Component
 
     /** Cédula del cliente cuyo detalle se mira en «Facturas por cliente». */
     public string $cliente = '';
+
+    /** Cajero de «Cierres de caja»: quien abrió el turno y responde por el arqueo. */
+    public $cajeroId = null;
+
+    /** Turno cuyo detalle se mira en «Cierres de caja». */
+    public ?int $turno = null;
 
     public const REPORTES = [
         'estados'    => 'Guías por estado',
@@ -64,6 +73,10 @@ class ReportePanel extends Component
         }
         $this->cliente = preg_replace('/\D/', '', (string) request()->query('cliente'));
 
+        // Cada fila de «Cierres de caja» es un link a ?reporte=caja&turno=<id>,
+        // para poder abrir el detalle en otra pestaña.
+        $this->turno = ((int) request()->query('turno')) ?: null;
+
         // Lo que un cliente tiene facturado no es «lo de este mes»: se abre
         // con el año, que es lo que suele preguntar.
         if ($this->cliente !== '') {
@@ -76,9 +89,15 @@ class ReportePanel extends Component
         $this->cliente = preg_replace('/\D/', '', $cedula);
     }
 
+    public function verTurno(int $id): void
+    {
+        $this->turno = $id;
+    }
+
     public function updatedReporte(): void
     {
         $this->cliente = '';
+        $this->turno = null;
     }
 
     /** Los reportes que este usuario puede elegir. */
@@ -137,6 +156,10 @@ class ReportePanel extends Component
         return view('livewire.reportes.reporte-panel', [
             'datos'    => $this->calcular($credito),
             'branches' => Branch::orderBy('name')->get(['id', 'name']),
+            // Solo quienes han abierto algún turno: un chofer no tiene nada que filtrar.
+            'cajeros'  => $this->reporte === 'caja'
+                ? User::whereIn('id', CashSession::select('opened_by'))->orderBy('name')->get(['id', 'name'])
+                : collect(),
         ])->layout('layouts.app', ['title' => 'Reportes']);
     }
 
@@ -284,23 +307,56 @@ class ReportePanel extends Component
         return ['columnas' => ['Antigüedad', 'Estados', 'Saldo'], 'filas' => $filas];
     }
 
+    /**
+     * Turnos cerrados en el período, y el detalle de uno al elegirlo.
+     *
+     * El cajero es quien abrió el turno, no quien lo cerró: el arqueo responde
+     * por quien manejó el dinero, y un administrador que cierra el turno de
+     * alguien que se fue sin hacerlo no pasa a ser el dueño del faltante.
+     */
     private function cierresDeCaja(): array
     {
-        $filas = CashSession::with(['branch', 'register.branch', 'closer'])
+        if ($this->turno && $detalle = $this->detalleDeTurno($this->turno)) {
+            return $detalle;
+        }
+
+        $this->turno = null;
+
+        $filas = CashSession::with(['branch', 'register.branch', 'opener', 'closer'])
             ->where('status', CashSession::STATUS_CLOSED)
             ->whereBetween('closed_at', [$this->desde(), $this->hasta()])
             ->when($this->branchId, fn ($q) => $q->where('branch_id', $this->branchId))
-            ->get()
-            ->map(fn (CashSession $s) => [
-                // El prefijo de la sede delante: «Caja principal» se repite en cada sede.
-                'etiqueta' => (($s->branch ?? $s->register?->branch)?->prefixLabel() ?: 'Sin sede')
-                    . ' · ' . ($s->register?->name ?? 'Caja') . ' · ' . $s->closed_at?->format('d/m/Y H:i'),
-                'extra'    => $s->closer?->name . ' · esperado ₡' . number_format((float) $s->expected_cash, 2),
-                'cantidad' => $s->cuadra() ? 0 : 1,
-                'monto'    => (float) $s->discrepancy,
-            ]);
+            ->when($this->cajeroId, fn ($q) => $q->where('opened_by', $this->cajeroId))
+            ->latest('closed_at')
+            ->get();
 
-        return ['columnas' => ['Turno', 'Cajero', 'Descuadres', 'Diferencia'], 'filas' => $filas, 'conExtra' => true];
+        return ['vista' => 'resumen', 'filas' => $filas];
+    }
+
+    private function detalleDeTurno(int $id): ?array
+    {
+        $sesion = CashSession::with([
+            'branch', 'register.branch', 'opener', 'closer',
+            'movements.invoice:id,code', 'movements.creator:id,name', 'counts.denomination',
+        ])->find($id);
+
+        if (! $sesion) {
+            return null;
+        }
+
+        $efectivo = $sesion->movements->where('payment_method', 'cash');
+
+        return [
+            'vista'    => 'detalle',
+            'sesion'   => $sesion,
+            'porMedio' => app(CajaService::class)->totalesPorMedio($sesion),
+            // De dónde sale el esperado, para poder rehacer la cuenta a mano.
+            'desglose' => [
+                'cobros'   => (float) $efectivo->where('type', CashMovement::TYPE_SALE)->sum('amount'),
+                'entradas' => (float) $efectivo->where('type', CashMovement::TYPE_IN)->sum('amount'),
+                'salidas'  => (float) $efectivo->where('type', CashMovement::TYPE_OUT)->sum('amount'),
+            ],
+        ];
     }
 
     private function facturacionElectronica(): array

@@ -12,14 +12,27 @@
             <div><label class="label">Desde</label><input type="date" wire:model.live="from" class="input"></div>
             <div><label class="label">Hasta</label><input type="date" wire:model.live="to" class="input"></div>
         </div>
-        <div class="sm:max-w-xs">
-            <label class="label">Sede</label>
-            <select wire:model.live="branchId" class="input">
-                <option value="">Todas las sedes</option>
-                @foreach ($branches as $branch)
-                    <option value="{{ $branch->id }}">{{ $branch->name }}</option>
-                @endforeach
-            </select>
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+                <label class="label">Sede</label>
+                <select wire:model.live="branchId" class="input">
+                    <option value="">Todas las sedes</option>
+                    @foreach ($branches as $branch)
+                        <option value="{{ $branch->id }}">{{ $branch->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            @if ($reporte === 'caja')
+                <div>
+                    <label class="label">Cajero</label>
+                    <select wire:model.live="cajeroId" class="input" data-test="filtro-cajero">
+                        <option value="">Todos los cajeros</option>
+                        @foreach ($cajeros as $cajero)
+                            <option value="{{ $cajero->id }}">{{ $cajero->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
         </div>
     </div>
 
@@ -27,6 +40,8 @@
         @include('livewire.reportes.contable')
     @elseif ($reporte === 'clientes')
         @include('livewire.reportes.clientes')
+    @elseif ($reporte === 'caja')
+        @include('livewire.reportes.caja')
     @else
     <div class="card">
         <h2 class="text-lg font-semibold mb-4">
