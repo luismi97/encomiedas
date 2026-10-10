@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Branch;
+use App\Models\CompanySetting;
 use App\Models\ElectronicInvoice;
 use App\Services\Hacienda\ElectronicBillingService;
 use App\Notifications\CambioDeEstadoGuia;
@@ -513,6 +514,11 @@ class GuideStatusService
     private function avisarAlDestinatario(Invoice $guia): void
     {
         if (! CambioDeEstadoGuia::aplicaA($guia->status) || blank($guia->recipient_email)) {
+            return;
+        }
+
+        // El hosting limita los envíos: la empresa puede apagar cada aviso.
+        if (! CompanySetting::correoActivo(CambioDeEstadoGuia::AJUSTE_POR_ESTADO[$guia->status], $guia->company_id)) {
             return;
         }
 

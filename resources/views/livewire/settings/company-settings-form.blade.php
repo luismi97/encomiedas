@@ -172,6 +172,21 @@
                 </div>
             </div>
 
+            <h3 class="font-semibold text-lg border-b border-gray-200 dark:border-gray-700 pb-2">Correos automáticos</h3>
+            <div class="-mt-2 space-y-3" data-test="correos-opcionales">
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Si el hosting limita cuántos correos se pueden enviar, apagá los que no necesitás.
+                    El comprobante electrónico al cliente se envía siempre: Hacienda obliga a entregárselo.
+                    Los correos que se mandan a mano (cotizaciones, reporte contable, reenvío de un comprobante) no dependen de esto.
+                </p>
+                @foreach (\App\Models\CompanySetting::CORREOS_OPCIONALES as $columna => $etiqueta)
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" wire:model="correos.{{ $columna }}" class="rounded w-5 h-5">
+                        <span>{{ $etiqueta }}</span>
+                    </label>
+                @endforeach
+            </div>
+
             <h3 class="font-semibold text-lg border-b border-gray-200 dark:border-gray-700 pb-2">Credenciales ATV y certificado</h3>
 
             @if ($unreadableFields)

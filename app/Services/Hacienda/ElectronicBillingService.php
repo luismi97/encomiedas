@@ -776,6 +776,12 @@ class ElectronicBillingService
             Log::info("Hacienda: comprobante {$electronicInvoice->clave} sin correo del receptor, no se envía.");
         }
 
+        // La copia sí se puede apagar: Hacienda no la exige y cuesta un envío
+        // por comprobante en un hosting que limita los correos.
+        if (! CompanySetting::correoActivo('mail_copia_comprobantes', $electronicInvoice->company_id)) {
+            return;
+        }
+
         $empresa = $this->correoDeLaEmpresa($electronicInvoice);
 
         if ($empresa && strcasecmp($empresa, (string) $email) !== 0) {

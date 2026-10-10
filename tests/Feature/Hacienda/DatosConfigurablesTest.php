@@ -34,8 +34,14 @@ class DatosConfigurablesTest extends TestCase
                 'discount_code_verifier', // se deriva de la clave de descuentos
             ]));
 
+        // Los correos opcionales se editan recorriendo la lista del modelo.
+        $porLista = str_contains($componente, 'CompanySetting::CORREOS_OPCIONALES')
+            ? array_keys(CompanySetting::CORREOS_OPCIONALES)
+            : [];
+
         $faltantes = $columnas->reject(
             fn ($c) => str_contains($componente, "'{$c}'") || str_contains($componente, '$this->' . $c)
+                || in_array($c, $porLista, true)
         );
 
         $this->assertEmpty(

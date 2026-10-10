@@ -104,6 +104,17 @@ class CopiaYReenvioDeComprobanteTest extends TestCase
         $this->assertTrue($this->enviadoA('facturacion@encomiendas.test'), 'Copia al correo de los datos de Hacienda.');
     }
 
+    /** El hosting limita los envíos: la copia se apaga, la del cliente no. */
+    public function test_con_la_copia_apagada_solo_llega_al_cliente(): void
+    {
+        Notification::fake();
+
+        $this->aceptar($this->enviado(['mail_copia_comprobantes' => false]));
+
+        Notification::assertSentOnDemandTimes(SendElectronicInvoice::class, 1);
+        $this->assertTrue($this->enviadoA('jose@cliente.test'), 'Hacienda obliga a entregárselo al cliente.');
+    }
+
     public function test_sin_correo_del_cliente_igual_llega_la_copia_a_la_empresa(): void
     {
         Notification::fake();

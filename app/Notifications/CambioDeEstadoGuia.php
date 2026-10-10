@@ -25,6 +25,13 @@ class CambioDeEstadoGuia extends Notification implements ShouldQueue
         Invoice::STATUS_DELIVERED,
     ];
 
+    /** El interruptor de Configuración que apaga el aviso de cada estado. */
+    public const AJUSTE_POR_ESTADO = [
+        Invoice::STATUS_AT_DESTINATION => 'mail_aviso_en_destino',
+        Invoice::STATUS_NEAR_DISPOSAL  => 'mail_aviso_por_desechar',
+        Invoice::STATUS_DELIVERED      => 'mail_aviso_entregado',
+    ];
+
     public function __construct(public Invoice $guia)
     {
     }

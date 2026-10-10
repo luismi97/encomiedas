@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToCompany;
+use App\Scopes\CompanyScope;
 use App\Support\CompanyContext;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Model;
@@ -39,6 +40,24 @@ class CompanySetting extends Model
         'insurance_percent',
         'discount_authorization_code',
         'offline_mode',
+        'mail_copia_comprobantes',
+        'mail_aviso_en_destino',
+        'mail_aviso_por_desechar',
+        'mail_aviso_entregado',
+    ];
+
+    /**
+     * Los correos que se pueden apagar, con lo que dice la pantalla de cada uno.
+     *
+     * El comprobante al cliente no está: Hacienda obliga a entregárselo. Los
+     * correos que alguien manda a mano (cotización, reporte contable, reenvío)
+     * tampoco: si se apretó el botón, es que se quería mandar.
+     */
+    public const CORREOS_OPCIONALES = [
+        'mail_copia_comprobantes' => 'Copia de cada comprobante electrónico al correo de la empresa',
+        'mail_aviso_en_destino'   => 'Aviso al destinatario: la encomienda llegó y puede retirarla',
+        'mail_aviso_por_desechar' => 'Aviso al destinatario: la encomienda está próxima a desecho',
+        'mail_aviso_entregado'    => 'Aviso al destinatario: la encomienda fue entregada',
     ];
 
     /** Iteraciones del verificador de la clave de descuentos sin conexión. */
@@ -49,6 +68,10 @@ class CompanySetting extends Model
         return [
             'enabled' => 'boolean',
             'offline_mode' => 'boolean',
+            'mail_copia_comprobantes' => 'boolean',
+            'mail_aviso_en_destino' => 'boolean',
+            'mail_aviso_por_desechar' => 'boolean',
+            'mail_aviso_entregado' => 'boolean',
             'atv_username' => 'encrypted',
             'atv_password' => 'encrypted',
             'certificate_pin' => 'encrypted',
@@ -82,6 +105,27 @@ class CompanySetting extends Model
      * regla del recibo y de la etiqueta: lo que el cliente ve impreso y lo que
      * el cajero ve en pantalla tienen que ser la misma empresa.
      */
+    /**
+     * ¿La empresa quiere que salga este correo?
+     *
+     * Por la empresa dueña de la guía o del comprobante y no por la del
+     * contexto: el aviso de desecho lo manda el cron, y la cola procesa
+     * comprobantes de todas las empresas. Sin configuración, sale: es lo que
+     * hacía el sistema antes de que esto se pudiera apagar.
+     */
+    public static function correoActivo(string $correo, ?int $companyId): bool
+    {
+        if (! array_key_exists($correo, self::CORREOS_OPCIONALES)) {
+            throw new RuntimeException("«{$correo}» no es un correo configurable.");
+        }
+
+        $activo = static::withoutGlobalScope(CompanyScope::class)
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId), fn ($q) => $q->whereNull('company_id'))
+            ->value($correo);
+
+        return $activo === null ? true : (bool) $activo;
+    }
+
     public static function marca(): string
     {
         $configuracion = static::deLaMarca();

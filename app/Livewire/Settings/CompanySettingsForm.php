@@ -84,6 +84,14 @@ class CompanySettingsForm extends Component
     public array $cabysResults = [];
     public ?string $cabysMessage = null;
 
+    /**
+     * Correos opcionales encendidos: columna => bool (ver CORREOS_OPCIONALES).
+     *
+     * Va al final a propósito: Livewire compara las propiedades en orden, y una
+     * nueva en el medio rompe las pestañas que quedaron abiertas de antes.
+     */
+    public array $correos = [];
+
     public function mount(): void
     {
         $settings = CompanySetting::instance();
@@ -108,6 +116,9 @@ class CompanySettingsForm extends Component
         $this->atv_username = (string) $settings->atv_username;
         $this->default_cabys_code = (string) $settings->default_cabys_code;
         $this->insurance_percent = (float) $settings->porcentajeDeSeguro();
+        $this->correos = collect(CompanySetting::CORREOS_OPCIONALES)
+            ->map(fn ($etiqueta, $columna) => $settings->{$columna} ?? true)
+            ->all();
         // La clave no se precarga: se muestra si ya hay una, no cuál es.
         $this->hasCertificate = filled($settings->certificate_path);
         $this->logoActual = $settings->logoUrl();
@@ -295,6 +306,10 @@ class CompanySettingsForm extends Component
             'default_cabys_code' => $data['default_cabys_code'],
             'insurance_percent' => $data['insurance_percent'],
         ]);
+
+        foreach (array_keys(CompanySetting::CORREOS_OPCIONALES) as $columna) {
+            $settings->{$columna} = (bool) ($this->correos[$columna] ?? true);
+        }
 
         // Solo se reescribe si se digitó algo: dejarla en blanco no debe
         // borrar la clave que ya estaba.
